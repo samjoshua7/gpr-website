@@ -1,0 +1,267 @@
+import { supabase } from '../../lib/supabaseClient';
+
+export const getSalesInvoices = async (searchQuery = '', statusFilter = '') => {
+  let query = supabase
+    .from('sales_invoices')
+    .select(`
+      *,
+      customers (
+        name
+      )
+    `)
+    .order('invoice_date', { ascending: false });
+
+  if (statusFilter && statusFilter !== 'all') {
+    query = query.eq('status', statusFilter);
+  }
+
+  const { data, error } = await query;
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  // Client-side post filtering for search queries
+  if (searchQuery.trim()) {
+    const cleanSearch = searchQuery.toLowerCase().trim();
+    return data.filter(
+      (inv) =>
+        inv.invoice_no?.toLowerCase().includes(cleanSearch) ||
+        inv.customers?.name?.toLowerCase().includes(cleanSearch)
+    );
+  }
+
+  return data;
+};
+
+export const getInvoiceById = async (id) => {
+  // Fetch invoice details
+  const { data: invoice, error: invoiceError } = await supabase
+    .from('sales_invoices')
+    .select(`
+      *,
+      customers (
+        name,
+        phone,
+        address,
+        gstin
+      ),
+      job_cards (
+        description
+      )
+    `)
+    .eq('invoice_id', id)
+    .single();
+
+  if (invoiceError) {
+    throw new Error(invoiceError.message);
+  }
+
+  // Fetch line items
+  const { data: items, error: itemsError } = await supabase
+    .from('sales_invoice_items')
+    .select('*')
+    .eq('invoice_id', id);
+
+  if (itemsError) {
+    throw new Error(itemsError.message);
+  }
+
+  return {
+    ...invoice,
+    items: items || [],
+  };
+};
+
+export const createSalesInvoice = async (invoiceData, lineItems) => {
+  // 1. Insert parent invoice
+  const { data: invoice, error: invoiceError } = await supabase
+    .from('sales_invoices')
+    .insert([
+      {
+        customer_id: invoiceData.customer_id,
+        job_id: invoiceData.job_id || null,
+        invoice_no: invoiceData.invoice_no,
+        invoice_date: invoiceData.invoice_date,
+        total_amount: parseFloat(invoiceData.total_amount),
+        amount_paid: 0.00,
+        status: 'unpaid',
+        tax_amount: parseFloat(invoiceData.tax_amount || 0),
+        gst_amount: parseFloat(invoiceData.gst_amount || 0),
+        notes: invoiceData.notes || null,
+        delivery_details: invoiceData.delivery_details || null,
+      },
+    ])
+    .select()
+    .single();
+
+  if (invoiceError) {
+    throw new Error(invoiceError.message);
+  }
+
+  // 2. Prepare and insert line items
+  const itemsPayload = lineItems.map((item) => ({
+    invoice_id: invoice.invoice_id,
+    item_id: item.item_id || null,
+    description: item.description,
+    quantity: parseFloat(item.quantity),
+    unit_price: parseFloat(item.unit_price),
+    discount_amount: parseFloat(item.discount_amount || 0),
+    gst_rate: parseFloat(item.gst_rate || 0),
+    tax_amount: parseFloat(item.tax_amount || 0),
+    amount: parseFloat(item.amount),
+    hsn_code: item.hsn_code || null,
+  }));
+
+  const { error: itemsError } = await supabase
+    .from('sales_invoice_items')
+    .insert(itemsPayload);
+
+  if (itemsError) {
+    // Attempt cleanup of orphaned invoice if line items fail
+    await supabase.from('sales_invoices').delete().eq('invoice_id', invoice.invoice_id);
+    throw new Error(`Failed to insert line items: ${itemsError.message}`);
+  }
+
+  return invoice;
+};
+
+export const voidSalesInvoice = async (id) => {
+  const { data, error } = await supabase
+    .from('sales_invoices')
+    .update({ status: 'void' })
+    .eq('invoice_id', id)
+    .select()
+    .single();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return data;
+};
+
+export const deleteSalesInvoice = async (id) => {
+  const { error } = await supabase
+    .from('sales_invoices')
+    .delete()
+    .eq('invoice_id', id);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return true;
+};
+
+/**
+ * Calculates and returns the next sequential invoice number based on GST type
+ */
+export const getNextInvoiceNumber = async (isGst, financialYear = '26-27') => {
+  const prefix = isGst ? `GPR/GST/${financialYear}/` : `GPR/NGST/${financialYear}/`;
+  
+  const { data, error } = await supabase
+    .from('sales_invoices')
+    .select('invoice_no')
+    .like('invoice_no', `${prefix}%`)
+    .order('invoice_no', { ascending: false })
+    .limit(1);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  if (data && data.length > 0) {
+    const lastNo = data[0].invoice_no;
+    const parts = lastNo.split('/');
+    const lastSeqStr = parts[parts.length - 1];
+    const lastSeq = parseInt(lastSeqStr, 10);
+    const nextSeq = isNaN(lastSeq) ? 1 : lastSeq + 1;
+    return `${prefix}${nextSeq.toString().padStart(6, '0')}`;
+  }
+
+  return `${prefix}000001`;
+};
+
+/**
+ * Queries the total outstanding balance for a customer (unpaid & partial invoices sum)
+ */
+export const getCustomerOutstandingBalance = async (customerId) => {
+  if (!customerId) return 0;
+  
+  const { data, error } = await supabase
+    .from('sales_invoices')
+    .select('total_amount, amount_paid')
+    .eq('customer_id', customerId)
+    .in('status', ['unpaid', 'partial']);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  const balance = data.reduce((sum, inv) => {
+    const tot = parseFloat(inv.total_amount) || 0;
+    const paid = parseFloat(inv.amount_paid) || 0;
+    return sum + (tot - paid);
+  }, 0);
+
+  return balance;
+};
+
+/**
+ * Queries active company settings
+ */
+export const getCompanySettings = async () => {
+  const { data, error } = await supabase
+    .from('company_settings')
+    .select('*')
+    .limit(1);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return data?.[0] || null;
+};
+
+/**
+ * Queries items catalog with joined tax rates for selection
+ */
+export const getInventoryItems = async () => {
+  const { data, error } = await supabase
+    .from('items')
+    .select(`
+      *,
+      tax_rates (
+        tax_rate_id,
+        tax_name,
+        percentage,
+        hsn_code
+      )
+    `)
+    .eq('active', true)
+    .order('name', { ascending: true });
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return data || [];
+};
+
+/**
+ * Queries active tax rates from database
+ */
+export const getTaxRates = async () => {
+  const { data, error } = await supabase
+    .from('tax_rates')
+    .select('*')
+    .eq('active', true)
+    .order('percentage', { ascending: true });
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return data || [];
+};
+
