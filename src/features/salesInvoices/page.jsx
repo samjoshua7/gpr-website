@@ -65,6 +65,7 @@ export const SalesInvoicesPage = () => {
   const [createOpen, setCreateOpen] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [selectedInvoiceId, setSelectedInvoiceId] = useState(null);
+  const [invoiceToEdit, setInvoiceToEdit] = useState(null);
 
   // Deletion Safeguard Dialogs
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -112,12 +113,19 @@ export const SalesInvoicesPage = () => {
   }, [location.state]);
 
   const handleCreateClick = () => {
+    setInvoiceToEdit(null);
     setCreateOpen(true);
   };
 
   const handleViewClick = (invoice) => {
     setSelectedInvoiceId(invoice.invoice_id);
     setDetailsOpen(true);
+  };
+
+  const handleEditClick = (invoice) => {
+    setDetailsOpen(false);
+    setInvoiceToEdit(invoice);
+    setCreateOpen(true);
   };
 
   const handleVoidClick = (invoice) => {
@@ -132,6 +140,7 @@ export const SalesInvoicesPage = () => {
       // Revert/Navigate back to Job Cards with a cancel flag
       navigate('/dashboard/jobs', { replace: true, state: { cancelKickoff: true, jobId: kickoffJob.job_id } });
     }
+    setInvoiceToEdit(null);
     setCreateOpen(false);
   };
 
@@ -386,19 +395,21 @@ export const SalesInvoicesPage = () => {
         </Table>
       </TableContainer>
 
+      {/* Details Viewer */}
+      <InvoiceDetailsDialog
+        open={detailsOpen}
+        onClose={() => setDetailsOpen(false)}
+        invoiceId={selectedInvoiceId}
+        onEdit={handleEditClick}
+      />
+
       {/* Dialog Form */}
       <InvoiceDialog
         open={createOpen}
         onClose={handleCloseCreate}
         onSaveSuccess={handleSaveSuccess}
         preselectedJob={kickoffJob}
-      />
-
-      {/* Details Dialog */}
-      <InvoiceDetailsDialog
-        open={detailsOpen}
-        onClose={() => setDetailsOpen(false)}
-        invoiceId={selectedInvoiceId}
+        editInvoice={invoiceToEdit}
       />
 
       {/* Cannot Delete Warn Dialog */}

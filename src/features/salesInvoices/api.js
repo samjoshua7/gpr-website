@@ -132,6 +132,70 @@ export const createSalesInvoice = async (invoiceData, lineItems) => {
   return invoice;
 };
 
+export const updateSalesInvoice = async (invoiceId, invoiceData, lineItems) => {
+  // 1. Update parent invoice
+  const { data: invoice, error: invoiceError } = await supabase
+    .from('sales_invoices')
+    .update({
+      customer_id: invoiceData.customer_id,
+      job_id: invoiceData.job_id || null,
+      invoice_date: invoiceData.invoice_date,
+      invoice_type: invoiceData.invoice_type || 'NON_GST',
+      customer_type: invoiceData.invoice_type === 'GST' ? (invoiceData.customer_type || 'B2C') : null,
+      is_interstate: !!invoiceData.is_interstate,
+      customer_name: invoiceData.customer_name || null,
+      customer_gstin: invoiceData.customer_gstin || null,
+      billing_address: invoiceData.billing_address || null,
+      shipping_address: invoiceData.shipping_address || null,
+      total_amount: parseFloat(invoiceData.total_amount),
+      tax_amount: parseFloat(invoiceData.tax_amount || 0),
+      gst_amount: parseFloat(invoiceData.gst_amount || 0),
+      notes: invoiceData.notes || null,
+      delivery_details: invoiceData.delivery_details || null,
+    })
+    .eq('invoice_id', invoiceId)
+    .select()
+    .single();
+
+  if (invoiceError) {
+    throw new Error(invoiceError.message);
+  }
+
+  // 2. Delete existing line items
+  const { error: deleteItemsError } = await supabase
+    .from('sales_invoice_items')
+    .delete()
+    .eq('invoice_id', invoiceId);
+    
+  if (deleteItemsError) {
+    throw new Error(`Failed to delete old line items: ${deleteItemsError.message}`);
+  }
+
+  // 3. Insert new line items
+  const itemsPayload = lineItems.map((item) => ({
+    invoice_id: invoiceId,
+    item_id: item.item_id || null,
+    description: item.description,
+    quantity: parseFloat(item.quantity),
+    unit_price: parseFloat(item.unit_price),
+    discount_amount: parseFloat(item.discount_amount || 0),
+    gst_rate: parseFloat(item.gst_rate || 0),
+    tax_amount: parseFloat(item.tax_amount || 0),
+    amount: parseFloat(item.amount),
+    hsn_code: item.hsn_code || null,
+  }));
+
+  const { error: itemsError } = await supabase
+    .from('sales_invoice_items')
+    .insert(itemsPayload);
+
+  if (itemsError) {
+    throw new Error(`Failed to insert updated line items: ${itemsError.message}`);
+  }
+
+  return invoice;
+};
+
 export const voidSalesInvoice = async (id) => {
   const { data, error } = await supabase
     .from('sales_invoices')

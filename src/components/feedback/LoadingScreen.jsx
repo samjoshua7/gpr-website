@@ -19,22 +19,17 @@ export const LoadingScreen = () => {
       }}
     >
       <Box
+        component="img"
+        src="/favicon.svg"
+        alt="G.P.R. Offset Printers Logo"
         sx={{
           width: 50,
           height: 50,
-          borderRadius: '50%',
-          bgcolor: 'primary.main',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
           mb: 3,
-          boxShadow: '0 0 20px rgba(26, 35, 126, 0.5)',
+          objectFit: 'contain',
+          filter: 'drop-shadow(0 0 10px rgba(26, 35, 126, 0.5))',
         }}
-      >
-        <Typography variant="h5" sx={{ fontWeight: 'bold', color: '#ffffff' }}>
-          P
-        </Typography>
-      </Box>
+      />
       <CircularProgress size={40} thickness={4} sx={{ color: 'secondary.main', mb: 2 }} />
       <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.6)', letterSpacing: '1px' }}>
         LOADING G.P.R Offset Printers, Tirunelveli...

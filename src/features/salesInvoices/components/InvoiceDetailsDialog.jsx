@@ -19,8 +19,14 @@ import {
   Divider,
   Alert,
   Chip,
+  IconButton,
+  Tooltip,
 } from '@mui/material';
+import EditIcon from '@mui/icons-material/Edit';
+import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
+import WhatsAppIcon from '@mui/icons-material/WhatsApp';
 import { getInvoiceById } from '../api';
+import { getCompanySettings } from '../../settings/api';
 
 const STATUS_MAP = {
   unpaid: { label: 'Unpaid', color: 'error' },
@@ -29,8 +35,9 @@ const STATUS_MAP = {
   void: { label: 'Voided', color: 'default' },
 };
 
-export const InvoiceDetailsDialog = ({ open, onClose, invoiceId }) => {
+export const InvoiceDetailsDialog = ({ open, onClose, invoiceId, onEdit }) => {
   const [invoice, setInvoice] = useState(null);
+  const [companySettings, setCompanySettings] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
@@ -39,8 +46,12 @@ export const InvoiceDetailsDialog = ({ open, onClose, invoiceId }) => {
       setLoading(true);
       setError(null);
       try {
-        const data = await getInvoiceById(invoiceId);
+        const [data, settingsData] = await Promise.all([
+          getInvoiceById(invoiceId),
+          getCompanySettings()
+        ]);
         setInvoice(data);
+        setCompanySettings(settingsData);
       } catch (err) {
         console.error(err);
         setError(err.message || 'Failed to load invoice details.');
@@ -79,12 +90,29 @@ export const InvoiceDetailsDialog = ({ open, onClose, invoiceId }) => {
       <DialogTitle sx={{ fontWeight: 700, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <span>Invoice Details</span>
         {invoice && (
-          <Chip
-            label={STATUS_MAP[invoice.status]?.label || invoice.status}
-            color={STATUS_MAP[invoice.status]?.color || 'default'}
-            size="small"
-            sx={{ fontWeight: 600 }}
-          />
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Chip
+              label={STATUS_MAP[invoice.status]?.label || invoice.status}
+              color={STATUS_MAP[invoice.status]?.color || 'default'}
+              size="small"
+              sx={{ fontWeight: 600, mr: 1 }}
+            />
+            <Tooltip title="Edit Invoice">
+              <IconButton size="small" onClick={() => onEdit && onEdit(invoice)}>
+                <EditIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+            <Tooltip title="Download PDF">
+              <IconButton size="small" color="error">
+                <PictureAsPdfIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+            <Tooltip title="Send via WhatsApp">
+              <IconButton size="small" color="success">
+                <WhatsAppIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+          </Box>
         )}
       </DialogTitle>
       <DialogContent dividers sx={{ p: 3 }}>

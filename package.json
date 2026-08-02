@@ -15,9 +15,13 @@
     "@mui/icons-material": "^6.0.2",
     "@mui/material": "^6.0.2",
     "@supabase/supabase-js": "^2.111.0",
+    "html2canvas": "^1.4.1",
+    "jspdf": "^4.2.1",
+    "jspdf-autotable": "^5.0.8",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "react-router-dom": "^6.28.0"
+    "react-router-dom": "^6.28.0",
+    "swiper": "^14.0.7"
   },
   "devDependencies": {
     "@types/react": "^19.2.17",

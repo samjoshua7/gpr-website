@@ -35,6 +35,7 @@ import DeleteIcon from '@mui/icons-material/Delete';
 
 import {
   createSalesInvoice,
+  updateSalesInvoice,
   getNextInvoiceNumber,
   getCustomerOutstandingBalance,
 } from '../api';
@@ -44,7 +45,7 @@ import { getInventoryItems } from '../../inventory/api';
 
 const GSTIN_REGEX = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/;
 
-export const InvoiceDialog = ({ open, onClose, onSaveSuccess, preselectedJob = null }) => {
+export const InvoiceDialog = ({ open, onClose, onSaveSuccess, preselectedJob = null, editInvoice = null }) => {
   // Form fields
   const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [customerSearchQuery, setCustomerSearchQuery] = useState('');
@@ -185,20 +186,60 @@ export const InvoiceDialog = ({ open, onClose, onSaveSuccess, preselectedJob = n
     }
   }, [address, shippingSameAsBilling]);
 
-  // Load next invoice sequence number automatically
+  // Load next invoice sequence number automatically if creating new
   useEffect(() => {
     const fetchInvoiceNo = async () => {
       if (!open) return;
-      try {
-        const nextNo = await getNextInvoiceNumber(invoiceType);
-        setInvoiceNo(nextNo);
-      } catch (err) {
-        console.error('Failed to generate invoice sequence:', err);
-        setInvoiceNo('ERR-GEN');
+      
+      if (editInvoice) {
+        // Edit mode - populate with existing invoice data
+        setInvoiceNo(editInvoice.invoice_no);
+        setInvoiceDate(editInvoice.invoice_date);
+        setInvoiceType(editInvoice.invoice_type || 'NON_GST');
+        setCustomerType(editInvoice.customer_type || 'B2C');
+        setIsIntraState(editInvoice.is_interstate === false);
+        setNotes(editInvoice.notes || '');
+        setDeliveryDetails(editInvoice.delivery_details || '');
+        setAddress(editInvoice.billing_address || '');
+        setShippingAddress(editInvoice.shipping_address || '');
+        setCustomerGstin(editInvoice.customer_gstin || '');
+        
+        // Wait for customers to load then select
+        if (editInvoice.customer_id && customers.length > 0) {
+          const matched = customers.find(c => c.customer_id === editInvoice.customer_id);
+          if (matched) {
+             setSelectedCustomer(matched);
+          }
+        }
+        
+        // Load existing line items
+        if (editInvoice.items && editInvoice.items.length > 0) {
+          setLineItems(editInvoice.items.map(i => ({
+            item_id: i.item_id,
+            description: i.description,
+            quantity: i.quantity.toString(),
+            unit: 'unit', // Best guess since we don't save unit in db currently
+            unit_price: i.unit_price.toString(),
+            discount_amount: i.discount_amount.toString(),
+            tax_rate_id: '',
+            gst_rate: i.gst_rate,
+            tax_amount: i.tax_amount,
+            hsn_code: i.hsn_code || '',
+            amount: i.amount
+          })));
+        }
+      } else {
+        try {
+          const nextNo = await getNextInvoiceNumber(invoiceType);
+          setInvoiceNo(nextNo);
+        } catch (err) {
+          console.error('Failed to generate invoice sequence:', err);
+          setInvoiceNo('ERR-GEN');
+        }
       }
     };
     fetchInvoiceNo();
-  }, [invoiceType, open]);
+  }, [invoiceType, open, editInvoice, customers.length]);
 
   // Focus add product button when customer is selected
   useEffect(() => {
@@ -469,7 +510,11 @@ export const InvoiceDialog = ({ open, onClose, onSaveSuccess, preselectedJob = n
     };
 
     try {
-      await createSalesInvoice(parentPayload, lineItems);
+      if (editInvoice) {
+        await updateSalesInvoice(editInvoice.invoice_id, parentPayload, lineItems);
+      } else {
+        await createSalesInvoice(parentPayload, lineItems);
+      }
       onSaveSuccess();
       onClose();
     } catch (err) {

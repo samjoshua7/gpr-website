@@ -15,9 +15,10 @@ import { JobCardsPage } from '../features/jobCards/page';
 import { SalesInvoicesPage } from '../features/salesInvoices/page';
 import { ReceiptsPage } from '../features/receipts/page';
 import { InventoryPage } from '../features/inventory/page';
-import { SuppliersPage } from '../features/suppliers/page';
-import { PurchaseBillsPage } from '../features/purchaseBills/page';
-import { PaymentsPage } from '../features/payments/page';
+// import { SuppliersPage } from '../features/suppliers/page';
+// import { PurchaseBillsPage } from '../features/purchaseBills/page';
+// import { PaymentsPage } from '../features/payments/page';
+import { StatementsPage } from '../features/statements/page';
 import { EmployeesPage } from '../features/employees/page';
 import { SettingsPage } from '../features/settings/page';
 
@@ -56,7 +57,11 @@ export const router = createBrowserRouter([
       },
       {
         path: 'customers',
-        element: <CustomersPage />,
+        element: (
+          <AuthGuard allowedRoles={['SUPER_ADMIN']}>
+            <CustomersPage />
+          </AuthGuard>
+        ),
       },
       {
         path: 'jobs',
@@ -64,16 +69,37 @@ export const router = createBrowserRouter([
       },
       {
         path: 'invoices',
-        element: <SalesInvoicesPage />,
+        element: (
+          <AuthGuard allowedRoles={['SUPER_ADMIN']}>
+            <SalesInvoicesPage />
+          </AuthGuard>
+        ),
       },
       {
         path: 'receipts',
-        element: <ReceiptsPage />,
+        element: (
+          <AuthGuard allowedRoles={['SUPER_ADMIN']}>
+            <ReceiptsPage />
+          </AuthGuard>
+        ),
       },
       {
         path: 'inventory',
-        element: <InventoryPage />,
+        element: (
+          <AuthGuard allowedRoles={['SUPER_ADMIN']}>
+            <InventoryPage />
+          </AuthGuard>
+        ),
       },
+      {
+        path: 'statements',
+        element: (
+          <AuthGuard allowedRoles={['SUPER_ADMIN']}>
+            <StatementsPage />
+          </AuthGuard>
+        ),
+      },
+      /* Skipped Phase 2 Routes
       {
         path: 'suppliers',
         element: <SuppliersPage />,
@@ -86,6 +112,7 @@ export const router = createBrowserRouter([
         path: 'payments',
         element: <PaymentsPage />,
       },
+      */
       {
         path: 'employees',
         element: (

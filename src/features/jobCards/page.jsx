@@ -14,62 +14,50 @@ import {
   DialogContent,
   DialogContentText,
   DialogActions,
-  Grid,
   Chip,
-  Menu,
-  MenuItem,
   Card,
   CardContent,
   Tooltip,
   Drawer,
   Divider,
   List,
-  ListItem,
-  ListItemText,
-  ListItemIcon,
 } from '@mui/material';
 
 import AddIcon from '@mui/icons-material/Add';
 import SearchIcon from '@mui/icons-material/Search';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
-import DragIndicatorIcon from '@mui/icons-material/DragIndicator';
-import VisibilityIcon from '@mui/icons-material/Visibility';
-import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
-import LocalShippingIcon from '@mui/icons-material/LocalShipping';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 
 import { useLocation, useNavigate } from 'react-router-dom';
+import { Swiper, SwiperSlide } from 'swiper/react';
+import { Navigation, Pagination } from 'swiper/modules';
+import 'swiper/css';
+import 'swiper/css/navigation';
+import 'swiper/css/pagination';
+
 import {
   getJobCards,
   deleteJobCard,
-  updateJobStatus,
   getProductionTasks,
   updateProductionTaskStatus,
 } from './api';
+import { getCompanySettings } from '../settings/api';
 import JobCardDialog from './components/JobCardDialog';
 import { checkReferences } from '../../lib/referenceChecker';
 import CannotDeleteDialog from '../../components/feedback/CannotDeleteDialog';
 
-const COLUMNS = [
-  { id: 'pending', title: 'New Orders (Quotes)', type: 'job' },
-  { id: 'design', title: 'Design Room', type: 'task' },
-  { id: 'printing', title: 'Printing Press', type: 'task' },
-  { id: 'finishing', title: 'Finishing Stage', type: 'task' },
-  { id: 'packing', title: 'Packing Area', type: 'task' },
-  { id: 'ready', title: 'Ready for Collection', type: 'task' },
-  { id: 'delivered', title: 'Delivered / Completed', type: 'task' },
+const PREDEFINED_COLORS = [
+  '#ed6c02', // orange
+  '#0288d1', // blue
+  '#9c27b0', // purple
+  '#ff9800', // warning orange
+  '#00bcd4', // cyan
+  '#2e7d32', // dark green
+  '#757575', // gray
+  '#e91e63', // pink
+  '#3f51b5', // indigo
 ];
-
-const COLUMN_COLORS = {
-  pending: '#ed6c02',      // orange
-  design: '#0288d1',       // blue
-  printing: '#9c27b0',     // purple
-  finishing: '#ff9800',    // warning orange
-  packing: '#00bcd4',      // cyan
-  ready: '#2e7d32',        // dark green
-  delivered: '#757575',    // gray
-};
 
 export const JobCardsPage = () => {
   const navigate = useNavigate();
@@ -77,6 +65,7 @@ export const JobCardsPage = () => {
 
   const [jobs, setJobs] = useState([]);
   const [tasks, setTasks] = useState([]);
+  const [workflow, setWorkflow] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [sortOrder, setSortOrder] = useState('newest');
   const [loading, setLoading] = useState(true);
@@ -107,12 +96,15 @@ export const JobCardsPage = () => {
     setLoading(true);
     setError(null);
     try {
-      const [jobsData, tasksData] = await Promise.all([
+      const [jobsData, tasksData, settingsData] = await Promise.all([
         getJobCards(),
         getProductionTasks(),
+        getCompanySettings(),
       ]);
       setJobs(jobsData);
       setTasks(tasksData);
+      const wf = settingsData?.production_workflow || ['New Orders'];
+      setWorkflow(wf);
     } catch (err) {
       console.error(err);
       setError('Failed to fetch Kanban board components.');
@@ -193,55 +185,35 @@ export const JobCardsPage = () => {
     setDrawerOpen(true);
   };
 
-  // HTML5 Drag and Drop Handlers
-  const handleDragStart = (e, card, type) => {
-    e.dataTransfer.setData('cardId', type === 'job' ? card.job_id : card.task_id);
-    e.dataTransfer.setData('cardType', type);
-    e.dataTransfer.effectAllowed = 'move';
-  };
-
-  const handleDragOver = (e) => {
-    e.preventDefault();
-  };
-
-  const handleDrop = async (e, targetColumnId) => {
-    e.preventDefault();
-    const cardId = e.dataTransfer.getData('cardId');
-    const cardType = e.dataTransfer.getData('cardType');
-
-    if (!cardId || !cardType) return;
-
-    if (cardType === 'job') {
-      // Transitioning Quote Job Card
-      if (targetColumnId === 'design') {
-        // Move to design room triggers invoice creation flow
-        const matchedJob = jobs.find((j) => j.job_id === cardId);
+  // Move task to next workflow step
+  const handleMoveToNext = async (card, type, currentStepIndex) => {
+    if (type === 'job') {
+      // First step (New Orders) must convert to invoice first to proceed
+      if (currentStepIndex === 0 && workflow.length > 1) {
+        const matchedJob = jobs.find((j) => j.job_id === card.job_id);
         if (matchedJob) {
           navigate('/dashboard/invoices', { state: { kickoffJob: matchedJob } });
         }
-      } else if (targetColumnId !== 'pending') {
-        setError('New orders must be linked to an invoice first to trigger production.');
       }
     } else {
-      // Transitioning Production Task
-      if (targetColumnId === 'pending') {
-        setError('Cannot move production tasks back to the quote stage.');
-        return;
-      }
-      try {
-        await updateProductionTaskStatus(cardId, targetColumnId);
-        fetchKanbanBoardData();
-      } catch (err) {
-        console.error(err);
-        setError('Failed to update production stage.');
+      // Tasks just update their status to the next string in the workflow array
+      const nextStep = workflow[currentStepIndex + 1];
+      if (nextStep) {
+        try {
+          await updateProductionTaskStatus(card.task_id, nextStep);
+          fetchKanbanBoardData();
+        } catch (err) {
+          console.error(err);
+          setError('Failed to update production stage.');
+        }
       }
     }
   };
 
-  const getFilteredCards = (columnId) => {
+  const getFilteredCards = (stepName, isFirstStep) => {
     const query = searchQuery.toLowerCase().trim();
     let filtered;
-    if (columnId === 'pending') {
+    if (isFirstStep) {
       filtered = jobs
         .filter((j) => j.status === 'pending')
         .filter(
@@ -251,7 +223,7 @@ export const JobCardsPage = () => {
         );
     } else {
       filtered = tasks
-        .filter((t) => t.status === columnId)
+        .filter((t) => t.status === stepName)
         .filter(
           (t) =>
             t.product_name?.toLowerCase().includes(query) ||
@@ -278,7 +250,7 @@ export const JobCardsPage = () => {
   return (
     <Box sx={{ p: 3, height: 'calc(100vh - 64px)', display: 'flex', flexDirection: 'column' }}>
       {/* Header Desk */}
-      <Box sx={{ mb: 3, display: 'flex', gap: 2, alignItems: 'center' }}>
+      <Box sx={{ mb: 3, display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
         <TextField
           variant="outlined"
           size="medium"
@@ -294,28 +266,16 @@ export const JobCardsPage = () => {
           }}
           sx={{ flexGrow: 1, bgcolor: 'background.paper', borderRadius: 2 }}
         />
-        <TextField
-          select
-          variant="outlined"
-          size="medium"
-          value={sortOrder}
-          onChange={(e) => setSortOrder(e.target.value)}
-          sx={{ minWidth: 150, bgcolor: 'background.paper', borderRadius: 2 }}
-        >
-          <MenuItem value="newest">Newest First</MenuItem>
-          <MenuItem value="oldest">Oldest First</MenuItem>
-        </TextField>
         <Button
           variant="contained"
           startIcon={<AddIcon />}
           onClick={handleAddClick}
           size="large"
-          sx={{ whiteSpace: 'nowrap', minWidth: '20%' }}
+          sx={{ whiteSpace: 'nowrap' }}
         >
-          Create Job Order
+          Create Quote
         </Button>
       </Box>
-
 
       {rollbackNotice && (
         <Alert severity="warning" onClose={() => setRollbackNotice(null)} sx={{ mb: 2 }}>
@@ -329,178 +289,205 @@ export const JobCardsPage = () => {
         </Alert>
       )}
 
-      {/* Kanban Columns Grid */}
+      {/* Kanban Columns Grid using Swiper */}
       <Box
         sx={{
           flexGrow: 1,
-          display: 'flex',
-          gap: 2,
-          overflowX: 'auto',
-          pb: 2,
-          alignItems: 'stretch',
+          pb: 4,
+          '.swiper': { height: '100%', pb: 3 },
+          '.swiper-slide': { width: { xs: '100%', sm: 350, md: 350 } }, // Responsive widths
         }}
       >
-        {COLUMNS.map((col) => {
-          const colCards = getFilteredCards(col.id);
+        <Swiper
+          modules={[Navigation, Pagination]}
+          spaceBetween={16}
+          slidesPerView={'auto'}
+          navigation
+          pagination={{ clickable: true, dynamicBullets: true }}
+          grabCursor={true}
+        >
+          {workflow.map((stepName, index) => {
+            const isFirstStep = index === 0;
+            const isLastStep = index === workflow.length - 1;
+            const colCards = getFilteredCards(stepName, isFirstStep);
+            const colColor = PREDEFINED_COLORS[index % PREDEFINED_COLORS.length];
 
-          return (
-            <Box
-              key={col.id}
-              onDragOver={handleDragOver}
-              onDrop={(e) => handleDrop(e, col.id)}
-              sx={{
-                minWidth: 350,
-                width: 350,
-                flexShrink: 0,
-                bgcolor: 'action.hover',
-                borderRadius: 3,
-                display: 'flex',
-                flexDirection: 'column',
-                border: '1px solid rgba(0,0,0,0.06)',
-                height: '100%',
-              }}
-            >
-              {/* Column Header */}
-              <Box
-                sx={{
-                  p: 2,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  borderBottom: '2px solid',
-                  borderColor: COLUMN_COLORS[col.id],
-                  bgcolor: 'background.paper',
-                  borderTopLeftRadius: 12,
-                  borderTopRightRadius: 12,
-                }}
-              >
-                <Typography variant="subtitle2" sx={{ fontWeight: 800, textTransform: 'uppercase' }}>
-                  {col.title}
-                </Typography>
-                <Chip
-                  label={loading ? '...' : colCards.length}
-                  size="small"
+            return (
+              <SwiperSlide key={stepName}>
+                <Box
                   sx={{
-                    fontWeight: 700,
-                    bgcolor: COLUMN_COLORS[col.id],
-                    color: '#fff',
-                    fontSize: '0.75rem',
+                    bgcolor: 'action.hover',
+                    borderRadius: 3,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    border: '1px solid rgba(0,0,0,0.06)',
+                    height: '100%',
                   }}
-                />
-              </Box>
-
-              {/* Cards List container */}
-              <Box
-                sx={{
-                  flexGrow: 1,
-                  p: 1.5,
-                  overflowY: 'auto',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: 1.5,
-                }}
-              >
-                {loading ? (
-                  Array.from(new Array(3)).map((_, i) => (
-                    <Card key={i} variant="outlined" sx={{ borderRadius: 2 }}>
-                      <CardContent sx={{ p: 2 }}>
-                        <Skeleton width="40%" height={20} />
-                        <Skeleton width="80%" height={40} sx={{ my: 1 }} />
-                        <Skeleton width="60%" height={20} />
-                      </CardContent>
-                    </Card>
-                  ))
-                ) : colCards.length === 0 ? (
+                >
+                  {/* Column Header */}
                   <Box
                     sx={{
+                      p: 2,
                       display: 'flex',
                       alignItems: 'center',
-                      justifyContent: 'center',
-                      height: 120,
-                      border: '2px dashed rgba(0,0,0,0.08)',
-                      borderRadius: 2,
+                      justifyContent: 'space-between',
+                      borderBottom: '2px solid',
+                      borderColor: colColor,
+                      bgcolor: 'background.paper',
+                      borderTopLeftRadius: 12,
+                      borderTopRightRadius: 12,
                     }}
                   >
-                    <Typography variant="caption" color="text.secondary">
-                      Drop cards here
+                    <Typography variant="subtitle2" sx={{ fontWeight: 800, textTransform: 'uppercase' }}>
+                      {stepName}
                     </Typography>
+                    <Chip
+                      label={loading ? '...' : colCards.length}
+                      size="small"
+                      sx={{
+                        fontWeight: 700,
+                        bgcolor: colColor,
+                        color: '#fff',
+                        fontSize: '0.75rem',
+                      }}
+                    />
                   </Box>
-                ) : (
-                  colCards.map((card) => {
-                    const isJob = col.id === 'pending';
-                    const titleId = isJob
-                      ? `JC-${String(card.job_number || 0).padStart(4, '0')}`
-                      : `TASK-${String(card.task_number || 0).padStart(4, '0')}`;
 
-                    const description = isJob ? card.description : card.product_name;
-                    const customerName = isJob
-                      ? card.customers?.name || 'Walk-in / Inquiry'
-                      : card.job_cards?.customers?.name || 'Walk-in / Inquiry';
-
-                    return (
-                      <Card
-                        key={isJob ? card.job_id : card.task_id}
-                        draggable
-                        onDragStart={(e) => handleDragStart(e, card, isJob ? 'job' : 'task')}
-                        onClick={() => handleOpenDetails(card, isJob ? 'job' : 'task')}
+                  {/* Cards List container */}
+                  <Box
+                    sx={{
+                      flexGrow: 1,
+                      p: 1.5,
+                      overflowY: 'auto',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 1.5,
+                    }}
+                  >
+                    {loading ? (
+                      Array.from(new Array(3)).map((_, i) => (
+                        <Card key={i} variant="outlined" sx={{ borderRadius: 2 }}>
+                          <CardContent sx={{ p: 2 }}>
+                            <Skeleton width="40%" height={20} />
+                            <Skeleton width="80%" height={40} sx={{ my: 1 }} />
+                            <Skeleton width="60%" height={20} />
+                          </CardContent>
+                        </Card>
+                      ))
+                    ) : colCards.length === 0 ? (
+                      <Box
                         sx={{
-                          flexShrink: 0,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          height: 120,
+                          border: '2px dashed rgba(0,0,0,0.08)',
                           borderRadius: 2,
-                          cursor: 'grab',
-                          boxShadow: '0 2px 5px rgba(0,0,0,0.05)',
-                          borderLeft: '4px solid',
-                          borderLeftColor: COLUMN_COLORS[col.id],
-                          '&:hover': {
-                            transform: 'translateY(-2px)',
-                            boxShadow: '0 4px 10px rgba(0,0,0,0.12)',
-                            transition: 'all 0.2s ease-in-out',
-                          },
                         }}
                       >
-                        <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
-                          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
-                            <Typography variant="caption" sx={{ fontWeight: 800, color: COLUMN_COLORS[col.id] }}>
-                              {titleId}
-                            </Typography>
-                            <DragIndicatorIcon sx={{ color: 'text.secondary', fontSize: '1rem', cursor: 'grab' }} />
-                          </Box>
+                        <Typography variant="caption" color="text.secondary">
+                          No tasks
+                        </Typography>
+                      </Box>
+                    ) : (
+                      colCards.map((card) => {
+                        const titleId = isFirstStep
+                          ? `JC-${String(card.job_number || 0).padStart(4, '0')}`
+                          : `TASK-${String(card.task_number || 0).padStart(4, '0')}`;
 
-                          <Typography variant="body2" sx={{ fontWeight: 600, mb: 1, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
-                            {description}
-                          </Typography>
+                        const description = isFirstStep ? card.description : card.product_name;
+                        const customerName = isFirstStep
+                          ? card.customers?.name || 'Walk-in / Inquiry'
+                          : card.job_cards?.customers?.name || 'Walk-in / Inquiry';
 
-                          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
-                            Client: <strong>{customerName}</strong>
-                          </Typography>
+                        return (
+                          <Card
+                            key={isFirstStep ? card.job_id : card.task_id}
+                            sx={{
+                              flexShrink: 0,
+                              borderRadius: 2,
+                              boxShadow: '0 2px 5px rgba(0,0,0,0.05)',
+                              borderLeft: '4px solid',
+                              borderLeftColor: colColor,
+                              '&:hover': {
+                                transform: 'translateY(-2px)',
+                                boxShadow: '0 4px 10px rgba(0,0,0,0.12)',
+                                transition: 'all 0.2s ease-in-out',
+                              },
+                            }}
+                          >
+                            <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
+                              <Box 
+                                sx={{ cursor: 'pointer' }}
+                                onClick={() => handleOpenDetails(card, isFirstStep ? 'job' : 'task')}
+                              >
+                                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                                  <Typography variant="caption" sx={{ fontWeight: 800, color: colColor }}>
+                                    {titleId}
+                                  </Typography>
+                                </Box>
 
-                          <Divider sx={{ my: 1 }} />
+                                <Typography variant="body2" sx={{ fontWeight: 600, mb: 1, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                                  {description}
+                                </Typography>
 
-                          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <Typography variant="caption" color="text.secondary">
-                              Qty: <strong>{card.quantity}</strong>
-                            </Typography>
-                            <Typography variant="caption" color="text.secondary">
-                              {formatDate(card.created_at)}
-                            </Typography>
-                          </Box>
-                        </CardContent>
-                      </Card>
-                    );
-                  })
-                )}
-              </Box>
-            </Box>
-          );
-        })}
+                                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
+                                  Client: <strong>{customerName}</strong>
+                                </Typography>
+
+                                <Divider sx={{ my: 1 }} />
+
+                                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                                  <Typography variant="caption" color="text.secondary">
+                                    Qty: <strong>{card.quantity}</strong>
+                                  </Typography>
+                                  <Typography variant="caption" color="text.secondary">
+                                    {formatDate(card.created_at)}
+                                  </Typography>
+                                </Box>
+                              </Box>
+
+                              {/* Action Buttons for Employees */}
+                              {!isLastStep && (
+                                <Button 
+                                  variant="contained" 
+                                  fullWidth 
+                                  size="small"
+                                  startIcon={<CheckCircleIcon />}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleMoveToNext(card, isFirstStep ? 'job' : 'task', index);
+                                  }}
+                                  sx={{ 
+                                    textTransform: 'none', 
+                                    fontWeight: 700,
+                                    bgcolor: colColor,
+                                    '&:hover': { bgcolor: colColor, filter: 'brightness(0.9)' }
+                                  }}
+                                >
+                                  {isFirstStep ? 'Generate Invoice' : 'Mark Finished'}
+                                </Button>
+                              )}
+                            </CardContent>
+                          </Card>
+                        );
+                      })
+                    )}
+                  </Box>
+                </Box>
+              </SwiperSlide>
+            );
+          })}
+        </Swiper>
       </Box>
 
       {/* Drawer Details Side Panel */}
       <Drawer anchor="right" open={drawerOpen} onClose={() => setDrawerOpen(false)}>
-        <Box sx={{ width: 360, p: 3 }}>
+        <Box sx={{ width: { xs: 300, sm: 360 }, p: 3 }}>
           {activeCardDetails && (
             <React.Fragment>
               <Typography variant="h6" sx={{ fontWeight: 900, mb: 2 }}>
-                {activeCardDetails.cardType === 'job' ? 'Job Card Quote' : 'Production Task Info'}
+                {activeCardDetails.cardType === 'job' ? 'Job Quote Details' : 'Task Details'}
               </Typography>
               <Chip
                 label={activeCardDetails.status.toUpperCase()}
@@ -603,7 +590,7 @@ export const JobCardsPage = () => {
         <DialogContent>
           {deleteError && <Alert severity="error" sx={{ mb: 2 }}>{deleteError}</Alert>}
           <DialogContentText>
-            Are you sure you want to delete this job card? This action is permanent.
+            Are you sure you want to delete this quote? This action is permanent.
           </DialogContentText>
         </DialogContent>
         <DialogActions sx={{ p: 2.5 }}>

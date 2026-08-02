@@ -72,14 +72,12 @@ export const AppShell = () => {
   // Navigation menu definitions
   const menuItems = [
     { text: 'Dashboard', icon: <DashboardIcon fontSize="small" />, path: '/dashboard', roles: ['SUPER_ADMIN', 'STAFF'] },
-    { text: 'Customers', icon: <PeopleIcon fontSize="small" />, path: '/dashboard/customers', roles: ['SUPER_ADMIN', 'STAFF'] },
     { text: 'Job Cards', icon: <AssignmentIcon fontSize="small" />, path: '/dashboard/jobs', roles: ['SUPER_ADMIN', 'STAFF'] },
-    { text: 'Sales Invoices', icon: <DescriptionIcon fontSize="small" />, path: '/dashboard/invoices', roles: ['SUPER_ADMIN', 'STAFF'] },
-    { text: 'Receipts', icon: <AttachMoneyIcon fontSize="small" />, path: '/dashboard/receipts', roles: ['SUPER_ADMIN', 'STAFF'] },
-    { text: 'Inventory', icon: <LayersIcon fontSize="small" />, path: '/dashboard/inventory', roles: ['SUPER_ADMIN', 'STAFF'] },
-    { text: 'Suppliers', icon: <BusinessIcon fontSize="small" />, path: '/dashboard/suppliers', roles: ['SUPER_ADMIN', 'STAFF'] },
-    { text: 'Purchase Bills', icon: <ReceiptIcon fontSize="small" />, path: '/dashboard/purchase-bills', roles: ['SUPER_ADMIN', 'STAFF'] },
-    { text: 'Payments', icon: <PaymentsIcon fontSize="small" />, path: '/dashboard/payments', roles: ['SUPER_ADMIN', 'STAFF'] },
+    { text: 'Customers', icon: <PeopleIcon fontSize="small" />, path: '/dashboard/customers', roles: ['SUPER_ADMIN'] },
+    { text: 'Sales Invoices', icon: <DescriptionIcon fontSize="small" />, path: '/dashboard/invoices', roles: ['SUPER_ADMIN'] },
+    { text: 'Receipts', icon: <AttachMoneyIcon fontSize="small" />, path: '/dashboard/receipts', roles: ['SUPER_ADMIN'] },
+    { text: 'Inventory', icon: <LayersIcon fontSize="small" />, path: '/dashboard/inventory', roles: ['SUPER_ADMIN'] },
+    { text: 'Statements', icon: <ReceiptIcon fontSize="small" />, path: '/dashboard/statements', roles: ['SUPER_ADMIN'] },
     { text: 'Employees', icon: <BadgeIcon fontSize="small" />, path: '/dashboard/employees', roles: ['SUPER_ADMIN'] },
     { text: 'Company Settings', icon: <SettingsIcon fontSize="small" />, path: '/dashboard/settings', roles: ['SUPER_ADMIN'] },
   ];
