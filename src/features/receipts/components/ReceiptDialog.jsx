@@ -15,6 +15,7 @@ import {
   Select,
   Grid,
   Autocomplete,
+  FormHelperText,
 } from '@mui/material';
 
 import { createReceipt, getCustomerOutstandingInvoices } from '../api';
@@ -220,6 +221,7 @@ export const ReceiptDialog = ({ open, onClose, onSaveSuccess }) => {
                 type="number"
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
+                onFocus={(e) => e.target.select()}
                 error={!!errors.amount}
                 helperText={errors.amount}
                 inputProps={{ min: '0.01', step: '0.01' }}

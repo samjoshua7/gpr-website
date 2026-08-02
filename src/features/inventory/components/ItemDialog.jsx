@@ -176,6 +176,7 @@ export const ItemDialog = ({ open, onClose, item, onSaveSuccess }) => {
                 type="number"
                 value={unitPrice}
                 onChange={(e) => setUnitPrice(e.target.value)}
+                onFocus={(e) => e.target.select()}
                 error={!!errors.unitPrice}
                 helperText={errors.unitPrice}
                 inputProps={{ min: '0', step: '0.01' }}
@@ -191,6 +192,7 @@ export const ItemDialog = ({ open, onClose, item, onSaveSuccess }) => {
                 type="number"
                 value={reorderLevel}
                 onChange={(e) => setReorderLevel(e.target.value)}
+                onFocus={(e) => e.target.select()}
                 error={!!errors.reorderLevel}
                 helperText={errors.reorderLevel}
                 inputProps={{ min: '0', step: '0.01' }}

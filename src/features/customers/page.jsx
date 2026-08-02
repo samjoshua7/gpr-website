@@ -21,12 +21,17 @@ import {
   DialogContentText,
   DialogActions,
   Grid,
+  Avatar,
+  Tooltip,
+  Stack,
+  Chip,
 } from '@mui/material';
 
 import AddIcon from '@mui/icons-material/Add';
 import SearchIcon from '@mui/icons-material/Search';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
+import PeopleIcon from '@mui/icons-material/People';
 
 import { getCustomers, deleteCustomer } from './api';
 import CustomerDialog from './components/CustomerDialog';
@@ -72,7 +77,7 @@ export const CustomersPage = () => {
   useEffect(() => {
     const delayDebounce = setTimeout(() => {
       fetchCustomers(searchQuery);
-    }, 400); // Debounce search
+    }, 400);
 
     return () => clearTimeout(delayDebounce);
   }, [searchQuery, fetchCustomers]);
@@ -116,7 +121,7 @@ export const CustomersPage = () => {
       await deleteCustomer(customerToDelete.customer_id);
       setDeleteOpen(false);
       setCustomerToDelete(null);
-      fetchCustomers(searchQuery); // Refresh list
+      fetchCustomers(searchQuery);
     } catch (err) {
       console.error(err);
       setDeleteError(err.message || 'Failed to delete customer. Ensure they have no linked jobs/invoices.');
@@ -137,20 +142,24 @@ export const CustomersPage = () => {
   };
 
   return (
-    <Box sx={{ p: { xs: 1, sm: 3 } }}>
+    <Box sx={{ p: { xs: 1, sm: 2 } }}>
       {/* Page Header */}
       <Grid container spacing={2} alignItems="center" justifyContent="space-between" sx={{ mb: 3 }}>
-        <Grid item xs={12} sm={auto => 'auto'}>
+        <Grid item xs={12} sm="auto">
           <Typography variant="h4" sx={{ fontWeight: 800 }}>
             Customers
           </Typography>
+          <Typography variant="body2" color="text.secondary">
+            Manage press client accounts, contact information, and balances.
+          </Typography>
         </Grid>
-        <Grid item xs={12} sm={auto => 'auto'}>
+        <Grid item xs={12} sm="auto">
           <Button
             variant="contained"
+            color="primary"
             startIcon={<AddIcon />}
             onClick={handleAddClick}
-            sx={{ width: { xs: '100%', sm: 'auto' } }}
+            sx={{ width: { xs: '100%', sm: 'auto' }, py: 1.1, px: 2.5, borderRadius: 2.5 }}
           >
             Add Customer
           </Button>
@@ -168,7 +177,7 @@ export const CustomersPage = () => {
           InputProps={{
             startAdornment: (
               <InputAdornment position="start">
-                <SearchIcon color="action" />
+                <SearchIcon color="action" fontSize="small" />
               </InputAdornment>
             ),
           }}
@@ -178,59 +187,106 @@ export const CustomersPage = () => {
 
       {/* Error Alert */}
       {error && (
-        <Alert severity="error" sx={{ mb: 3 }}>
+        <Alert severity="error" sx={{ mb: 3, borderRadius: 2 }}>
           {error}
         </Alert>
       )}
 
-      {/* Main List Table */}
-      <TableContainer component={Paper} sx={{ borderRadius: 3, overflow: 'hidden' }}>
-        <Table>
-          <TableHead sx={{ bgcolor: 'rgba(0, 0, 0, 0.03)' }}>
+      {/* Requirement 5: Table Polish & Sticky Header */}
+      <TableContainer component={Paper} sx={{ borderRadius: 3, maxHeight: 'calc(100vh - 280px)' }}>
+        <Table stickyHeader>
+          <TableHead>
             <TableRow>
-              <TableCell sx={{ fontWeight: 700 }}>Name</TableCell>
-              <TableCell sx={{ fontWeight: 700 }}>Phone</TableCell>
-              <TableCell sx={{ fontWeight: 700 }}>Address</TableCell>
-              <TableCell sx={{ fontWeight: 700 }} align="right">Opening Balance</TableCell>
+              <TableCell sx={{ fontWeight: 700 }}>Customer Name</TableCell>
+              <TableCell sx={{ fontWeight: 700 }}>Phone Number</TableCell>
+              <TableCell sx={{ fontWeight: 700 }}>GSTIN</TableCell>
+              <TableCell sx={{ fontWeight: 700 }}>Identification Name</TableCell>
+              <TableCell sx={{ fontWeight: 700 }} align="right">Outstanding Balance</TableCell>
               <TableCell sx={{ fontWeight: 700 }} align="center">Actions</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
             {loading ? (
-              // Loading skeletons
               Array.from(new Array(5)).map((_, index) => (
                 <TableRow key={index}>
-                  <TableCell><Skeleton width="60%" /></TableCell>
-                  <TableCell><Skeleton width="40%" /></TableCell>
-                  <TableCell><Skeleton width="80%" /></TableCell>
-                  <TableCell align="right"><Skeleton width="30%" sx={{ ml: 'auto' }} /></TableCell>
-                  <TableCell align="center"><Skeleton width="40%" sx={{ mx: 'auto' }} /></TableCell>
+                  <TableCell><Skeleton width="60%" height={24} /></TableCell>
+                  <TableCell><Skeleton width="40%" height={24} /></TableCell>
+                  <TableCell><Skeleton width="40%" height={24} /></TableCell>
+                  <TableCell><Skeleton width="80%" height={24} /></TableCell>
+                  <TableCell align="right"><Skeleton width="30%" height={24} sx={{ ml: 'auto' }} /></TableCell>
+                  <TableCell align="center"><Skeleton width="40%" height={24} sx={{ mx: 'auto' }} /></TableCell>
                 </TableRow>
               ))
             ) : customers.length === 0 ? (
-              // Empty State
               <TableRow>
-                <TableCell colSpan={5} align="center" sx={{ py: 6 }}>
-                  <Typography variant="body1" color="text.secondary">
-                    No customers found. Click "Add Customer" to register one.
-                  </Typography>
+                <TableCell colSpan={6} align="center" sx={{ py: 8 }}>
+                  <Box sx={{ textAlign: 'center' }}>
+                    <PeopleIcon sx={{ fontSize: 48, color: 'text.secondary', opacity: 0.4, mb: 1 }} />
+                    <Typography variant="h6" color="text.secondary" sx={{ fontWeight: 700 }}>
+                      No Customers Found
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                      Click "Add Customer" above to register your first press client.
+                    </Typography>
+                  </Box>
                 </TableCell>
               </TableRow>
             ) : (
-              // Data Rows
               customers.map((customer) => (
                 <TableRow key={customer.customer_id} hover>
-                  <TableCell sx={{ fontWeight: 600 }}>{customer.name}</TableCell>
+                  <TableCell>
+                    <Stack direction="row" spacing={1.5} alignItems="center">
+                      <Avatar sx={{ width: 32, height: 32, bgcolor: 'secondary.main', fontSize: '0.875rem', fontWeight: 700 }}>
+                        {customer.name ? customer.name.charAt(0).toUpperCase() : 'C'}
+                      </Avatar>
+                      <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#0f172a' }}>
+                        {customer.name}
+                      </Typography>
+                    </Stack>
+                  </TableCell>
                   <TableCell>{customer.phone || '—'}</TableCell>
-                  <TableCell>{customer.address || '—'}</TableCell>
-                  <TableCell align="right">{formatCurrency(customer.opening_balance)}</TableCell>
+                  <TableCell>
+                    {customer.gstin ? (
+                      <Chip label={customer.gstin} size="small" color="primary" variant="outlined" sx={{ fontWeight: 700, fontSize: '0.75rem' }} />
+                    ) : (
+                      <Typography variant="caption" color="text.secondary">Unregistered</Typography>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    {customer.identification_name ? (
+                      <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                        {customer.identification_name}
+                      </Typography>
+                    ) : (
+                      <Typography variant="caption" color="text.secondary">—</Typography>
+                    )}
+                  </TableCell>
+                  <TableCell align="right">
+                    <Typography 
+                      variant="body2" 
+                      sx={{ 
+                        fontWeight: 700,
+                        color: customer.outstanding_balance === 0 
+                          ? 'success.main' 
+                          : customer.outstanding_balance > 0 
+                            ? 'warning.main' 
+                            : 'info.main'
+                      }}
+                    >
+                      {formatCurrency(customer.outstanding_balance)}
+                    </Typography>
+                  </TableCell>
                   <TableCell align="center">
-                    <IconButton color="primary" onClick={() => handleEditClick(customer)} size="small" sx={{ mr: 1 }}>
-                      <EditIcon fontSize="small" />
-                    </IconButton>
-                    <IconButton color="error" onClick={() => handleDeleteClick(customer)} size="small">
-                      <DeleteIcon fontSize="small" />
-                    </IconButton>
+                    <Tooltip title="Edit Customer">
+                      <IconButton color="primary" onClick={() => handleEditClick(customer)} size="small" sx={{ mr: 0.5 }}>
+                        <EditIcon fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
+                    <Tooltip title="Delete Customer">
+                      <IconButton color="error" onClick={() => handleDeleteClick(customer)} size="small">
+                        <DeleteIcon fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
                   </TableCell>
                 </TableRow>
               ))

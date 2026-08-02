@@ -23,6 +23,10 @@ import {
   Tooltip,
   Drawer,
   Divider,
+  List,
+  ListItem,
+  ListItemText,
+  ListItemIcon,
 } from '@mui/material';
 
 import AddIcon from '@mui/icons-material/Add';
@@ -74,6 +78,7 @@ export const JobCardsPage = () => {
   const [jobs, setJobs] = useState([]);
   const [tasks, setTasks] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
+  const [sortOrder, setSortOrder] = useState('newest');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -235,9 +240,9 @@ export const JobCardsPage = () => {
 
   const getFilteredCards = (columnId) => {
     const query = searchQuery.toLowerCase().trim();
+    let filtered;
     if (columnId === 'pending') {
-      // Filter Job Cards
-      return jobs
+      filtered = jobs
         .filter((j) => j.status === 'pending')
         .filter(
           (j) =>
@@ -245,8 +250,7 @@ export const JobCardsPage = () => {
             j.customers?.name?.toLowerCase().includes(query)
         );
     } else {
-      // Filter Production Tasks
-      return tasks
+      filtered = tasks
         .filter((t) => t.status === columnId)
         .filter(
           (t) =>
@@ -254,6 +258,12 @@ export const JobCardsPage = () => {
             t.job_cards?.customers?.name?.toLowerCase().includes(query)
         );
     }
+
+    return filtered.sort((a, b) => {
+      const dateA = new Date(a.created_at);
+      const dateB = new Date(b.created_at);
+      return sortOrder === 'newest' ? dateB - dateA : dateA - dateB;
+    });
   };
 
   const formatDate = (dateStr) => {
@@ -268,29 +278,11 @@ export const JobCardsPage = () => {
   return (
     <Box sx={{ p: 3, height: 'calc(100vh - 64px)', display: 'flex', flexDirection: 'column' }}>
       {/* Header Desk */}
-      <Grid container spacing={2} alignItems="center" justifyContent="space-between" sx={{ mb: 3 }}>
-        <Grid item>
-          <Typography variant="h4" sx={{ fontWeight: 900 }}>
-            Production Kanban Board
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            Manage print jobs, design approvals, and automated production tasks in real-time.
-          </Typography>
-        </Grid>
-        <Grid item>
-          <Button variant="contained" startIcon={<AddIcon />} onClick={handleAddClick}>
-            New Order Quote
-          </Button>
-        </Grid>
-      </Grid>
-
-      {/* Filter and alerts */}
-      <Box sx={{ mb: 2 }}>
+      <Box sx={{ mb: 3, display: 'flex', gap: 2, alignItems: 'center' }}>
         <TextField
-          fullWidth
           variant="outlined"
-          size="small"
-          placeholder="Filter cards by customer name, product, or descriptions..."
+          size="medium"
+          placeholder="Search Job Orders..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           InputProps={{
@@ -300,9 +292,30 @@ export const JobCardsPage = () => {
               </InputAdornment>
             ),
           }}
-          sx={{ bgcolor: 'background.paper', borderRadius: 2 }}
+          sx={{ flexGrow: 1, bgcolor: 'background.paper', borderRadius: 2 }}
         />
+        <TextField
+          select
+          variant="outlined"
+          size="medium"
+          value={sortOrder}
+          onChange={(e) => setSortOrder(e.target.value)}
+          sx={{ minWidth: 150, bgcolor: 'background.paper', borderRadius: 2 }}
+        >
+          <MenuItem value="newest">Newest First</MenuItem>
+          <MenuItem value="oldest">Oldest First</MenuItem>
+        </TextField>
+        <Button
+          variant="contained"
+          startIcon={<AddIcon />}
+          onClick={handleAddClick}
+          size="large"
+          sx={{ whiteSpace: 'nowrap', minWidth: '20%' }}
+        >
+          Create Job Order
+        </Button>
       </Box>
+
 
       {rollbackNotice && (
         <Alert severity="warning" onClose={() => setRollbackNotice(null)} sx={{ mb: 2 }}>
@@ -336,13 +349,15 @@ export const JobCardsPage = () => {
               onDragOver={handleDragOver}
               onDrop={(e) => handleDrop(e, col.id)}
               sx={{
-                minWidth: 280,
-                width: 320,
+                minWidth: 350,
+                width: 350,
+                flexShrink: 0,
                 bgcolor: 'action.hover',
                 borderRadius: 3,
                 display: 'flex',
                 flexDirection: 'column',
                 border: '1px solid rgba(0,0,0,0.06)',
+                height: '100%',
               }}
             >
               {/* Column Header */}
@@ -414,8 +429,8 @@ export const JobCardsPage = () => {
                   colCards.map((card) => {
                     const isJob = col.id === 'pending';
                     const titleId = isJob
-                      ? `JC-${card.job_id.substring(0, 6).toUpperCase()}`
-                      : `TASK-${card.task_id.substring(0, 6).toUpperCase()}`;
+                      ? `JC-${String(card.job_number || 0).padStart(4, '0')}`
+                      : `TASK-${String(card.task_number || 0).padStart(4, '0')}`;
 
                     const description = isJob ? card.description : card.product_name;
                     const customerName = isJob
@@ -429,6 +444,7 @@ export const JobCardsPage = () => {
                         onDragStart={(e) => handleDragStart(e, card, isJob ? 'job' : 'task')}
                         onClick={() => handleOpenDetails(card, isJob ? 'job' : 'task')}
                         sx={{
+                          flexShrink: 0,
                           borderRadius: 2,
                           cursor: 'grab',
                           boxShadow: '0 2px 5px rgba(0,0,0,0.05)',
@@ -577,7 +593,7 @@ export const JobCardsPage = () => {
       <CannotDeleteDialog
         open={cannotDeleteOpen}
         onClose={() => setCannotDeleteOpen(false)}
-        recordName={jobToDelete ? `JC-${jobToDelete.job_id.substring(0, 6).toUpperCase()}` : ''}
+        recordName={jobToDelete ? `JC-${String(jobToDelete.job_number || 0).padStart(4, '0')}` : ''}
         recordType="job card"
         details={dependencyDetails}
       />

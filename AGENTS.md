@@ -2,6 +2,17 @@
 
 This document is the implementation constitution for the repository. It defines the product intent, the technical guardrails, the delivery order, and the rules that future implementation work must follow.
 
+## API Contract Rule
+
+Before renaming, removing, or moving any exported function:
+
+1. Search the entire project for every import of that function.
+2. Update all dependent modules.
+3. Run a production build.
+4. Only consider the refactor complete if the build succeeds.
+
+Never change a public API without updating all consumers.
+
 ## Human Terminal Rule
 
 The AI agent must NEVER wait for long-running terminal processes.
@@ -23,6 +34,21 @@ Instead:
 Never poll timers.
 Never repeatedly wait.
 Never enter waiting loops.
+
+## Database-First Rule
+
+Whenever a feature requires adding, removing, or modifying database fields:
+
+1. Generate the SQL migration first.
+2. Stop and present the SQL migration.
+3. Wait for the user to execute it in Supabase.
+4. Continue only after confirmation.
+5. Then update APIs.
+6. Then update React components.
+
+Never assume the live database matches the source code.
+
+Every database change must have a corresponding migration file.
 
 ## 1. Project Vision
 

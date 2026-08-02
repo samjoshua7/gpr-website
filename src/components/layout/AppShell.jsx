@@ -19,6 +19,8 @@ import {
   Divider,
   useTheme,
   useMediaQuery,
+  Chip,
+  Tooltip,
 } from '@mui/material';
 
 import MenuIcon from '@mui/icons-material/Menu';
@@ -34,6 +36,9 @@ import PaymentsIcon from '@mui/icons-material/Payments';
 import BadgeIcon from '@mui/icons-material/Badge';
 import SettingsIcon from '@mui/icons-material/Settings';
 import LogoutIcon from '@mui/icons-material/Logout';
+import StorefrontIcon from '@mui/icons-material/Storefront';
+import PrintIcon from '@mui/icons-material/Print';
+import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 
 const DRAWER_WIDTH = 260;
 
@@ -64,31 +69,30 @@ export const AppShell = () => {
     await signOut();
   };
 
-  // Define navigation items with roles
+  // Navigation menu definitions
   const menuItems = [
-    { text: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard', roles: ['SUPER_ADMIN', 'STAFF'] },
-    { text: 'Customers', icon: <PeopleIcon />, path: '/dashboard/customers', roles: ['SUPER_ADMIN', 'STAFF'] },
-    { text: 'Job Cards', icon: <AssignmentIcon />, path: '/dashboard/jobs', roles: ['SUPER_ADMIN', 'STAFF'] },
-    { text: 'Sales Invoices', icon: <DescriptionIcon />, path: '/dashboard/invoices', roles: ['SUPER_ADMIN', 'STAFF'] },
-    { text: 'Receipts', icon: <AttachMoneyIcon />, path: '/dashboard/receipts', roles: ['SUPER_ADMIN', 'STAFF'] },
-    { text: 'Inventory', icon: <LayersIcon />, path: '/dashboard/inventory', roles: ['SUPER_ADMIN', 'STAFF'] },
-    { text: 'Suppliers', icon: <BusinessIcon />, path: '/dashboard/suppliers', roles: ['SUPER_ADMIN', 'STAFF'] },
-    { text: 'Purchase Bills', icon: <ReceiptIcon />, path: '/dashboard/purchase-bills', roles: ['SUPER_ADMIN', 'STAFF'] },
-    { text: 'Payments', icon: <PaymentsIcon />, path: '/dashboard/payments', roles: ['SUPER_ADMIN', 'STAFF'] },
-    { text: 'Employees', icon: <BadgeIcon />, path: '/dashboard/employees', roles: ['SUPER_ADMIN'] },
-    { text: 'Company Settings', icon: <SettingsIcon />, path: '/dashboard/settings', roles: ['SUPER_ADMIN'] },
+    { text: 'Dashboard', icon: <DashboardIcon fontSize="small" />, path: '/dashboard', roles: ['SUPER_ADMIN', 'STAFF'] },
+    { text: 'Customers', icon: <PeopleIcon fontSize="small" />, path: '/dashboard/customers', roles: ['SUPER_ADMIN', 'STAFF'] },
+    { text: 'Job Cards', icon: <AssignmentIcon fontSize="small" />, path: '/dashboard/jobs', roles: ['SUPER_ADMIN', 'STAFF'] },
+    { text: 'Sales Invoices', icon: <DescriptionIcon fontSize="small" />, path: '/dashboard/invoices', roles: ['SUPER_ADMIN', 'STAFF'] },
+    { text: 'Receipts', icon: <AttachMoneyIcon fontSize="small" />, path: '/dashboard/receipts', roles: ['SUPER_ADMIN', 'STAFF'] },
+    { text: 'Inventory', icon: <LayersIcon fontSize="small" />, path: '/dashboard/inventory', roles: ['SUPER_ADMIN', 'STAFF'] },
+    { text: 'Suppliers', icon: <BusinessIcon fontSize="small" />, path: '/dashboard/suppliers', roles: ['SUPER_ADMIN', 'STAFF'] },
+    { text: 'Purchase Bills', icon: <ReceiptIcon fontSize="small" />, path: '/dashboard/purchase-bills', roles: ['SUPER_ADMIN', 'STAFF'] },
+    { text: 'Payments', icon: <PaymentsIcon fontSize="small" />, path: '/dashboard/payments', roles: ['SUPER_ADMIN', 'STAFF'] },
+    { text: 'Employees', icon: <BadgeIcon fontSize="small" />, path: '/dashboard/employees', roles: ['SUPER_ADMIN'] },
+    { text: 'Company Settings', icon: <SettingsIcon fontSize="small" />, path: '/dashboard/settings', roles: ['SUPER_ADMIN'] },
   ];
 
-  // Filter items based on active user's role
   const userRole = profile?.role || 'STAFF';
   const filteredMenuItems = menuItems.filter((item) => item.roles.includes(userRole));
 
   const drawerContent = (
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', bgcolor: '#0f172a', color: '#ffffff' }}>
-      {/* Drawer Header / Branding */}
+      {/* Sidebar Branding Header */}
       <Box
         sx={{
-          height: 64,
+          height: 70,
           display: 'flex',
           alignItems: 'center',
           px: 3,
@@ -97,27 +101,32 @@ export const AppShell = () => {
       >
         <Box
           sx={{
-            width: 32,
-            height: 32,
-            borderRadius: '50%',
+            width: 36,
+            height: 36,
+            borderRadius: '10px',
             bgcolor: 'primary.main',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            mr: 2,
+            mr: 1.5,
+            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)',
+            p: 0.5,
           }}
         >
-          <Typography variant="body1" sx={{ fontWeight: 'bold', color: '#ffffff' }}>
-            P
+          <Box component="img" src="/favicon.svg" alt="G.P.R. ERP Logo" sx={{ width: 24, height: 24, objectFit: 'contain' }} />
+        </Box>
+        <Box>
+          <Typography variant="h6" sx={{ fontWeight: 800, letterSpacing: '-0.02em', lineHeight: 1.2, color: '#ffffff' }}>
+            G.P.R. ERP
+          </Typography>
+          <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.5)', fontSize: '0.7rem' }}>
+            Press Management
           </Typography>
         </Box>
-        <Typography variant="h6" sx={{ fontWeight: 800, letterSpacing: '-0.5px' }}>
-          G.P.R ERP
-        </Typography>
       </Box>
 
-      {/* Navigation List */}
-      <List sx={{ px: 2, py: 2, flexGrow: 1, overflowY: 'auto' }}>
+      {/* Sidebar Navigation Items */}
+      <List sx={{ px: 1.5, py: 2, flexGrow: 1, overflowY: 'auto' }}>
         {filteredMenuItems.map((item) => {
           const isActive = location.pathname === item.path;
           return (
@@ -128,20 +137,33 @@ export const AppShell = () => {
                 onClick={isMobile ? handleDrawerToggle : undefined}
                 sx={{
                   borderRadius: 2,
-                  py: 1.25,
+                  py: 1.1,
                   px: 2,
-                  bgcolor: isActive ? 'rgba(0, 176, 255, 0.15)' : 'transparent',
-                  color: isActive ? '#00b0ff' : 'rgba(255, 255, 255, 0.7)',
+                  bgcolor: isActive ? 'rgba(2, 132, 199, 0.16)' : 'transparent',
+                  color: isActive ? '#38bdf8' : 'rgba(248, 250, 252, 0.75)',
+                  position: 'relative',
                   '&:hover': {
-                    bgcolor: isActive ? 'rgba(0, 176, 255, 0.2)' : 'rgba(255, 255, 255, 0.05)',
-                    color: isActive ? '#00b0ff' : '#ffffff',
+                    bgcolor: isActive ? 'rgba(2, 132, 199, 0.22)' : 'rgba(255, 255, 255, 0.06)',
+                    color: isActive ? '#38bdf8' : '#ffffff',
                   },
+                  '&::before': isActive
+                    ? {
+                        content: '""',
+                        position: 'absolute',
+                        left: 0,
+                        top: '15%',
+                        bottom: '15%',
+                        width: 3.5,
+                        borderRadius: '0 4px 4px 0',
+                        bgcolor: '#0284c7',
+                      }
+                    : undefined,
                 }}
               >
                 <ListItemIcon
                   sx={{
-                    minWidth: 40,
-                    color: isActive ? '#00b0ff' : 'rgba(255, 255, 255, 0.5)',
+                    minWidth: 36,
+                    color: isActive ? '#38bdf8' : 'rgba(255, 255, 255, 0.5)',
                   }}
                 >
                   {item.icon}
@@ -149,8 +171,8 @@ export const AppShell = () => {
                 <ListItemText
                   primary={item.text}
                   primaryTypographyProps={{
-                    fontSize: '0.9rem',
-                    fontWeight: isActive ? 600 : 500,
+                    fontSize: '0.875rem',
+                    fontWeight: isActive ? 700 : 500,
                   }}
                 />
               </ListItemButton>
@@ -159,18 +181,18 @@ export const AppShell = () => {
         })}
       </List>
 
-      {/* Drawer Footer / User Indicator */}
+      {/* Sidebar User Footer Info */}
       <Box sx={{ p: 2, borderTop: '1px solid rgba(255, 255, 255, 0.08)' }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', p: 1 }}>
-          <Avatar sx={{ bgcolor: 'secondary.main', color: '#000000', fontWeight: 'bold', mr: 2 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', p: 1, borderRadius: 2, bgcolor: 'rgba(255, 255, 255, 0.04)' }}>
+          <Avatar sx={{ bgcolor: 'secondary.main', color: '#ffffff', fontWeight: 700, width: 34, height: 34, mr: 1.5 }}>
             {profile?.name ? profile.name.charAt(0).toUpperCase() : 'U'}
           </Avatar>
           <Box sx={{ overflow: 'hidden' }}>
-            <Typography variant="body2" sx={{ fontWeight: 600, noWrap: true }}>
+            <Typography variant="body2" sx={{ fontWeight: 600, noWrap: true, color: '#ffffff' }}>
               {profile?.name || 'User'}
             </Typography>
             <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.5)', noWrap: true, display: 'block' }}>
-              {profile?.role === 'SUPER_ADMIN' ? 'Super Admin' : 'Staff'}
+              {profile?.role === 'SUPER_ADMIN' ? 'Super Admin' : 'Staff Member'}
             </Typography>
           </Box>
         </Box>
@@ -178,21 +200,25 @@ export const AppShell = () => {
     </Box>
   );
 
+  const activeTitle = menuItems.find((item) => item.path === location.pathname)?.text || 'Dashboard';
+
   return (
     <Box sx={{ display: 'flex', minHeight: '100vh', bgcolor: 'background.default' }}>
-      {/* Top Navbar */}
+      {/* Top Header Navbar */}
       <AppBar
         position="fixed"
+        elevation={0}
         sx={{
           width: { md: `calc(100% - ${DRAWER_WIDTH}px)` },
           ml: { md: `${DRAWER_WIDTH}px` },
-          bgcolor: '#ffffff',
+          bgcolor: 'rgba(255, 255, 255, 0.92)',
+          backdropFilter: 'blur(12px)',
           color: 'text.primary',
-          boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
-          borderBottom: '1px solid rgba(0,0,0,0.08)',
+          borderBottom: '1px solid rgba(15, 23, 42, 0.08)',
+          zIndex: (theme) => theme.zIndex.drawer + 1,
         }}
       >
-        <Toolbar sx={{ justifyContent: 'space-between' }}>
+        <Toolbar sx={{ justifyContent: 'space-between', height: 70 }}>
           <Box sx={{ display: 'flex', alignItems: 'center' }}>
             <IconButton
               color="inherit"
@@ -203,26 +229,55 @@ export const AppShell = () => {
             >
               <MenuIcon />
             </IconButton>
-            <Typography variant="h6" noWrap component="div" sx={{ fontWeight: 700, display: { xs: 'none', sm: 'block' } }}>
-              {menuItems.find((item) => item.path === location.pathname)?.text || 'Dashboard'}
+            <Typography variant="h5" noWrap component="h1" sx={{ fontWeight: 800, color: '#0f172a' }}>
+              {activeTitle}
             </Typography>
           </Box>
 
-          {/* User Menu Toggler */}
-          <Box>
-            <IconButton onClick={handleProfileMenuOpen} sx={{ p: 0 }}>
-              <Avatar
+          {/* Right Header Actions */}
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+            <Tooltip title="View Customer Storefront">
+              <IconButton
+                onClick={() => navigate('/')}
                 sx={{
-                  bgcolor: 'primary.main',
-                  color: 'primary.contrastText',
-                  fontWeight: 'bold',
-                  width: 36,
-                  height: 36,
-                  fontSize: '0.95rem',
+                  bgcolor: 'rgba(15, 23, 42, 0.04)',
+                  '&:hover': { bgcolor: 'rgba(15, 23, 42, 0.08)' },
                 }}
               >
-                {profile?.name ? profile.name.charAt(0).toUpperCase() : 'U'}
-              </Avatar>
+                <StorefrontIcon fontSize="small" color="action" />
+              </IconButton>
+            </Tooltip>
+
+            {/* Profile menu toggler */}
+            <IconButton
+              onClick={handleProfileMenuOpen}
+              sx={{
+                p: 0.5,
+                pl: 1,
+                pr: 1.5,
+                borderRadius: 6,
+                bgcolor: 'rgba(15, 23, 42, 0.04)',
+                '&:hover': { bgcolor: 'rgba(15, 23, 42, 0.08)' },
+              }}
+            >
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Avatar
+                  sx={{
+                    bgcolor: 'primary.main',
+                    color: '#ffffff',
+                    fontWeight: 700,
+                    width: 32,
+                    height: 32,
+                    fontSize: '0.875rem',
+                  }}
+                >
+                  {profile?.name ? profile.name.charAt(0).toUpperCase() : 'U'}
+                </Avatar>
+                <Typography variant="body2" sx={{ display: { xs: 'none', sm: 'block' }, fontWeight: 600, color: '#0f172a' }}>
+                  {profile?.name || 'User'}
+                </Typography>
+                <KeyboardArrowDownIcon fontSize="small" sx={{ color: 'text.secondary' }} />
+              </Box>
             </IconButton>
 
             {/* Profile Dropdown Menu */}
@@ -235,70 +290,69 @@ export const AppShell = () => {
               PaperProps={{
                 sx: {
                   mt: 1.5,
-                  width: 220,
+                  width: 240,
                   borderRadius: 3,
-                  boxShadow: '0px 8px 30px rgba(0, 0, 0, 0.08)',
-                  overflow: 'visible',
-                  border: '1px solid rgba(0,0,0,0.08)',
+                  p: 0.5,
                 },
               }}
             >
-              <Box sx={{ px: 2.5, py: 1.5 }}>
+              <Box sx={{ px: 2, py: 1.5 }}>
                 <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
                   {profile?.name || 'User'}
                 </Typography>
                 <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
                   {profile?.email}
                 </Typography>
-                <Typography
-                  variant="caption"
-                  sx={{
-                    display: 'inline-block',
-                    bgcolor: profile?.role === 'SUPER_ADMIN' ? 'rgba(26, 35, 126, 0.08)' : 'rgba(0, 176, 255, 0.08)',
-                    color: profile?.role === 'SUPER_ADMIN' ? 'primary.main' : 'secondary.dark',
-                    px: 1,
-                    py: 0.25,
-                    borderRadius: 1.5,
-                    fontWeight: 600,
-                  }}
-                >
-                  {profile?.role === 'SUPER_ADMIN' ? 'Super Admin' : 'Staff'}
-                </Typography>
+                <Chip
+                  label={profile?.role === 'SUPER_ADMIN' ? 'Super Admin' : 'Staff Member'}
+                  size="small"
+                  color={profile?.role === 'SUPER_ADMIN' ? 'primary' : 'secondary'}
+                  sx={{ height: 20, fontSize: '0.7rem', fontWeight: 700 }}
+                />
               </Box>
-              <Divider />
-              <MenuItem onClick={handleSignOutClick} sx={{ color: 'error.main', py: 1.25, px: 2.5 }}>
-                <ListItemIcon sx={{ color: 'error.main', minWidth: 32 }}>
+
+              <Divider sx={{ my: 1 }} />
+
+              <MenuItem onClick={() => { handleProfileMenuClose(); navigate('/'); }} sx={{ py: 1.2 }}>
+                <ListItemIcon sx={{ minWidth: 32 }}>
+                  <StorefrontIcon fontSize="small" />
+                </ListItemIcon>
+                <ListItemText primary="Customer Storefront" primaryTypographyProps={{ fontSize: '0.875rem' }} />
+              </MenuItem>
+
+              <Divider sx={{ my: 1 }} />
+
+              <MenuItem onClick={handleSignOutClick} sx={{ py: 1.2, color: 'error.main' }}>
+                <ListItemIcon sx={{ minWidth: 32, color: 'error.main' }}>
                   <LogoutIcon fontSize="small" />
                 </ListItemIcon>
-                <ListItemText primary="Sign Out" primaryTypographyProps={{ fontSize: '0.9rem', fontWeight: 600 }} />
+                <ListItemText primary="Sign Out" primaryTypographyProps={{ fontSize: '0.875rem', fontWeight: 700 }} />
               </MenuItem>
             </Menu>
           </Box>
         </Toolbar>
       </AppBar>
 
-      {/* Sidebar Navigation Drawers */}
+      {/* Drawer Side Navigation */}
       <Box component="nav" sx={{ width: { md: DRAWER_WIDTH }, flexShrink: { md: 0 } }}>
-        {/* Mobile Drawer (Temporary overlay) */}
         <Drawer
           variant="temporary"
           open={mobileOpen}
           onClose={handleDrawerToggle}
-          ModalProps={{ keepMounted: true }} // Better open performance on mobile
+          ModalProps={{ keepMounted: true }}
           sx={{
             display: { xs: 'block', md: 'none' },
-            '& .MuiDrawer-paper': { boxSizing: 'border-box', width: DRAWER_WIDTH },
+            '& .MuiDrawer-paper': { boxSizing: 'border-box', width: DRAWER_WIDTH, borderRight: '1px solid rgba(15, 23, 42, 0.08)' },
           }}
         >
           {drawerContent}
         </Drawer>
 
-        {/* Desktop Drawer (Permanent sidebar) */}
         <Drawer
           variant="permanent"
           sx={{
             display: { xs: 'none', md: 'block' },
-            '& .MuiDrawer-paper': { boxSizing: 'border-box', width: DRAWER_WIDTH, borderRight: '1px solid rgba(0,0,0,0.08)' },
+            '& .MuiDrawer-paper': { boxSizing: 'border-box', width: DRAWER_WIDTH, borderRight: '1px solid rgba(15, 23, 42, 0.08)' },
           }}
           open
         >
@@ -306,14 +360,14 @@ export const AppShell = () => {
         </Drawer>
       </Box>
 
-      {/* Main Page Area */}
+      {/* Main Content Area */}
       <Box
         component="main"
         sx={{
           flexGrow: 1,
-          p: { xs: 2, sm: 3 },
+          p: { xs: 2, sm: 3, md: 4 },
           width: { md: `calc(100% - ${DRAWER_WIDTH}px)` },
-          mt: 8, // Margins out navbar
+          mt: '70px',
         }}
       >
         <Outlet />

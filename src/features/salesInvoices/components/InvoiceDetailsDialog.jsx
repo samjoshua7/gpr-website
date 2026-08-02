@@ -130,6 +130,11 @@ export const InvoiceDetailsDialog = ({ open, onClose, invoiceId }) => {
                     Job Ref: <em>{invoice.job_cards.description.substring(0, 30)}...</em>
                   </Typography>
                 )}
+                {invoice.invoice_type === 'GST' && (
+                  <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                    Customer Type: <strong>{invoice.customer_type}</strong>
+                  </Typography>
+                )}
               </Grid>
             </Grid>
 
@@ -139,12 +144,12 @@ export const InvoiceDetailsDialog = ({ open, onClose, invoiceId }) => {
                 <TableHead sx={{ bgcolor: 'rgba(0,0,0,0.02)' }}>
                   <TableRow>
                     <TableCell sx={{ fontWeight: 700 }}>Description</TableCell>
-                    {invoice.invoice_no?.includes('/GST/') && <TableCell sx={{ fontWeight: 700 }}>HSN/SAC</TableCell>}
+                    {invoice.invoice_type === 'GST' && <TableCell sx={{ fontWeight: 700 }}>HSN/SAC</TableCell>}
                     <TableCell sx={{ fontWeight: 700 }} align="right">Qty</TableCell>
                     <TableCell sx={{ fontWeight: 700 }} align="right">Unit Price</TableCell>
                     <TableCell sx={{ fontWeight: 700 }} align="right">Discount</TableCell>
-                    {invoice.invoice_no?.includes('/GST/') && <TableCell sx={{ fontWeight: 700 }} align="right">GST %</TableCell>}
-                    {invoice.invoice_no?.includes('/GST/') && <TableCell sx={{ fontWeight: 700 }} align="right">GST Amt</TableCell>}
+                    {invoice.invoice_type === 'GST' && <TableCell sx={{ fontWeight: 700 }} align="right">GST %</TableCell>}
+                    {invoice.invoice_type === 'GST' && <TableCell sx={{ fontWeight: 700 }} align="right">GST Amt</TableCell>}
                     <TableCell sx={{ fontWeight: 700 }} align="right">Line Total</TableCell>
                   </TableRow>
                 </TableHead>
@@ -152,12 +157,12 @@ export const InvoiceDetailsDialog = ({ open, onClose, invoiceId }) => {
                   {invoice.items?.map((item) => (
                     <TableRow key={item.invoice_item_id}>
                       <TableCell sx={{ py: 1.25 }}>{item.description}</TableCell>
-                      {invoice.invoice_no?.includes('/GST/') && <TableCell>{item.hsn_code || '—'}</TableCell>}
+                      {invoice.invoice_type === 'GST' && <TableCell>{item.hsn_code || '—'}</TableCell>}
                       <TableCell align="right">{item.quantity}</TableCell>
                       <TableCell align="right">{formatCurrency(item.unit_price)}</TableCell>
                       <TableCell align="right">{formatCurrency(item.discount_amount)}</TableCell>
-                      {invoice.invoice_no?.includes('/GST/') && <TableCell align="right">{item.gst_rate}%</TableCell>}
-                      {invoice.invoice_no?.includes('/GST/') && <TableCell align="right">{formatCurrency(item.tax_amount)}</TableCell>}
+                      {invoice.invoice_type === 'GST' && <TableCell align="right">{item.gst_rate}%</TableCell>}
+                      {invoice.invoice_type === 'GST' && <TableCell align="right">{formatCurrency(item.tax_amount)}</TableCell>}
                       <TableCell align="right" sx={{ fontWeight: 600 }}>{formatCurrency(item.amount)}</TableCell>
                     </TableRow>
                   ))}
@@ -209,7 +214,7 @@ export const InvoiceDetailsDialog = ({ open, onClose, invoiceId }) => {
                    </Typography>
                  </Box>
 
-                 {invoice.invoice_no?.includes('/GST/') && (
+                 {invoice.invoice_type === 'GST' && (
                    <React.Fragment>
                      <Box sx={{ display: 'flex', width: 280 }}>
                        <Typography variant="body2" color="text.secondary" sx={{ flexGrow: 1 }}>CGST (Central Tax):</Typography>

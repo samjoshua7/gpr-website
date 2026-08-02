@@ -20,8 +20,8 @@ const DEPENDENCY_CONFIG = {
       table: 'job_cards',
       foreignKey: 'customer_id',
       label: 'Job Cards',
-      displayField: 'job_id',
-      formatLabel: (val) => `JC-${val.substring(0, 8).toUpperCase()}`,
+      displayField: 'job_number',
+      formatLabel: (val) => `JC-${String(val).padStart(4, '0')}`,
     },
   ],
   suppliers: [
@@ -46,7 +46,7 @@ const DEPENDENCY_CONFIG = {
       foreignKey: 'item_id',
       label: 'Job Material Consumption',
       displayField: 'job_id',
-      formatLabel: (val) => `JC-${val.substring(0, 8).toUpperCase()}`,
+      formatLabel: (val) => `JC-ID-${val.substring(0, 8).toUpperCase()}`, // fallback since job_card_items only has job_id
     },
     {
       table: 'purchase_bill_items',

@@ -304,6 +304,7 @@ export const SalesInvoicesPage = () => {
           <TableHead sx={{ bgcolor: 'rgba(0, 0, 0, 0.03)' }}>
             <TableRow>
               <TableCell sx={{ fontWeight: 700 }}>Invoice No</TableCell>
+              <TableCell sx={{ fontWeight: 700 }}>Type</TableCell>
               <TableCell sx={{ fontWeight: 700 }}>Customer</TableCell>
               <TableCell sx={{ fontWeight: 700 }}>Date</TableCell>
               <TableCell sx={{ fontWeight: 700 }} align="right">Total Amount</TableCell>
@@ -317,6 +318,7 @@ export const SalesInvoicesPage = () => {
               Array.from(new Array(5)).map((_, index) => (
                 <TableRow key={index}>
                   <TableCell><Skeleton width="40%" /></TableCell>
+                  <TableCell><Skeleton width="40%" /></TableCell>
                   <TableCell><Skeleton width="70%" /></TableCell>
                   <TableCell><Skeleton width="50%" /></TableCell>
                   <TableCell align="right"><Skeleton width="30%" sx={{ ml: 'auto' }} /></TableCell>
@@ -327,7 +329,7 @@ export const SalesInvoicesPage = () => {
               ))
             ) : invoices.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} align="center" sx={{ py: 6 }}>
+                <TableCell colSpan={8} align="center" sx={{ py: 6 }}>
                   <Typography variant="body1" color="text.secondary">
                     No invoices found. Click "Create Invoice" to record sales billing.
                   </Typography>
@@ -337,6 +339,9 @@ export const SalesInvoicesPage = () => {
               invoices.map((inv) => (
                 <TableRow key={inv.invoice_id} hover>
                   <TableCell sx={{ fontWeight: 700, color: 'primary.main' }}>{inv.invoice_no}</TableCell>
+                  <TableCell>
+                    <Chip label={inv.invoice_type === 'GST' ? 'GST' : 'Non-GST'} size="small" variant="outlined" color={inv.invoice_type === 'GST' ? 'primary' : 'default'} />
+                  </TableCell>
                   <TableCell sx={{ fontWeight: 600 }}>{inv.customers?.name || '—'}</TableCell>
                   <TableCell>{formatDate(inv.invoice_date)}</TableCell>
                   <TableCell align="right" sx={{ fontWeight: 600 }}>{formatCurrency(inv.total_amount)}</TableCell>

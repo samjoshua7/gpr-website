@@ -117,6 +117,7 @@ export const StockAdjustmentDialog = ({ open, onClose, item, onSaveSuccess }) =>
                 type="number"
                 value={quantity}
                 onChange={(e) => setQuantity(e.target.value)}
+                onFocus={(e) => e.target.select()}
                 error={!!errors.quantity}
                 helperText={errors.quantity}
                 inputProps={{ min: '0.01', step: 'any' }}

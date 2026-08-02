@@ -29,6 +29,8 @@ export const getItems = async (searchQuery = '') => {
   return data || [];
 };
 
+export const getInventoryItems = getItems;
+
 export const createItem = async (itemData) => {
   const { data, error } = await supabase
     .from('items')

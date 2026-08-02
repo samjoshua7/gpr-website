@@ -82,6 +82,13 @@ export const createSalesInvoice = async (invoiceData, lineItems) => {
         job_id: invoiceData.job_id || null,
         invoice_no: invoiceData.invoice_no,
         invoice_date: invoiceData.invoice_date,
+        invoice_type: invoiceData.invoice_type || 'NON_GST',
+        customer_type: invoiceData.invoice_type === 'GST' ? (invoiceData.customer_type || 'B2C') : null,
+        is_interstate: !!invoiceData.is_interstate,
+        customer_name: invoiceData.customer_name || null,
+        customer_gstin: invoiceData.customer_gstin || null,
+        billing_address: invoiceData.billing_address || null,
+        shipping_address: invoiceData.shipping_address || null,
         total_amount: parseFloat(invoiceData.total_amount),
         amount_paid: 0.00,
         status: 'unpaid',
@@ -156,8 +163,8 @@ export const deleteSalesInvoice = async (id) => {
 /**
  * Calculates and returns the next sequential invoice number based on GST type
  */
-export const getNextInvoiceNumber = async (isGst, financialYear = '26-27') => {
-  const prefix = isGst ? `GPR/GST/${financialYear}/` : `GPR/NGST/${financialYear}/`;
+export const getNextInvoiceNumber = async (invoiceType, financialYear = '26-27') => {
+  const prefix = invoiceType === 'GST' ? `GPR/GST/${financialYear}/` : `GPR/NGST/${financialYear}/`;
   
   const { data, error } = await supabase
     .from('sales_invoices')
@@ -188,23 +195,21 @@ export const getNextInvoiceNumber = async (isGst, financialYear = '26-27') => {
 export const getCustomerOutstandingBalance = async (customerId) => {
   if (!customerId) return 0;
   
-  const { data, error } = await supabase
-    .from('sales_invoices')
-    .select('total_amount, amount_paid')
-    .eq('customer_id', customerId)
-    .in('status', ['unpaid', 'partial']);
+  const [custRes, invRes, recRes] = await Promise.all([
+    supabase.from('customers').select('opening_balance').eq('customer_id', customerId).single(),
+    supabase.from('sales_invoices').select('total_amount').eq('customer_id', customerId).neq('status', 'void'),
+    supabase.from('receipts').select('amount').eq('customer_id', customerId)
+  ]);
 
-  if (error) {
-    throw new Error(error.message);
-  }
+  if (custRes.error) throw new Error(custRes.error.message);
+  if (invRes.error) throw new Error(invRes.error.message);
+  if (recRes.error) throw new Error(recRes.error.message);
 
-  const balance = data.reduce((sum, inv) => {
-    const tot = parseFloat(inv.total_amount) || 0;
-    const paid = parseFloat(inv.amount_paid) || 0;
-    return sum + (tot - paid);
-  }, 0);
+  const openingBalance = parseFloat(custRes.data.opening_balance) || 0;
+  const totalSales = invRes.data.reduce((sum, inv) => sum + (parseFloat(inv.total_amount) || 0), 0);
+  const totalReceipts = recRes.data.reduce((sum, rec) => sum + (parseFloat(rec.amount) || 0), 0);
 
-  return balance;
+  return openingBalance + totalSales - totalReceipts;
 };
 
 /**
