@@ -1,6 +1,25 @@
 import { supabase } from '../../lib/supabaseClient';
 
-export const getJobCards = async (searchQuery = '', statusFilter = '') => {
+let cachedJobCards = null;
+let lastFetchTimeJobCards = null;
+let cachedProductionTasks = null;
+let lastFetchTimeProductionTasks = null;
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+export const invalidateJobCardsCache = () => {
+  cachedJobCards = null;
+  lastFetchTimeJobCards = null;
+};
+
+export const invalidateProductionTasksCache = () => {
+  cachedProductionTasks = null;
+  lastFetchTimeProductionTasks = null;
+};
+export const getJobCards = async (searchQuery = '', statusFilter = '', forceRefresh = false) => {
+  if (!forceRefresh && cachedJobCards && !searchQuery && (!statusFilter || statusFilter === 'all') && lastFetchTimeJobCards && (Date.now() - lastFetchTimeJobCards < CACHE_TTL)) {
+    return cachedJobCards;
+  }
+
   let query = supabase
     .from('job_cards')
     .select(`
@@ -28,6 +47,11 @@ export const getJobCards = async (searchQuery = '', statusFilter = '') => {
         job.description?.toLowerCase().includes(cleanSearch) ||
         job.customers?.name?.toLowerCase().includes(cleanSearch)
     );
+  }
+
+  if (!searchQuery.trim() && (!statusFilter || statusFilter === 'all')) {
+    cachedJobCards = data;
+    lastFetchTimeJobCards = Date.now();
   }
 
   return data;
@@ -75,6 +99,7 @@ export const createJobCard = async (jobData) => {
     throw new Error(error.message);
   }
 
+  invalidateJobCardsCache();
   return data;
 };
 
@@ -96,6 +121,7 @@ export const updateJobCard = async (id, jobData) => {
     throw new Error(error.message);
   }
 
+  invalidateJobCardsCache();
   return data;
 };
 
@@ -111,6 +137,7 @@ export const updateJobStatus = async (id, status) => {
     throw new Error(error.message);
   }
 
+  invalidateJobCardsCache();
   return data;
 };
 
@@ -124,10 +151,15 @@ export const deleteJobCard = async (id) => {
     throw new Error(error.message);
   }
 
+  invalidateJobCardsCache();
   return true;
 };
 
-export const getProductionTasks = async () => {
+export const getProductionTasks = async (forceRefresh = false) => {
+  if (!forceRefresh && cachedProductionTasks && lastFetchTimeProductionTasks && (Date.now() - lastFetchTimeProductionTasks < CACHE_TTL)) {
+    return cachedProductionTasks;
+  }
+
   const { data, error } = await supabase
     .from('production_tasks')
     .select(`
@@ -147,7 +179,10 @@ export const getProductionTasks = async () => {
     throw new Error(error.message);
   }
 
-  return data || [];
+  cachedProductionTasks = data || [];
+  lastFetchTimeProductionTasks = Date.now();
+
+  return cachedProductionTasks;
 };
 
 export const updateProductionTaskStatus = async (taskId, status) => {
@@ -162,6 +197,7 @@ export const updateProductionTaskStatus = async (taskId, status) => {
     throw new Error(error.message);
   }
 
+  invalidateProductionTasksCache();
   return data;
 };
 

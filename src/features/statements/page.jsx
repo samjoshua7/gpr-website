@@ -22,11 +22,30 @@ import {
   Select,
   InputLabel,
   FormControl,
+  TablePagination
 } from '@mui/material';
 import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
 import { getStatementData } from './api';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
+import { SearchInput } from '../../components/ui/SearchInput';
+import { HighlightText } from '../../components/ui/HighlightText';
+
+const currencyFormatter = new Intl.NumberFormat('en-IN', {
+  style: 'currency',
+  currency: 'INR',
+});
+
+const formatCurrency = (amount) => currencyFormatter.format(amount || 0);
+
+const dateFormatter = new Intl.DateTimeFormat('en-IN', {
+  day: '2-digit', month: 'short', year: 'numeric'
+});
+
+const formatDate = (date) => {
+  if (!date) return '—';
+  return dateFormatter.format(typeof date === 'string' ? new Date(date) : date);
+};
 
 export const StatementsPage = () => {
   const [tabIndex, setTabIndex] = useState(0);
@@ -42,6 +61,10 @@ export const StatementsPage = () => {
   const [endDate, setEndDate] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [sortOrder, setSortOrder] = useState('newest'); // newest, oldest, highest, lowest
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(25);
 
   const loadData = async () => {
     try {
@@ -76,6 +99,7 @@ export const StatementsPage = () => {
     } else if (newIndex === 2) {
       setSelectedCustomer(null);
     }
+    setPage(0);
   };
 
   const combinedData = useMemo(() => {
@@ -140,20 +164,33 @@ export const StatementsPage = () => {
       return 0;
     });
 
-    return rawData;
-  }, [invoices, receipts, tabIndex, selectedCustomer, startDate, endDate, statusFilter, sortOrder]);
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      rawData = rawData.filter(r => 
+        (r.refNo || '').toLowerCase().includes(q) ||
+        (r.customerName || '').toLowerCase().includes(q)
+      );
+    }
 
-  const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('en-IN', {
-      style: 'currency',
-      currency: 'INR',
-    }).format(amount || 0);
+    return rawData;
+  }, [invoices, receipts, tabIndex, selectedCustomer, startDate, endDate, statusFilter, sortOrder, searchQuery]);
+
+  const paginatedData = useMemo(() => {
+    const start = page * rowsPerPage;
+    return combinedData.slice(start, start + rowsPerPage);
+  }, [combinedData, page, rowsPerPage]);
+
+  useEffect(() => {
+    setPage(0);
+  }, [searchQuery]);
+
+  const handleChangePage = (event, newPage) => {
+    setPage(newPage);
   };
 
-  const formatDate = (date) => {
-    return date.toLocaleDateString('en-IN', {
-      day: '2-digit', month: 'short', year: 'numeric'
-    });
+  const handleChangeRowsPerPage = (event) => {
+    setRowsPerPage(parseInt(event.target.value, 10));
+    setPage(0);
   };
 
   const handleExportPDF = () => {
@@ -228,6 +265,16 @@ export const StatementsPage = () => {
         </Tabs>
         
         <Box p={3}>
+          <Grid container spacing={2} alignItems="center" sx={{ mb: 2 }}>
+            <Grid item xs={12}>
+              <SearchInput
+                placeholder="Search by ref no or customer..."
+                value={searchQuery}
+                onChange={setSearchQuery}
+                sx={{ bgcolor: 'background.paper', borderRadius: 2, width: '100%' }}
+              />
+            </Grid>
+          </Grid>
           <Grid container spacing={2} alignItems="center">
             {tabIndex === 1 && (
               <Grid item xs={12} md={4}>
@@ -309,14 +356,25 @@ export const StatementsPage = () => {
             </TableRow>
           </TableHead>
           <TableBody>
-            {combinedData.length === 0 ? (
+            {loading && combinedData.length === 0 ? (
+              Array.from(new Array(3)).map((_, index) => (
+                <TableRow key={index}>
+                  <TableCell><CircularProgress size={24} /></TableCell>
+                  <TableCell></TableCell>
+                  <TableCell></TableCell>
+                  <TableCell></TableCell>
+                  <TableCell></TableCell>
+                  <TableCell></TableCell>
+                </TableRow>
+              ))
+            ) : paginatedData.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={6} align="center" sx={{ py: 3 }}>
                   No statement records found for the selected criteria.
                 </TableCell>
               </TableRow>
             ) : (
-              combinedData.map((row, idx) => (
+              paginatedData.map((row, idx) => (
                 <TableRow key={`${row.type}-${row.id}-${idx}`} hover>
                   <TableCell>{formatDate(row.date)}</TableCell>
                   <TableCell>
@@ -327,8 +385,12 @@ export const StatementsPage = () => {
                       variant="outlined" 
                     />
                   </TableCell>
-                  <TableCell sx={{ fontWeight: 600 }}>{row.refNo}</TableCell>
-                  <TableCell>{row.customerName}</TableCell>
+                  <TableCell sx={{ fontWeight: 600 }}>
+                    <HighlightText text={row.refNo} highlight={searchQuery} />
+                  </TableCell>
+                  <TableCell>
+                    <HighlightText text={row.customerName} highlight={searchQuery} />
+                  </TableCell>
                   <TableCell>
                     {row.type === 'Invoice' ? (
                       <Chip label={row.status} size="small" />
@@ -345,6 +407,20 @@ export const StatementsPage = () => {
           </TableBody>
         </Table>
       </TableContainer>
+
+      {combinedData.length > 0 && (
+        <TablePagination
+          rowsPerPageOptions={[25, 50, 100]}
+          component="div"
+          count={combinedData.length}
+          rowsPerPage={rowsPerPage}
+          page={page}
+          onPageChange={handleChangePage}
+          onRowsPerPageChange={handleChangeRowsPerPage}
+          component={Paper}
+          sx={{ borderTopLeftRadius: 0, borderTopRightRadius: 0 }}
+        />
+      )}
     </Box>
   );
 };

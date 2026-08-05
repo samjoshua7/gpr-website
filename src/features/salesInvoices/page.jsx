@@ -40,12 +40,42 @@ import InvoiceDialog from './components/InvoiceDialog';
 import InvoiceDetailsDialog from './components/InvoiceDetailsDialog';
 import { checkReferences } from '../../lib/referenceChecker';
 import CannotDeleteDialog from '../../components/feedback/CannotDeleteDialog';
+import { SearchInput } from '../../components/ui/SearchInput';
+import { HighlightText } from '../../components/ui/HighlightText';
+import { TablePagination, TableSortLabel, Stack } from '@mui/material';
 
 const STATUS_MAP = {
   unpaid: { label: 'Unpaid', color: 'error' },
   partial: { label: 'Partial', color: 'warning' },
   paid: { label: 'Paid', color: 'success' },
   void: { label: 'Void', color: 'default' },
+};
+
+const headCells = [
+  { id: 'invoice_no', label: 'Invoice No', align: 'left' },
+  { id: 'invoice_type', label: 'Type', align: 'left' },
+  { id: 'customer_name', label: 'Customer', align: 'left' },
+  { id: 'invoice_date', label: 'Date', align: 'left' },
+  { id: 'total_amount', label: 'Total Amount', align: 'right' },
+  { id: 'amount_paid', label: 'Amount Paid', align: 'right' },
+  { id: 'status', label: 'Status', align: 'center' },
+  { id: 'actions', label: 'Actions', align: 'center', disableSort: true }
+];
+
+const currencyFormatter = new Intl.NumberFormat('en-IN', {
+  style: 'currency',
+  currency: 'INR',
+});
+
+const formatCurrency = (amount) => currencyFormatter.format(amount || 0);
+
+const dateFormatter = new Intl.DateTimeFormat('en-IN', {
+  day: '2-digit', month: 'short', year: 'numeric'
+});
+
+const formatDate = (dateStr) => {
+  if (!dateStr) return '—';
+  return dateFormatter.format(new Date(dateStr));
 };
 
 export const SalesInvoicesPage = () => {
@@ -57,6 +87,11 @@ export const SalesInvoicesPage = () => {
   const [statusFilter, setStatusFilter] = useState('all');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(25);
+  const [orderBy, setOrderBy] = useState('invoice_date');
+  const [order, setOrder] = useState('desc');
 
   // Kickoff job card state
   const [kickoffJob, setKickoffJob] = useState(null);
@@ -82,11 +117,11 @@ export const SalesInvoicesPage = () => {
   const [voidLoading, setVoidLoading] = useState(false);
   const [voidError, setVoidError] = useState(null);
 
-  const fetchInvoices = useCallback(async (query, filter) => {
+  const fetchInvoices = useCallback(async (filter) => {
     setLoading(true);
     setError(null);
     try {
-      const data = await getSalesInvoices(query, filter);
+      const data = await getSalesInvoices('', filter);
       setInvoices(data);
     } catch (err) {
       console.error(err);
@@ -97,12 +132,63 @@ export const SalesInvoicesPage = () => {
   }, []);
 
   useEffect(() => {
-    const delayDebounce = setTimeout(() => {
-      fetchInvoices(searchQuery, statusFilter);
-    }, 400);
+    fetchInvoices(statusFilter);
+  }, [statusFilter, fetchInvoices]);
 
-    return () => clearTimeout(delayDebounce);
-  }, [searchQuery, statusFilter, fetchInvoices]);
+  const processedInvoices = React.useMemo(() => {
+    let result = [...invoices];
+    
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      result = result.filter(inv => 
+        (inv.invoice_no || '').toLowerCase().includes(q) ||
+        (inv.customers?.name || '').toLowerCase().includes(q)
+      );
+    }
+
+    if (orderBy) {
+      result.sort((a, b) => {
+        let valA = orderBy === 'customer_name' ? a.customers?.name : a[orderBy];
+        let valB = orderBy === 'customer_name' ? b.customers?.name : b[orderBy];
+        
+        valA = valA == null ? '' : valA;
+        valB = valB == null ? '' : valB;
+
+        if (typeof valA === 'string') valA = valA.toLowerCase();
+        if (typeof valB === 'string') valB = valB.toLowerCase();
+
+        if (valA < valB) return order === 'asc' ? -1 : 1;
+        if (valA > valB) return order === 'asc' ? 1 : -1;
+        return 0;
+      });
+    }
+
+    return result;
+  }, [invoices, searchQuery, orderBy, order]);
+
+  const paginatedInvoices = React.useMemo(() => {
+    const start = page * rowsPerPage;
+    return processedInvoices.slice(start, start + rowsPerPage);
+  }, [processedInvoices, page, rowsPerPage]);
+
+  useEffect(() => {
+    setPage(0);
+  }, [searchQuery, statusFilter]);
+
+  const handleRequestSort = (property) => {
+    const isAsc = orderBy === property && order === 'asc';
+    setOrder(isAsc ? 'desc' : 'asc');
+    setOrderBy(property);
+  };
+
+  const handleChangePage = (event, newPage) => {
+    setPage(newPage);
+  };
+
+  const handleChangeRowsPerPage = (event) => {
+    setRowsPerPage(parseInt(event.target.value, 10));
+    setPage(0);
+  };
 
   // Handle incoming kickoff job card from navigation state
   useEffect(() => {
@@ -155,7 +241,7 @@ export const SalesInvoicesPage = () => {
       // Clean location state to avoid reopening dialog
       navigate(location.pathname, { replace: true, state: {} });
     }
-    fetchInvoices(searchQuery, statusFilter);
+    fetchInvoices(statusFilter);
   };
 
   const handleVoidConfirm = async () => {
@@ -166,7 +252,7 @@ export const SalesInvoicesPage = () => {
       await voidSalesInvoice(invoiceToVoid.invoice_id);
       setVoidOpen(false);
       setInvoiceToVoid(null);
-      fetchInvoices(searchQuery, statusFilter);
+      fetchInvoices(statusFilter);
     } catch (err) {
       console.error(err);
       setVoidError(err.message || 'Failed to void invoice.');
@@ -219,29 +305,13 @@ export const SalesInvoicesPage = () => {
       await deleteSalesInvoice(invoiceToDelete.invoice_id);
       setDeleteOpen(false);
       setInvoiceToDelete(null);
-      fetchInvoices(searchQuery, statusFilter);
+      fetchInvoices(statusFilter);
     } catch (err) {
       console.error(err);
       setDeleteError(err.message || 'Failed to delete invoice.');
     } finally {
       setDeleteLoading(false);
     }
-  };
-
-  const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('en-IN', {
-      style: 'currency',
-      currency: 'INR',
-    }).format(amount || 0);
-  };
-
-  const formatDate = (dateStr) => {
-    if (!dateStr) return '—';
-    return new Date(dateStr).toLocaleDateString('en-IN', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-    });
   };
 
   return (
@@ -267,20 +337,11 @@ export const SalesInvoicesPage = () => {
 
       {/* Search and Tabs */}
       <Box sx={{ mb: 3 }}>
-        <TextField
-          fullWidth
-          variant="outlined"
+        <SearchInput
           placeholder="Search by invoice number or customer name..."
           value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          InputProps={{
-            startAdornment: (
-              <InputAdornment position="start">
-                <SearchIcon color="action" />
-              </InputAdornment>
-            ),
-          }}
-          sx={{ bgcolor: 'background.paper', borderRadius: 2, mb: 2 }}
+          onChange={setSearchQuery}
+          sx={{ bgcolor: 'background.paper', borderRadius: 2, mb: 2, width: '100%' }}
         />
 
         <Paper sx={{ borderRadius: 2, overflow: 'hidden' }}>
@@ -312,18 +373,30 @@ export const SalesInvoicesPage = () => {
         <Table>
           <TableHead sx={{ bgcolor: 'rgba(0, 0, 0, 0.03)' }}>
             <TableRow>
-              <TableCell sx={{ fontWeight: 700 }}>Invoice No</TableCell>
-              <TableCell sx={{ fontWeight: 700 }}>Type</TableCell>
-              <TableCell sx={{ fontWeight: 700 }}>Customer</TableCell>
-              <TableCell sx={{ fontWeight: 700 }}>Date</TableCell>
-              <TableCell sx={{ fontWeight: 700 }} align="right">Total Amount</TableCell>
-              <TableCell sx={{ fontWeight: 700 }} align="right">Amount Paid</TableCell>
-              <TableCell sx={{ fontWeight: 700 }} align="center">Status</TableCell>
-              <TableCell sx={{ fontWeight: 700 }} align="center">Actions</TableCell>
+              {headCells.map((headCell) => (
+                <TableCell
+                  key={headCell.id}
+                  align={headCell.align}
+                  sx={{ fontWeight: 700 }}
+                  sortDirection={orderBy === headCell.id ? order : false}
+                >
+                  {headCell.disableSort ? (
+                    headCell.label
+                  ) : (
+                    <TableSortLabel
+                      active={orderBy === headCell.id}
+                      direction={orderBy === headCell.id ? order : 'asc'}
+                      onClick={() => handleRequestSort(headCell.id)}
+                    >
+                      {headCell.label}
+                    </TableSortLabel>
+                  )}
+                </TableCell>
+              ))}
             </TableRow>
           </TableHead>
           <TableBody>
-            {loading ? (
+            {loading && invoices.length === 0 ? (
               Array.from(new Array(5)).map((_, index) => (
                 <TableRow key={index}>
                   <TableCell><Skeleton width="40%" /></TableCell>
@@ -336,7 +409,7 @@ export const SalesInvoicesPage = () => {
                   <TableCell align="center"><Skeleton width="60%" sx={{ mx: 'auto' }} /></TableCell>
                 </TableRow>
               ))
-            ) : invoices.length === 0 ? (
+            ) : paginatedInvoices.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={8} align="center" sx={{ py: 6 }}>
                   <Typography variant="body1" color="text.secondary">
@@ -345,13 +418,17 @@ export const SalesInvoicesPage = () => {
                 </TableCell>
               </TableRow>
             ) : (
-              invoices.map((inv) => (
+              paginatedInvoices.map((inv) => (
                 <TableRow key={inv.invoice_id} hover>
-                  <TableCell sx={{ fontWeight: 700, color: 'primary.main' }}>{inv.invoice_no}</TableCell>
+                  <TableCell sx={{ fontWeight: 700, color: 'primary.main' }}>
+                    <HighlightText text={inv.invoice_no} highlight={searchQuery} />
+                  </TableCell>
                   <TableCell>
                     <Chip label={inv.invoice_type === 'GST' ? 'GST' : 'Non-GST'} size="small" variant="outlined" color={inv.invoice_type === 'GST' ? 'primary' : 'default'} />
                   </TableCell>
-                  <TableCell sx={{ fontWeight: 600 }}>{inv.customers?.name || '—'}</TableCell>
+                  <TableCell sx={{ fontWeight: 600 }}>
+                    <HighlightText text={inv.customers?.name || '—'} highlight={searchQuery} />
+                  </TableCell>
                   <TableCell>{formatDate(inv.invoice_date)}</TableCell>
                   <TableCell align="right" sx={{ fontWeight: 600 }}>{formatCurrency(inv.total_amount)}</TableCell>
                   <TableCell align="right" sx={{ color: 'success.main', fontWeight: 600 }}>
@@ -394,6 +471,17 @@ export const SalesInvoicesPage = () => {
           </TableBody>
         </Table>
       </TableContainer>
+      <TablePagination
+        rowsPerPageOptions={[25, 50, 100]}
+        component="div"
+        count={processedInvoices.length}
+        rowsPerPage={rowsPerPage}
+        page={page}
+        onPageChange={handleChangePage}
+        onRowsPerPageChange={handleChangeRowsPerPage}
+        component={Paper}
+        sx={{ borderTopLeftRadius: 0, borderTopRightRadius: 0 }}
+      />
 
       {/* Details Viewer */}
       <InvoiceDetailsDialog

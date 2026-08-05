@@ -1,6 +1,18 @@
 import { supabase } from '../../lib/supabaseClient';
 
-export const getReceipts = async (searchQuery = '') => {
+let cachedReceipts = null;
+let lastFetchTimeReceipts = null;
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+export const invalidateReceiptsCache = () => {
+  cachedReceipts = null;
+  lastFetchTimeReceipts = null;
+};
+export const getReceipts = async (searchQuery = '', forceRefresh = false) => {
+  if (!forceRefresh && cachedReceipts && !searchQuery && lastFetchTimeReceipts && (Date.now() - lastFetchTimeReceipts < CACHE_TTL)) {
+    return cachedReceipts;
+  }
+
   const { data, error } = await supabase
     .from('receipts')
     .select(`
@@ -21,14 +33,9 @@ export const getReceipts = async (searchQuery = '') => {
     throw new Error(error.message);
   }
 
-  if (searchQuery.trim()) {
-    const cleanSearch = searchQuery.toLowerCase().trim();
-    return data.filter(
-      (r) =>
-        r.customers?.name?.toLowerCase().includes(cleanSearch) ||
-        r.sales_invoices?.invoice_no?.toLowerCase().includes(cleanSearch) ||
-        r.mode?.toLowerCase().includes(cleanSearch)
-    );
+  if (!searchQuery.trim()) {
+    cachedReceipts = data || [];
+    lastFetchTimeReceipts = Date.now();
   }
 
   return data || [];
@@ -53,6 +60,7 @@ export const createReceipt = async (receiptData) => {
     throw new Error(error.message);
   }
 
+  invalidateReceiptsCache();
   return data;
 };
 
@@ -66,6 +74,7 @@ export const deleteReceipt = async (receiptId) => {
     throw new Error(error.message);
   }
 
+  invalidateReceiptsCache();
   return true;
 };
 

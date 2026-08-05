@@ -1,6 +1,18 @@
 import { supabase } from '../../lib/supabaseClient';
 
-export const getStatementData = async () => {
+let cachedStatementData = null;
+let lastFetchTimeStatementData = null;
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+export const invalidateStatementDataCache = () => {
+  cachedStatementData = null;
+  lastFetchTimeStatementData = null;
+};
+export const getStatementData = async (forceRefresh = false) => {
+  if (!forceRefresh && cachedStatementData && lastFetchTimeStatementData && (Date.now() - lastFetchTimeStatementData < CACHE_TTL)) {
+    return cachedStatementData;
+  }
+
   // Parallel fetch invoices and receipts to build statement
   const [invoicesRes, receiptsRes, customersRes] = await Promise.all([
     supabase.from('sales_invoices').select('*, customers(name)').order('invoice_date', { ascending: false }),
@@ -12,9 +24,12 @@ export const getStatementData = async () => {
   if (receiptsRes.error) throw new Error(receiptsRes.error.message);
   if (customersRes.error) throw new Error(customersRes.error.message);
 
-  return {
+  cachedStatementData = {
     invoices: invoicesRes.data || [],
     receipts: receiptsRes.data || [],
     customers: customersRes.data || []
   };
+  lastFetchTimeStatementData = Date.now();
+
+  return cachedStatementData;
 };

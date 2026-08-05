@@ -1,6 +1,18 @@
 import { supabase } from '../../lib/supabaseClient';
 
-export const getItems = async (searchQuery = '') => {
+let cachedItems = null;
+let lastFetchTimeItems = null;
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+export const invalidateItemsCache = () => {
+  cachedItems = null;
+  lastFetchTimeItems = null;
+};
+export const getItems = async (searchQuery = '', forceRefresh = false) => {
+  if (!forceRefresh && cachedItems && !searchQuery && lastFetchTimeItems && (Date.now() - lastFetchTimeItems < CACHE_TTL)) {
+    return cachedItems;
+  }
+
   const { data, error } = await supabase
     .from('items')
     .select(`
@@ -17,13 +29,9 @@ export const getItems = async (searchQuery = '') => {
     throw new Error(error.message);
   }
 
-  if (searchQuery.trim()) {
-    const cleanSearch = searchQuery.toLowerCase().trim();
-    return data.filter(
-      (item) =>
-        item.name?.toLowerCase().includes(cleanSearch) ||
-        item.hsn_code?.toLowerCase().includes(cleanSearch)
-    );
+  if (!searchQuery.trim()) {
+    cachedItems = data || [];
+    lastFetchTimeItems = Date.now();
   }
 
   return data || [];
@@ -52,6 +60,7 @@ export const createItem = async (itemData) => {
     throw new Error(error.message);
   }
 
+  invalidateItemsCache();
   return data;
 };
 
@@ -75,6 +84,7 @@ export const updateItem = async (itemId, itemData) => {
     throw new Error(error.message);
   }
 
+  invalidateItemsCache();
   return data;
 };
 
@@ -88,6 +98,7 @@ export const deleteItem = async (itemId) => {
     throw new Error(error.message);
   }
 
+  invalidateItemsCache();
   return true;
 };
 
@@ -112,5 +123,6 @@ export const adjustStock = async (itemId, type, quantity) => {
     throw new Error(error.message);
   }
 
+  invalidateItemsCache();
   return data;
 };

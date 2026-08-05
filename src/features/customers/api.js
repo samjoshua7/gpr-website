@@ -1,13 +1,22 @@
 import { supabase } from '../../lib/supabaseClient';
 
-export const getCustomers = async (searchQuery = '') => {
+let cachedCustomers = null;
+let lastFetchTime = null;
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+export const invalidateCustomersCache = () => {
+  cachedCustomers = null;
+  lastFetchTime = null;
+};
+
+export const getCustomers = async (searchQuery = '', forceRefresh = false) => {
+  if (!forceRefresh && cachedCustomers && !searchQuery && lastFetchTime && (Date.now() - lastFetchTime < CACHE_TTL)) {
+    return cachedCustomers;
+  }
+
   let query = supabase
-    .from('customers')
-    .select(`
-      *,
-      sales_invoices ( total_amount, status ),
-      receipts ( amount )
-    `)
+    .from('customers_with_balance')
+    .select('*')
     .order('name', { ascending: true });
 
   if (searchQuery.trim()) {
@@ -21,24 +30,12 @@ export const getCustomers = async (searchQuery = '') => {
     throw new Error(error.message);
   }
 
-  // Calculate live outstanding balance
-  const customersWithBalance = data.map((customer) => {
-    const validInvoices = customer.sales_invoices?.filter(i => i.status !== 'void') || [];
-    const totalInvoiced = validInvoices.reduce((sum, inv) => sum + Number(inv.total_amount), 0);
-    const totalReceipts = (customer.receipts || []).reduce((sum, r) => sum + Number(r.amount), 0);
-    
-    const outstanding_balance = Number(customer.opening_balance) + totalInvoiced - totalReceipts;
-    
-    // Remove nested arrays to keep the object clean
-    const { sales_invoices, receipts, ...cleanCustomer } = customer;
-    
-    return {
-      ...cleanCustomer,
-      outstanding_balance
-    };
-  });
+  if (!searchQuery.trim()) {
+    cachedCustomers = data;
+    lastFetchTime = Date.now();
+  }
 
-  return customersWithBalance;
+  return data;
 };
 
 export const getCustomerById = async (id) => {
@@ -76,6 +73,7 @@ export const createCustomer = async (customerData) => {
     throw new Error(error.message);
   }
 
+  invalidateCustomersCache();
   return data;
 };
 
@@ -99,6 +97,7 @@ export const updateCustomer = async (id, customerData) => {
     throw new Error(error.message);
   }
 
+  invalidateCustomersCache();
   return data;
 };
 
@@ -112,5 +111,6 @@ export const deleteCustomer = async (id) => {
     throw new Error(error.message);
   }
 
+  invalidateCustomersCache();
   return true;
 };

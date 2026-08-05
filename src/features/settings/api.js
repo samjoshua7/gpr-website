@@ -1,6 +1,18 @@
 import { supabase } from '../../lib/supabaseClient';
 
-export const getCompanySettings = async () => {
+let cachedSettings = null;
+let lastFetchTimeSettings = null;
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+export const invalidateSettingsCache = () => {
+  cachedSettings = null;
+  lastFetchTimeSettings = null;
+};
+export const getCompanySettings = async (forceRefresh = false) => {
+  if (!forceRefresh && cachedSettings && lastFetchTimeSettings && (Date.now() - lastFetchTimeSettings < CACHE_TTL)) {
+    return cachedSettings;
+  }
+
   const { data, error } = await supabase
     .from('company_settings')
     .select('*')
@@ -11,7 +23,9 @@ export const getCompanySettings = async () => {
     throw new Error(error.message);
   }
   
-  return data || null;
+  cachedSettings = data || null;
+  lastFetchTimeSettings = Date.now();
+  return cachedSettings;
 };
 
 export const updateCompanySettings = async (id, payload) => {
@@ -24,6 +38,7 @@ export const updateCompanySettings = async (id, payload) => {
       .single();
       
     if (error) throw new Error(error.message);
+    invalidateSettingsCache();
     return data;
   } else {
     const { data, error } = await supabase
@@ -33,6 +48,7 @@ export const updateCompanySettings = async (id, payload) => {
       .single();
       
     if (error) throw new Error(error.message);
+    invalidateSettingsCache();
     return data;
   }
 };

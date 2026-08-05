@@ -24,8 +24,10 @@ import {
 } from '@mui/material';
 
 import AddIcon from '@mui/icons-material/Add';
-import SearchIcon from '@mui/icons-material/Search';
 import DeleteIcon from '@mui/icons-material/Delete';
+import { TablePagination, TableSortLabel, Stack } from '@mui/material';
+import { SearchInput } from '../../components/ui/SearchInput';
+import { HighlightText } from '../../components/ui/HighlightText';
 
 import { getReceipts, deleteReceipt } from './api';
 import ReceiptDialog from './components/ReceiptDialog';
@@ -36,11 +38,41 @@ const MODE_MAP = {
   bank: { label: 'Bank Transfer', color: 'info' },
 };
 
+const headCells = [
+  { id: 'receipt_date', label: 'Receipt Date', align: 'left' },
+  { id: 'customer_name', label: 'Customer Name', align: 'left' },
+  { id: 'mode', label: 'Payment Mode', align: 'left' },
+  { id: 'invoice_no', label: 'Linked Invoice', align: 'left' },
+  { id: 'amount', label: 'Amount', align: 'right' },
+  { id: 'actions', label: 'Action', align: 'center', disableSort: true }
+];
+
+const currencyFormatter = new Intl.NumberFormat('en-IN', {
+  style: 'currency',
+  currency: 'INR',
+});
+
+const formatCurrency = (amount) => currencyFormatter.format(amount || 0);
+
+const dateFormatter = new Intl.DateTimeFormat('en-IN', {
+  day: '2-digit', month: 'short', year: 'numeric'
+});
+
+const formatDate = (dateStr) => {
+  if (!dateStr) return '—';
+  return dateFormatter.format(new Date(dateStr));
+};
+
 export const ReceiptsPage = () => {
   const [receipts, setReceipts] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(25);
+  const [orderBy, setOrderBy] = useState('receipt_date');
+  const [order, setOrder] = useState('desc');
 
   // Dialog Add state
   const [createOpen, setCreateOpen] = useState(false);
@@ -51,11 +83,11 @@ export const ReceiptsPage = () => {
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [deleteError, setDeleteError] = useState(null);
 
-  const fetchReceipts = useCallback(async (query = '') => {
+  const fetchReceipts = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const data = await getReceipts(query);
+      const data = await getReceipts();
       setReceipts(data);
     } catch (err) {
       console.error(err);
@@ -66,15 +98,79 @@ export const ReceiptsPage = () => {
   }, []);
 
   useEffect(() => {
-    fetchReceipts(searchQuery);
-  }, [searchQuery, fetchReceipts]);
+    fetchReceipts();
+  }, [fetchReceipts]);
+
+  const processedReceipts = React.useMemo(() => {
+    let result = [...receipts];
+
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      result = result.filter(r => 
+        (r.customers?.name || '').toLowerCase().includes(q) ||
+        (r.sales_invoices?.invoice_no || '').toLowerCase().includes(q) ||
+        (r.mode || '').toLowerCase().includes(q)
+      );
+    }
+
+    if (orderBy) {
+      result.sort((a, b) => {
+        let valA = a[orderBy];
+        let valB = b[orderBy];
+        
+        if (orderBy === 'customer_name') {
+          valA = a.customers?.name;
+          valB = b.customers?.name;
+        } else if (orderBy === 'invoice_no') {
+          valA = a.sales_invoices?.invoice_no;
+          valB = b.sales_invoices?.invoice_no;
+        }
+
+        valA = valA == null ? '' : valA;
+        valB = valB == null ? '' : valB;
+
+        if (typeof valA === 'string') valA = valA.toLowerCase();
+        if (typeof valB === 'string') valB = valB.toLowerCase();
+
+        if (valA < valB) return order === 'asc' ? -1 : 1;
+        if (valA > valB) return order === 'asc' ? 1 : -1;
+        return 0;
+      });
+    }
+
+    return result;
+  }, [receipts, searchQuery, orderBy, order]);
+
+  const paginatedReceipts = React.useMemo(() => {
+    const start = page * rowsPerPage;
+    return processedReceipts.slice(start, start + rowsPerPage);
+  }, [processedReceipts, page, rowsPerPage]);
+
+  useEffect(() => {
+    setPage(0);
+  }, [searchQuery]);
+
+  const handleRequestSort = (property) => {
+    const isAsc = orderBy === property && order === 'asc';
+    setOrder(isAsc ? 'desc' : 'asc');
+    setOrderBy(property);
+  };
+
+  const handleChangePage = (event, newPage) => {
+    setPage(newPage);
+  };
+
+  const handleChangeRowsPerPage = (event) => {
+    setRowsPerPage(parseInt(event.target.value, 10));
+    setPage(0);
+  };
 
   const handleAddClick = () => {
     setCreateOpen(true);
   };
 
   const handleSaveSuccess = () => {
-    fetchReceipts(searchQuery);
+    fetchReceipts();
   };
 
   const handleDeleteClick = (receipt) => {
@@ -91,29 +187,13 @@ export const ReceiptsPage = () => {
       await deleteReceipt(receiptToDelete.receipt_id);
       setDeleteOpen(false);
       setReceiptToDelete(null);
-      fetchReceipts(searchQuery);
+      fetchReceipts();
     } catch (err) {
       console.error(err);
       setDeleteError(err.message || 'Failed to delete receipt.');
     } finally {
       setDeleteLoading(false);
     }
-  };
-
-  const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('en-IN', {
-      style: 'currency',
-      currency: 'INR',
-    }).format(amount || 0);
-  };
-
-  const formatDate = (dateStr) => {
-    if (!dateStr) return '—';
-    return new Date(dateStr).toLocaleDateString('en-IN', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-    });
   };
 
   return (
@@ -135,21 +215,11 @@ export const ReceiptsPage = () => {
 
       {/* Filters and search */}
       <Box sx={{ mb: 3 }}>
-        <TextField
-          fullWidth
-          variant="outlined"
-          size="small"
+        <SearchInput
           placeholder="Search by customer name, mode, or linked invoice..."
           value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          InputProps={{
-            startAdornment: (
-              <InputAdornment position="start">
-                <SearchIcon color="action" />
-              </InputAdornment>
-            ),
-          }}
-          sx={{ bgcolor: 'background.paper', borderRadius: 2 }}
+          onChange={setSearchQuery}
+          sx={{ bgcolor: 'background.paper', borderRadius: 2, width: '100%' }}
         />
       </Box>
 
@@ -173,22 +243,38 @@ export const ReceiptsPage = () => {
           <Table>
             <TableHead sx={{ bgcolor: 'action.hover' }}>
               <TableRow>
-                <TableCell sx={{ fontWeight: 700 }}>Receipt Date</TableCell>
-                <TableCell sx={{ fontWeight: 700 }}>Customer Name</TableCell>
-                <TableCell sx={{ fontWeight: 700 }}>Payment Mode</TableCell>
-                <TableCell sx={{ fontWeight: 700 }}>Linked Invoice</TableCell>
-                <TableCell sx={{ fontWeight: 700 }} align="right">Amount</TableCell>
-                <TableCell sx={{ fontWeight: 700 }} align="center">Action</TableCell>
+                {headCells.map((headCell) => (
+                  <TableCell
+                    key={headCell.id}
+                    align={headCell.align}
+                    sx={{ fontWeight: 700 }}
+                    sortDirection={orderBy === headCell.id ? order : false}
+                  >
+                    {headCell.disableSort ? (
+                      headCell.label
+                    ) : (
+                      <TableSortLabel
+                        active={orderBy === headCell.id}
+                        direction={orderBy === headCell.id ? order : 'asc'}
+                        onClick={() => handleRequestSort(headCell.id)}
+                      >
+                        {headCell.label}
+                      </TableSortLabel>
+                    )}
+                  </TableCell>
+                ))}
               </TableRow>
             </TableHead>
             <TableBody>
-              {receipts.map((receipt) => (
+              {paginatedReceipts.map((receipt) => (
                 <TableRow key={receipt.receipt_id} hover>
                   <TableCell>{formatDate(receipt.receipt_date)}</TableCell>
-                  <TableCell sx={{ fontWeight: 600 }}>{receipt.customers?.name}</TableCell>
+                  <TableCell sx={{ fontWeight: 600 }}>
+                    <HighlightText text={receipt.customers?.name} highlight={searchQuery} />
+                  </TableCell>
                   <TableCell>
                     <Chip
-                      label={MODE_MAP[receipt.mode]?.label || receipt.mode}
+                      label={<HighlightText text={MODE_MAP[receipt.mode]?.label || receipt.mode} highlight={searchQuery} />}
                       color={MODE_MAP[receipt.mode]?.color || 'default'}
                       size="small"
                       sx={{ fontWeight: 700, textTransform: 'capitalize' }}
@@ -197,7 +283,7 @@ export const ReceiptsPage = () => {
                   <TableCell sx={{ fontWeight: 500 }}>
                     {receipt.sales_invoices ? (
                       <Chip
-                        label={`#${receipt.sales_invoices.invoice_no}`}
+                        label={<HighlightText text={`#${receipt.sales_invoices.invoice_no}`} highlight={searchQuery} />}
                         size="small"
                         variant="outlined"
                       />
@@ -219,9 +305,23 @@ export const ReceiptsPage = () => {
                   </TableCell>
                 </TableRow>
               ))}
-            </TableBody>
+          </TableBody>
           </Table>
         </TableContainer>
+      )}
+      
+      {receipts.length > 0 && (
+        <TablePagination
+          rowsPerPageOptions={[25, 50, 100]}
+          component="div"
+          count={processedReceipts.length}
+          rowsPerPage={rowsPerPage}
+          page={page}
+          onPageChange={handleChangePage}
+          onRowsPerPageChange={handleChangeRowsPerPage}
+          component={Paper}
+          sx={{ borderTopLeftRadius: 0, borderTopRightRadius: 0 }}
+        />
       )}
 
       {/* Record receipt modal */}

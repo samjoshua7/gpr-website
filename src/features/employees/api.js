@@ -1,13 +1,28 @@
 import { supabase } from '../../lib/supabaseClient';
 
-export const getEmployees = async () => {
+let cachedEmployees = null;
+let lastFetchTimeEmployees = null;
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+export const invalidateEmployeesCache = () => {
+  cachedEmployees = null;
+  lastFetchTimeEmployees = null;
+};
+export const getEmployees = async (forceRefresh = false) => {
+  if (!forceRefresh && cachedEmployees && lastFetchTimeEmployees && (Date.now() - lastFetchTimeEmployees < CACHE_TTL)) {
+    return cachedEmployees;
+  }
+
   const { data, error } = await supabase
     .from('employees')
     .select('*')
     .order('name');
     
   if (error) throw new Error(error.message);
-  return data || [];
+  
+  cachedEmployees = data || [];
+  lastFetchTimeEmployees = Date.now();
+  return cachedEmployees;
 };
 
 export const createEmployee = async (payload) => {
@@ -18,6 +33,7 @@ export const createEmployee = async (payload) => {
     .single();
     
   if (error) throw new Error(error.message);
+  invalidateEmployeesCache();
   return data;
 };
 
@@ -30,6 +46,7 @@ export const updateEmployee = async (id, payload) => {
     .single();
     
   if (error) throw new Error(error.message);
+  invalidateEmployeesCache();
   return data;
 };
 
@@ -42,6 +59,7 @@ export const toggleEmployeeStatus = async (id, isActive) => {
     .single();
     
   if (error) throw new Error(error.message);
+  invalidateEmployeesCache();
   return data;
 };
 
@@ -52,5 +70,6 @@ export const deleteEmployee = async (id) => {
     .eq('employee_id', id);
     
   if (error) throw new Error(error.message);
+  invalidateEmployeesCache();
   return true;
 };

@@ -25,10 +25,10 @@ import {
 } from '@mui/material';
 
 import AddIcon from '@mui/icons-material/Add';
-import SearchIcon from '@mui/icons-material/Search';
-import EditIcon from '@mui/icons-material/Edit';
-import DeleteIcon from '@mui/icons-material/Delete';
 import StorageIcon from '@mui/icons-material/Storage';
+import { TablePagination, TableSortLabel, Stack } from '@mui/material';
+import { SearchInput } from '../../components/ui/SearchInput';
+import { HighlightText } from '../../components/ui/HighlightText';
 
 import { getItems, deleteItem } from './api';
 import ItemDialog from './components/ItemDialog';
@@ -36,11 +36,35 @@ import StockAdjustmentDialog from './components/StockAdjustmentDialog';
 import { checkReferences } from '../../lib/referenceChecker';
 import CannotDeleteDialog from '../../components/feedback/CannotDeleteDialog';
 
+const headCells = [
+  { id: 'name', label: 'Product Name', align: 'left' },
+  { id: 'unit', label: 'Unit', align: 'left' },
+  { id: 'hsn_code', label: 'HSN/SAC', align: 'left' },
+  { id: 'tax_rate', label: 'GST rate', align: 'left' },
+  { id: 'unit_price', label: 'Default Rate', align: 'right' },
+  { id: 'reorder_level', label: 'Alert Level', align: 'right' },
+  { id: 'current_stock', label: 'Current Stock', align: 'right' },
+  { id: 'status', label: 'Status', align: 'center', disableSort: true },
+  { id: 'actions', label: 'Actions', align: 'center', disableSort: true }
+];
+
+const currencyFormatter = new Intl.NumberFormat('en-IN', {
+  style: 'currency',
+  currency: 'INR',
+});
+
+const formatCurrency = (amount) => currencyFormatter.format(amount || 0);
+
 export const InventoryPage = () => {
   const [items, setItems] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(25);
+  const [orderBy, setOrderBy] = useState('name');
+  const [order, setOrder] = useState('asc');
 
   // Dialog states
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -59,11 +83,11 @@ export const InventoryPage = () => {
   const [cannotDeleteOpen, setCannotDeleteOpen] = useState(false);
   const [dependencyDetails, setDependencyDetails] = useState([]);
 
-  const fetchItems = useCallback(async (query = '') => {
+  const fetchItems = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const data = await getItems(query);
+      const data = await getItems();
       setItems(data);
     } catch (err) {
       console.error(err);
@@ -74,8 +98,68 @@ export const InventoryPage = () => {
   }, []);
 
   useEffect(() => {
-    fetchItems(searchQuery);
-  }, [searchQuery, fetchItems]);
+    fetchItems();
+  }, [fetchItems]);
+
+  const processedItems = React.useMemo(() => {
+    let result = [...items];
+
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      result = result.filter(item => 
+        (item.name || '').toLowerCase().includes(q) ||
+        (item.hsn_code || '').toLowerCase().includes(q)
+      );
+    }
+
+    if (orderBy) {
+      result.sort((a, b) => {
+        let valA = a[orderBy];
+        let valB = b[orderBy];
+        
+        if (orderBy === 'tax_rate') {
+          valA = a.tax_rates?.percentage || 0;
+          valB = b.tax_rates?.percentage || 0;
+        }
+
+        valA = valA == null ? '' : valA;
+        valB = valB == null ? '' : valB;
+
+        if (typeof valA === 'string') valA = valA.toLowerCase();
+        if (typeof valB === 'string') valB = valB.toLowerCase();
+
+        if (valA < valB) return order === 'asc' ? -1 : 1;
+        if (valA > valB) return order === 'asc' ? 1 : -1;
+        return 0;
+      });
+    }
+
+    return result;
+  }, [items, searchQuery, orderBy, order]);
+
+  const paginatedItems = React.useMemo(() => {
+    const start = page * rowsPerPage;
+    return processedItems.slice(start, start + rowsPerPage);
+  }, [processedItems, page, rowsPerPage]);
+
+  useEffect(() => {
+    setPage(0);
+  }, [searchQuery]);
+
+  const handleRequestSort = (property) => {
+    const isAsc = orderBy === property && order === 'asc';
+    setOrder(isAsc ? 'desc' : 'asc');
+    setOrderBy(property);
+  };
+
+  const handleChangePage = (event, newPage) => {
+    setPage(newPage);
+  };
+
+  const handleChangeRowsPerPage = (event) => {
+    setRowsPerPage(parseInt(event.target.value, 10));
+    setPage(0);
+  };
 
   const handleAddClick = () => {
     setSelectedItem(null);
@@ -121,7 +205,7 @@ export const InventoryPage = () => {
       await deleteItem(itemToDelete.item_id);
       setDeleteOpen(false);
       setItemToDelete(null);
-      fetchItems(searchQuery);
+      fetchItems();
     } catch (err) {
       console.error(err);
       setDeleteError(err.message || 'Failed to delete product.');
@@ -131,14 +215,7 @@ export const InventoryPage = () => {
   };
 
   const handleSaveSuccess = () => {
-    fetchItems(searchQuery);
-  };
-
-  const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('en-IN', {
-      style: 'currency',
-      currency: 'INR',
-    }).format(amount || 0);
+    fetchItems();
   };
 
   return (
@@ -160,21 +237,11 @@ export const InventoryPage = () => {
 
       {/* Filters and search */}
       <Box sx={{ mb: 3 }}>
-        <TextField
-          fullWidth
-          variant="outlined"
-          size="small"
+        <SearchInput
           placeholder="Search by product name or HSN code..."
           value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          InputProps={{
-            startAdornment: (
-              <InputAdornment position="start">
-                <SearchIcon color="action" />
-              </InputAdornment>
-            ),
-          }}
-          sx={{ bgcolor: 'background.paper', borderRadius: 2 }}
+          onChange={setSearchQuery}
+          sx={{ bgcolor: 'background.paper', borderRadius: 2, width: '100%' }}
         />
       </Box>
 
@@ -198,28 +265,43 @@ export const InventoryPage = () => {
           <Table>
             <TableHead sx={{ bgcolor: 'action.hover' }}>
               <TableRow>
-                <TableCell sx={{ fontWeight: 700 }}>Product Name</TableCell>
-                <TableCell sx={{ fontWeight: 700 }}>Unit</TableCell>
-                <TableCell sx={{ fontWeight: 700 }}>HSN/SAC</TableCell>
-                <TableCell sx={{ fontWeight: 700 }}>GST rate</TableCell>
-                <TableCell sx={{ fontWeight: 700 }} align="right">Default Rate</TableCell>
-                <TableCell sx={{ fontWeight: 700 }} align="right">Alert Level</TableCell>
-                <TableCell sx={{ fontWeight: 700 }} align="right">Current Stock</TableCell>
-                <TableCell sx={{ fontWeight: 700 }} align="center">Status</TableCell>
-                <TableCell sx={{ fontWeight: 700 }} align="center">Actions</TableCell>
+                {headCells.map((headCell) => (
+                  <TableCell
+                    key={headCell.id}
+                    align={headCell.align}
+                    sx={{ fontWeight: 700 }}
+                    sortDirection={orderBy === headCell.id ? order : false}
+                  >
+                    {headCell.disableSort ? (
+                      headCell.label
+                    ) : (
+                      <TableSortLabel
+                        active={orderBy === headCell.id}
+                        direction={orderBy === headCell.id ? order : 'asc'}
+                        onClick={() => handleRequestSort(headCell.id)}
+                      >
+                        {headCell.label}
+                      </TableSortLabel>
+                    )}
+                  </TableCell>
+                ))}
               </TableRow>
             </TableHead>
             <TableBody>
-              {items.map((item) => {
+              {paginatedItems.map((item) => {
                 const stock = parseFloat(item.current_stock || 0);
                 const limit = parseFloat(item.reorder_level || 0);
                 const isLow = stock <= limit;
 
                 return (
                   <TableRow key={item.item_id} hover>
-                    <TableCell sx={{ fontWeight: 600 }}>{item.name}</TableCell>
+                    <TableCell sx={{ fontWeight: 600 }}>
+                      <HighlightText text={item.name} highlight={searchQuery} />
+                    </TableCell>
                     <TableCell>{item.unit}</TableCell>
-                    <TableCell sx={{ fontWeight: 500 }}>{item.hsn_code || '—'}</TableCell>
+                    <TableCell sx={{ fontWeight: 500 }}>
+                      <HighlightText text={item.hsn_code || '—'} highlight={searchQuery} />
+                    </TableCell>
                     <TableCell>
                       {item.tax_rates ? `${item.tax_rates.tax_name} (${item.tax_rates.percentage}%)` : 'Exempt (0%)'}
                     </TableCell>
@@ -273,9 +355,23 @@ export const InventoryPage = () => {
                   </TableRow>
                 );
               })}
-            </TableBody>
+          </TableBody>
           </Table>
         </TableContainer>
+      )}
+
+      {items.length > 0 && (
+        <TablePagination
+          rowsPerPageOptions={[25, 50, 100]}
+          component="div"
+          count={processedItems.length}
+          rowsPerPage={rowsPerPage}
+          page={page}
+          onPageChange={handleChangePage}
+          onRowsPerPageChange={handleChangeRowsPerPage}
+          component={Paper}
+          sx={{ borderTopLeftRadius: 0, borderTopRightRadius: 0 }}
+        />
       )}
 
       {/* Catalog Dialog */}

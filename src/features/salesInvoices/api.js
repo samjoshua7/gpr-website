@@ -1,6 +1,18 @@
 import { supabase } from '../../lib/supabaseClient';
 
-export const getSalesInvoices = async (searchQuery = '', statusFilter = '') => {
+let cachedSalesInvoices = null;
+let lastFetchTimeSalesInvoices = null;
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+export const invalidateSalesInvoicesCache = () => {
+  cachedSalesInvoices = null;
+  lastFetchTimeSalesInvoices = null;
+};
+export const getSalesInvoices = async (searchQuery = '', statusFilter = '', forceRefresh = false) => {
+  if (!forceRefresh && cachedSalesInvoices && !searchQuery && (!statusFilter || statusFilter === 'all') && lastFetchTimeSalesInvoices && (Date.now() - lastFetchTimeSalesInvoices < CACHE_TTL)) {
+    return cachedSalesInvoices;
+  }
+
   let query = supabase
     .from('sales_invoices')
     .select(`
@@ -28,6 +40,11 @@ export const getSalesInvoices = async (searchQuery = '', statusFilter = '') => {
         inv.invoice_no?.toLowerCase().includes(cleanSearch) ||
         inv.customers?.name?.toLowerCase().includes(cleanSearch)
     );
+  }
+
+  if (!searchQuery.trim() && (!statusFilter || statusFilter === 'all')) {
+    cachedSalesInvoices = data;
+    lastFetchTimeSalesInvoices = Date.now();
   }
 
   return data;
@@ -129,6 +146,7 @@ export const createSalesInvoice = async (invoiceData, lineItems) => {
     throw new Error(`Failed to insert line items: ${itemsError.message}`);
   }
 
+  invalidateSalesInvoicesCache();
   return invoice;
 };
 
@@ -193,6 +211,7 @@ export const updateSalesInvoice = async (invoiceId, invoiceData, lineItems) => {
     throw new Error(`Failed to insert updated line items: ${itemsError.message}`);
   }
 
+  invalidateSalesInvoicesCache();
   return invoice;
 };
 
@@ -208,6 +227,7 @@ export const voidSalesInvoice = async (id) => {
     throw new Error(error.message);
   }
 
+  invalidateSalesInvoicesCache();
   return data;
 };
 
@@ -221,6 +241,7 @@ export const deleteSalesInvoice = async (id) => {
     throw new Error(error.message);
   }
 
+  invalidateSalesInvoicesCache();
   return true;
 };
 
