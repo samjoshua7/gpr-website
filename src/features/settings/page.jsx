@@ -14,6 +14,7 @@ import {
   ListItemSecondaryAction,
   IconButton,
   Divider,
+  Stack,
 } from '@mui/material';
 import SaveIcon from '@mui/icons-material/Save';
 import DeleteIcon from '@mui/icons-material/Delete';
@@ -134,29 +135,33 @@ export const SettingsPage = () => {
   }
 
   return (
-    <Box>
-      <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-        <Typography variant="h4" fontWeight={800} color="primary">
-          Company Settings
-        </Typography>
+    <Box sx={{ p: { xs: 1, sm: 2 }, height: '100%', display: 'flex', flexDirection: 'column' }}>
+      {/* Standard Toolbar */}
+      <Stack direction="row" spacing={1.5} sx={{ mb: 1.5, alignItems: 'center' }}>
+        <Box sx={{ flex: '6 1 0', minWidth: 0, display: 'flex', alignItems: 'center' }}>
+          <Typography variant="subtitle2" sx={{ fontWeight: 700, color: 'text.primary' }}>
+            Company Settings
+          </Typography>
+        </Box>
         <Button
+          sx={{ flex: '2 1 0', minWidth: 0 }}
           variant="contained"
-          startIcon={saving ? <CircularProgress size={20} color="inherit" /> : <SaveIcon />}
+          color="primary"
+          startIcon={saving ? <CircularProgress size={18} color="inherit" /> : <SaveIcon />}
           onClick={handleSave}
           disabled={saving}
-          sx={{ fontWeight: 'bold' }}
         >
           Save Settings
         </Button>
-      </Box>
+      </Stack>
 
-      {error && <Alert severity="error" sx={{ mb: 3 }}>{error}</Alert>}
-      {success && <Alert severity="success" sx={{ mb: 3 }}>{success}</Alert>}
+      {error && <Alert severity="error" sx={{ mb: 1.5, flexShrink: 0 }}>{error}</Alert>}
+      {success && <Alert severity="success" sx={{ mb: 1.5, flexShrink: 0 }}>{success}</Alert>}
 
-      <Grid container spacing={3}>
+      <Grid container spacing={2} sx={{ flexGrow: 1, minHeight: 0 }}>
         <Grid item xs={12} md={6}>
-          <Paper elevation={0} variant="outlined" sx={{ p: 3, borderRadius: 2 }}>
-            <Typography variant="h6" fontWeight={700} mb={2}>General Info</Typography>
+          <Paper elevation={0} variant="outlined" sx={{ p: 2.5, borderRadius: 1, height: '100%' }}>
+            <Typography variant="subtitle1" fontWeight={700} mb={2}>General Info</Typography>
             <Grid container spacing={2}>
               <Grid item xs={12}>
                 <TextField
@@ -232,10 +237,10 @@ export const SettingsPage = () => {
         </Grid>
 
         <Grid item xs={12} md={6}>
-          <Paper elevation={0} variant="outlined" sx={{ p: 3, borderRadius: 2, height: '100%' }}>
-            <Typography variant="h6" fontWeight={700} mb={1}>Production Workflow</Typography>
+          <Paper elevation={0} variant="outlined" sx={{ p: 2.5, borderRadius: 1, height: '100%' }}>
+            <Typography variant="subtitle1" fontWeight={700} mb={1}>Production Workflow</Typography>
             <Typography variant="body2" color="text.secondary" mb={2}>
-              Configure the steps and departments a Job Card passes through. The order defined here will dictate the Kanban board columns and task completion routing.
+              Configure the steps a Job Card passes through. Order defines Kanban column sequence.
             </Typography>
 
             <Box display="flex" gap={1} mb={2}>

@@ -22,12 +22,14 @@ import {
   DialogContentText,
   DialogActions,
   Tooltip,
+  TablePagination,
+  TableSortLabel,
+  Stack,
 } from '@mui/material';
 
 import AddIcon from '@mui/icons-material/Add';
 import StorageIcon from '@mui/icons-material/Storage';
 import EditIcon from '@mui/icons-material/Edit';
-import { TablePagination, TableSortLabel, Stack } from '@mui/material';
 import { SearchInput } from '../../components/ui/SearchInput';
 import { HighlightText } from '../../components/ui/HighlightText';
 
@@ -220,49 +222,43 @@ export const InventoryPage = () => {
   };
 
   return (
-    <Box sx={{ p: 4 }}>
-      {/* Header block */}
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 4 }}>
-        <Box>
-          <Typography variant="h4" sx={{ fontWeight: 800, mb: 1 }}>
-            Inventory Catalog & Ledger
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            Monitor printing stocks (papers, plates, inks) and manage reorder warnings in real-time.
-          </Typography>
-        </Box>
-        <Button variant="contained" startIcon={<AddIcon />} onClick={handleAddClick} size="large">
-          Add Catalog Product
-        </Button>
-      </Box>
-
-      {/* Filters and search */}
-      <Box sx={{ mb: 3 }}>
+    <Box sx={{ p: { xs: 1, sm: 2 }, height: '100%', display: 'flex', flexDirection: 'column' }}>
+      {/* Standard Toolbar */}
+      <Stack direction="row" spacing={1.5} sx={{ mb: 1.5, alignItems: 'center' }}>
         <SearchInput
+          sx={{ flex: '6 1 0', minWidth: 0, bgcolor: 'background.paper', borderRadius: 1 }}
           placeholder="Search by product name or HSN code..."
           value={searchQuery}
           onChange={setSearchQuery}
-          sx={{ bgcolor: 'background.paper', borderRadius: 2, width: '100%' }}
         />
-      </Box>
+        <Button
+          sx={{ flex: '2 1 0', minWidth: 0 }}
+          variant="contained"
+          color="primary"
+          startIcon={<AddIcon />}
+          onClick={handleAddClick}
+        >
+          Add Catalog Product
+        </Button>
+      </Stack>
 
       {error && (
-        <Alert severity="error" sx={{ mb: 3 }}>
+        <Alert severity="error" sx={{ mb: 1.5, flexShrink: 0 }}>
           {error}
         </Alert>
       )}
 
       {/* Catalog Table */}
       {loading && items.length === 0 ? (
-        <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', py: 8 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', py: 8, flexGrow: 1 }}>
           <CircularProgress />
         </Box>
       ) : items.length === 0 ? (
-        <Paper variant="outlined" sx={{ p: 6, textAlign: 'center', borderRadius: 2 }}>
+        <Paper variant="outlined" sx={{ p: 6, textAlign: 'center', borderRadius: 1, flexGrow: 1 }}>
           <Typography color="text.secondary">No inventory products found.</Typography>
         </Paper>
       ) : (
-        <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 2 }}>
+        <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 1, flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
           <Table>
             <TableHead sx={{ bgcolor: 'action.hover' }}>
               <TableRow>
@@ -371,7 +367,7 @@ export const InventoryPage = () => {
           onPageChange={handleChangePage}
           onRowsPerPageChange={handleChangeRowsPerPage}
           component={Paper}
-          sx={{ borderTopLeftRadius: 0, borderTopRightRadius: 0 }}
+          sx={{ borderTopLeftRadius: 0, borderTopRightRadius: 0, borderBottomLeftRadius: 1, borderBottomRightRadius: 1 }}
         />
       )}
 

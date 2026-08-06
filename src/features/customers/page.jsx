@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   Box,
   Button,
+  ButtonGroup,
   Typography,
   TextField,
   InputAdornment,
@@ -26,7 +27,12 @@ import {
   Stack,
   Chip,
   TablePagination,
-  TableSortLabel
+  TableSortLabel,
+  ClickAwayListener,
+  Grow,
+  MenuItem,
+  MenuList,
+  Popper,
 } from '@mui/material';
 
 import AddIcon from '@mui/icons-material/Add';
@@ -35,6 +41,8 @@ import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import PeopleIcon from '@mui/icons-material/People';
 import VisibilityIcon from '@mui/icons-material/Visibility';
+import ArrowDropDownIcon from '@mui/icons-material/ArrowDropDown';
+import FileUploadIcon from '@mui/icons-material/FileUpload';
 
 import { getCustomers, deleteCustomer } from './api';
 import CustomerDialog from './components/CustomerDialog';
@@ -92,6 +100,10 @@ export const CustomersPage = () => {
   const [importWizardOpen, setImportWizardOpen] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState(null);
+
+  // Add Customer split button dropdown state
+  const [addDropdownOpen, setAddDropdownOpen] = useState(false);
+  const addDropdownAnchorRef = React.useRef(null);
   
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [customerToDelete, setCustomerToDelete] = useState(null);
@@ -235,40 +247,76 @@ export const CustomersPage = () => {
   return (
     <Box sx={{ p: { xs: 1, sm: 2 }, height: '100%', display: 'flex', flexDirection: 'column' }}>
       
-      {/* 1. HORIZONTAL TOOLBAR (60/20/20 layout) */}
-      <Stack direction="row" spacing={2} sx={{ mb: 2, alignItems: 'center' }}>
+      {/* 1. HORIZONTAL TOOLBAR */}
+      <Stack direction="row" spacing={1.5} sx={{ mb: 1.5, alignItems: 'center' }}>
         <SearchInput
-          sx={{ flex: 6, bgcolor: 'background.paper', borderRadius: 1 }}
+          sx={{ flex: '6 1 0', minWidth: 0, bgcolor: 'background.paper', borderRadius: 1 }}
           placeholder="Search customers..."
           value={searchQuery}
           onChange={setSearchQuery}
         />
-        <Button
-          sx={{ flex: 2, height: 40 }}
-          variant="outlined"
-          color="primary"
-          onClick={() => setImportWizardOpen(true)}
-        >
-          Import Customers
-        </Button>
-        <Button
-          sx={{ flex: 2, height: 40 }}
+        <ButtonGroup
           variant="contained"
           color="primary"
-          startIcon={<AddIcon />}
-          onClick={handleAddClick}
+          ref={addDropdownAnchorRef}
+          sx={{ flex: '2 1 0', minWidth: 0 }}
         >
-          Add Customer
-        </Button>
+          <Button
+            startIcon={<AddIcon />}
+            onClick={handleAddClick}
+          >
+            Add Customer
+          </Button>
+          <Button
+            size="small"
+            aria-label="more options"
+            onClick={() => setAddDropdownOpen((prev) => !prev)}
+          >
+            <ArrowDropDownIcon />
+          </Button>
+        </ButtonGroup>
+        <Popper
+          open={addDropdownOpen}
+          anchorEl={addDropdownAnchorRef.current}
+          role={undefined}
+          placement="bottom-end"
+          transition
+          disablePortal
+        >
+          {({ TransitionProps, placement }) => (
+            <Grow
+              {...TransitionProps}
+              style={{
+                transformOrigin: placement === 'bottom-end' ? 'right top' : 'left top',
+              }}
+            >
+              <Paper elevation={2} sx={{ borderRadius: 1, minWidth: 200, mt: 0.5 }}>
+                <ClickAwayListener onClickAway={() => setAddDropdownOpen(false)}>
+                  <MenuList autoFocusItem={addDropdownOpen} dense>
+                    <MenuItem
+                      onClick={() => {
+                        setAddDropdownOpen(false);
+                        setImportWizardOpen(true);
+                      }}
+                    >
+                      <FileUploadIcon fontSize="small" sx={{ mr: 1.5, color: 'text.secondary' }} />
+                      Import Customers
+                    </MenuItem>
+                  </MenuList>
+                </ClickAwayListener>
+              </Paper>
+            </Grow>
+          )}
+        </Popper>
       </Stack>
 
       {error && (
-        <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>
+        <Alert severity="error" sx={{ mb: 1.5, flexShrink: 0 }}>{error}</Alert>
       )}
 
       {/* 2 & 3. DATA TABLE WITH SORTING & PAGINATION */}
-      <Paper sx={{ width: '100%', overflow: 'hidden', flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
-        <TableContainer sx={{ flexGrow: 1, maxHeight: 'calc(100vh - 180px)' }}>
+      <Paper sx={{ width: '100%', overflow: 'hidden', flexGrow: 1, display: 'flex', flexDirection: 'column', borderRadius: 1 }}>
+        <TableContainer sx={{ flexGrow: 1, minHeight: 0 }}>
           <Table stickyHeader size="small">
             <TableHead>
               <TableRow>
@@ -323,14 +371,9 @@ export const CustomersPage = () => {
                 paginatedCustomers.map((customer) => (
                   <TableRow key={customer.customer_id} hover>
                     <TableCell>
-                      <Stack direction="row" spacing={1.5} alignItems="center">
-                        <Avatar sx={{ width: 28, height: 28, bgcolor: 'secondary.main', fontSize: '0.75rem', fontWeight: 700 }}>
-                          {customer.name ? customer.name.charAt(0).toUpperCase() : 'C'}
-                        </Avatar>
-                        <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
-                          <HighlightText text={customer.name} highlight={searchQuery} />
-                        </Typography>
-                      </Stack>
+                      <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
+                        <HighlightText text={customer.name} highlight={searchQuery} />
+                      </Typography>
                     </TableCell>
                     <TableCell><HighlightText text={customer.phone || '—'} highlight={searchQuery} /></TableCell>
                     <TableCell>

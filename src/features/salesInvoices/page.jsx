@@ -25,6 +25,9 @@ import {
   Tab,
   Chip,
   Tooltip,
+  Stack,
+  TablePagination,
+  TableSortLabel,
 } from '@mui/material';
 
 import AddIcon from '@mui/icons-material/Add';
@@ -42,7 +45,6 @@ import { checkReferences } from '../../lib/referenceChecker';
 import CannotDeleteDialog from '../../components/feedback/CannotDeleteDialog';
 import { SearchInput } from '../../components/ui/SearchInput';
 import { HighlightText } from '../../components/ui/HighlightText';
-import { TablePagination, TableSortLabel, Stack } from '@mui/material';
 
 const STATUS_MAP = {
   unpaid: { label: 'Unpaid', color: 'error' },
@@ -343,61 +345,52 @@ export const SalesInvoicesPage = () => {
   };
 
   return (
-    <Box sx={{ p: { xs: 1, sm: 3 } }}>
-      {/* Header */}
-      <Grid container spacing={2} alignItems="center" justifyContent="space-between" sx={{ mb: 3 }}>
-        <Grid item xs={12} sm={auto => 'auto'}>
-          <Typography variant="h4" sx={{ fontWeight: 800 }}>
-            Sales Invoices
-          </Typography>
-        </Grid>
-        <Grid item xs={12} sm={auto => 'auto'}>
-          <Button
-            variant="contained"
-            startIcon={<AddIcon />}
-            onClick={handleCreateClick}
-            sx={{ width: { xs: '100%', sm: 'auto' } }}
-          >
-            Create Invoice
-          </Button>
-        </Grid>
-      </Grid>
-
-      {/* Search and Tabs */}
-      <Box sx={{ mb: 3 }}>
+    <Box sx={{ p: { xs: 1, sm: 2 }, height: '100%', display: 'flex', flexDirection: 'column' }}>
+      {/* Standard Toolbar */}
+      <Stack direction="row" spacing={1.5} sx={{ mb: 1.5, alignItems: 'center' }}>
         <SearchInput
+          sx={{ flex: '6 1 0', minWidth: 0, bgcolor: 'background.paper', borderRadius: 1 }}
           placeholder="Search by invoice number or customer name..."
           value={searchQuery}
           onChange={setSearchQuery}
-          sx={{ bgcolor: 'background.paper', borderRadius: 2, mb: 2, width: '100%' }}
         />
+        <Button
+          sx={{ flex: '2 1 0', minWidth: 0 }}
+          variant="contained"
+          color="primary"
+          startIcon={<AddIcon />}
+          onClick={handleCreateClick}
+        >
+          Create Invoice
+        </Button>
+      </Stack>
 
-        <Paper sx={{ borderRadius: 2, overflow: 'hidden' }}>
-          <Tabs
-            value={statusFilter}
-            onChange={(e, val) => setStatusFilter(val)}
-            indicatorColor="primary"
-            textColor="primary"
-            variant="scrollable"
-            scrollButtons="auto"
-          >
-            <Tab label="All Invoices" value="all" />
-            <Tab label="Unpaid" value="unpaid" />
-            <Tab label="Partial" value="partial" />
-            <Tab label="Paid" value="paid" />
-            <Tab label="Void" value="void" />
-          </Tabs>
-        </Paper>
-      </Box>
+      {/* Status Tabs */}
+      <Paper sx={{ borderRadius: 1, overflow: 'hidden', mb: 1.5, flexShrink: 0 }}>
+        <Tabs
+          value={statusFilter}
+          onChange={(e, val) => setStatusFilter(val)}
+          indicatorColor="primary"
+          textColor="primary"
+          variant="scrollable"
+          scrollButtons="auto"
+        >
+          <Tab label="All Invoices" value="all" sx={{ minHeight: 40, fontSize: '0.8rem', py: 1 }} />
+          <Tab label="Unpaid" value="unpaid" sx={{ minHeight: 40, fontSize: '0.8rem', py: 1 }} />
+          <Tab label="Partial" value="partial" sx={{ minHeight: 40, fontSize: '0.8rem', py: 1 }} />
+          <Tab label="Paid" value="paid" sx={{ minHeight: 40, fontSize: '0.8rem', py: 1 }} />
+          <Tab label="Void" value="void" sx={{ minHeight: 40, fontSize: '0.8rem', py: 1 }} />
+        </Tabs>
+      </Paper>
 
       {error && (
-        <Alert severity="error" sx={{ mb: 3 }}>
+        <Alert severity="error" sx={{ mb: 1.5, flexShrink: 0 }}>
           {error}
         </Alert>
       )}
 
       {/* Grid Table */}
-      <TableContainer component={Paper} sx={{ borderRadius: 3, overflow: 'hidden' }}>
+      <TableContainer component={Paper} sx={{ borderRadius: 1, overflow: 'hidden', flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
         <Table>
           <TableHead sx={{ bgcolor: 'rgba(0, 0, 0, 0.03)' }}>
             <TableRow>
@@ -508,7 +501,7 @@ export const SalesInvoicesPage = () => {
         onPageChange={handleChangePage}
         onRowsPerPageChange={handleChangeRowsPerPage}
         component={Paper}
-        sx={{ borderTopLeftRadius: 0, borderTopRightRadius: 0 }}
+        sx={{ borderTopLeftRadius: 0, borderTopRightRadius: 0, borderBottomLeftRadius: 1, borderBottomRightRadius: 1 }}
       />
 
       {/* Details Viewer */}

@@ -61,7 +61,7 @@ export const components = {
     styleOverrides: {
       root: {
         borderRadius: density.radius,
-        padding: '5px 14px',
+        padding: '4px 12px',
         minHeight: density.controlHeight,
         fontWeight: 600,
         fontSize: '0.8125rem',
@@ -71,13 +71,13 @@ export const components = {
         transition: 'background-color 120ms ease, border-color 120ms ease',
       },
       sizeSmall: {
-        minHeight: 28,
-        padding: '3px 10px',
+        minHeight: 26,
+        padding: '2px 8px',
         fontSize: '0.75rem',
       },
       sizeLarge: {
-        minHeight: 36,
-        padding: '7px 18px',
+        minHeight: 34,
+        padding: '6px 16px',
       },
       containedPrimary: {
         backgroundColor: '#1e1b4b',
@@ -198,7 +198,7 @@ export const components = {
           top: 0,
           zIndex: 2,
           fontWeight: 700,
-          color: '#334155',
+          color: '#036cffff',
           fontSize: '0.6875rem',
           letterSpacing: '0.04em',
           textTransform: 'uppercase',
@@ -212,13 +212,13 @@ export const components = {
   MuiTableCell: {
     styleOverrides: {
       root: {
-        padding: '6px 12px',
+        padding: '4px 8px',
         borderColor: 'rgba(15, 23, 42, 0.07)',
         fontSize: '0.8125rem',
         lineHeight: 1.4,
       },
       sizeSmall: {
-        padding: '4px 10px',
+        padding: '2px 6px',
       },
     },
   },
@@ -280,10 +280,10 @@ export const components = {
         },
       },
       input: {
-        padding: '6.5px 10px',
+        padding: '5.5px 10px',
       },
       inputSizeSmall: {
-        padding: '5.5px 9px',
+        padding: '4.5px 8px',
       },
     },
   },
@@ -422,15 +422,15 @@ export const components = {
         textTransform: 'none',
         fontWeight: 600,
         fontSize: '0.8125rem',
-        minHeight: 40,
-        padding: '8px 14px',
+        minHeight: 32,
+        padding: '6px 12px',
       },
     },
   },
   MuiTabs: {
     styleOverrides: {
       root: {
-        minHeight: 40,
+        minHeight: 32,
       },
     },
   },

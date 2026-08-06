@@ -22,7 +22,8 @@ import {
   Select,
   InputLabel,
   FormControl,
-  TablePagination
+  TablePagination,
+  Stack,
 } from '@mui/material';
 import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
 import { getStatementData } from './api';
@@ -166,7 +167,7 @@ export const StatementsPage = () => {
 
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
-      rawData = rawData.filter(r => 
+      rawData = rawData.filter(r =>
         (r.refNo || '').toLowerCase().includes(q) ||
         (r.customerName || '').toLowerCase().includes(q)
       );
@@ -197,7 +198,7 @@ export const StatementsPage = () => {
     const doc = new jsPDF();
     doc.text('Statement Report', 14, 15);
     doc.setFontSize(10);
-    
+
     let subtitle = 'All Records';
     if (tabIndex === 1 && selectedCustomer) subtitle = `Customer: ${selectedCustomer.name}`;
     if (tabIndex === 2) subtitle = `Date Range: ${startDate || 'Start'} to ${endDate || 'End'}`;
@@ -239,42 +240,36 @@ export const StatementsPage = () => {
   }
 
   return (
-    <Box>
-      <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-        <Typography variant="h4" fontWeight={800} color="primary">
-          Financial Statements
-        </Typography>
+    <Box sx={{ p: { xs: 1, sm: 2 }, height: '100%', display: 'flex', flexDirection: 'column' }}>
+      {/* Standard Toolbar */}
+      <Stack direction="row" spacing={1.5} sx={{ mb: 1.5, alignItems: 'center' }}>
+        <SearchInput
+          sx={{ flex: '6 1 0', minWidth: 0, bgcolor: 'background.paper', borderRadius: 1 }}
+          placeholder="Search by ref no or customer..."
+          value={searchQuery}
+          onChange={setSearchQuery}
+        />
         <Button
+          sx={{ flex: '2 1 0', minWidth: 0 }}
           variant="contained"
-          startIcon={<PictureAsPdfIcon />}
           color="error"
+          startIcon={<PictureAsPdfIcon />}
           onClick={handleExportPDF}
-          sx={{ fontWeight: 'bold' }}
         >
           Export PDF
         </Button>
-      </Box>
+      </Stack>
 
-      {error && <Alert severity="error" sx={{ mb: 3 }}>{error}</Alert>}
+      {error && <Alert severity="error" sx={{ mb: 1.5, flexShrink: 0 }}>{error}</Alert>}
 
-      <Paper elevation={0} variant="outlined" sx={{ borderRadius: 2, mb: 3 }}>
-        <Tabs value={tabIndex} onChange={handleTabChange} sx={{ borderBottom: 1, borderColor: 'divider' }}>
-          <Tab label="Overall Statement" />
-          <Tab label="Customer Statement" />
-          <Tab label="Date Range Statement" />
+      <Paper elevation={0} variant="outlined" sx={{ borderRadius: 1, mb: 1.5, flexShrink: 0 }}>
+        <Tabs value={tabIndex} onChange={handleTabChange} sx={{ borderBottom: 1, borderColor: 'divider', minHeight: 40 }}>
+          <Tab label="Overall Statement" sx={{ minHeight: 40, fontSize: '0.8rem', py: 1 }} />
+          <Tab label="Customer Statement" sx={{ minHeight: 40, fontSize: '0.8rem', py: 1 }} />
+          <Tab label="Date Range Statement" sx={{ minHeight: 40, fontSize: '0.8rem', py: 1 }} />
         </Tabs>
-        
-        <Box p={3}>
-          <Grid container spacing={2} alignItems="center" sx={{ mb: 2 }}>
-            <Grid item xs={12}>
-              <SearchInput
-                placeholder="Search by ref no or customer..."
-                value={searchQuery}
-                onChange={setSearchQuery}
-                sx={{ bgcolor: 'background.paper', borderRadius: 2, width: '100%' }}
-              />
-            </Grid>
-          </Grid>
+
+        <Box p={2}>
           <Grid container spacing={2} alignItems="center">
             {tabIndex === 1 && (
               <Grid item xs={12} md={4}>
@@ -343,7 +338,7 @@ export const StatementsPage = () => {
         </Box>
       </Paper>
 
-      <TableContainer component={Paper} elevation={0} variant="outlined" sx={{ borderRadius: 2 }}>
+      <TableContainer component={Paper} elevation={0} variant="outlined" sx={{ borderRadius: 1, flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
         <Table>
           <TableHead sx={{ bgcolor: 'action.hover' }}>
             <TableRow>
@@ -378,11 +373,11 @@ export const StatementsPage = () => {
                 <TableRow key={`${row.type}-${row.id}-${idx}`} hover>
                   <TableCell>{formatDate(row.date)}</TableCell>
                   <TableCell>
-                    <Chip 
-                      label={row.type} 
-                      size="small" 
-                      color={row.type === 'Invoice' ? 'primary' : 'success'} 
-                      variant="outlined" 
+                    <Chip
+                      label={row.type}
+                      size="small"
+                      color={row.type === 'Invoice' ? 'primary' : 'success'}
+                      variant="outlined"
                     />
                   </TableCell>
                   <TableCell sx={{ fontWeight: 600 }}>
@@ -418,7 +413,7 @@ export const StatementsPage = () => {
           onPageChange={handleChangePage}
           onRowsPerPageChange={handleChangeRowsPerPage}
           component={Paper}
-          sx={{ borderTopLeftRadius: 0, borderTopRightRadius: 0 }}
+          sx={{ borderTopLeftRadius: 0, borderTopRightRadius: 0, borderBottomLeftRadius: 1, borderBottomRightRadius: 1 }}
         />
       )}
     </Box>

@@ -178,37 +178,33 @@ export const EmployeesPage = () => {
   };
 
   return (
-    <Box>
-      <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-        <Typography variant="h4" fontWeight={800} color="primary">
-          Employees
-        </Typography>
-        <Button
-          variant="contained"
-          startIcon={<AddIcon />}
-          onClick={handleAdd}
-          sx={{ fontWeight: 'bold' }}
-        >
-          Add Employee
-        </Button>
-      </Box>
-
-      <Box sx={{ mb: 3 }}>
+    <Box sx={{ p: { xs: 1, sm: 2 }, height: '100%', display: 'flex', flexDirection: 'column' }}>
+      {/* Standard Toolbar */}
+      <Stack direction="row" spacing={1.5} sx={{ mb: 1.5, alignItems: 'center' }}>
         <SearchInput
+          sx={{ flex: '6 1 0', minWidth: 0, bgcolor: 'background.paper', borderRadius: 1 }}
           placeholder="Search by name, email, phone, or role..."
           value={searchQuery}
           onChange={setSearchQuery}
-          sx={{ bgcolor: 'background.paper', borderRadius: 2, width: '100%' }}
         />
-      </Box>
+        <Button
+          sx={{ flex: '2 1 0', minWidth: 0 }}
+          variant="contained"
+          color="primary"
+          startIcon={<AddIcon />}
+          onClick={handleAdd}
+        >
+          Add Employee
+        </Button>
+      </Stack>
 
       {error && (
-        <Alert severity="error" sx={{ mb: 3 }}>
+        <Alert severity="error" sx={{ mb: 1.5, flexShrink: 0 }}>
           {error}
         </Alert>
       )}
 
-      <TableContainer component={Paper} elevation={0} variant="outlined" sx={{ borderRadius: 2 }}>
+      <TableContainer component={Paper} elevation={0} variant="outlined" sx={{ borderRadius: 1, flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
         <Table>
           <TableHead sx={{ bgcolor: 'action.hover' }}>
             <TableRow>
@@ -317,7 +313,7 @@ export const EmployeesPage = () => {
           onPageChange={handleChangePage}
           onRowsPerPageChange={handleChangeRowsPerPage}
           component={Paper}
-          sx={{ borderTopLeftRadius: 0, borderTopRightRadius: 0 }}
+          sx={{ borderTopLeftRadius: 0, borderTopRightRadius: 0, borderBottomLeftRadius: 1, borderBottomRightRadius: 1 }}
         />
       )}
 

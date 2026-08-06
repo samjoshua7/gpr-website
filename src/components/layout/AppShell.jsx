@@ -89,26 +89,12 @@ export const AppShell = () => {
           borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
         }}
       >
-        <Box
-          sx={{
-            width: 28,
-            height: 28,
-            borderRadius: '6px',
-            bgcolor: 'primary.main',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            mr: 1.25,
-            p: 0.4,
-          }}
-        >
-          <Box component="img" src="/favicon.svg" alt="G.P.R. ERP Logo" sx={{ width: 18, height: 18, objectFit: 'contain' }} />
-        </Box>
+        <Box component="img" src="/favicon.svg" alt="G.P.R. ERP Logo" sx={{ width: 22, height: 22, objectFit: 'contain', mr: 1.5 }} />
         <Box>
           <Typography sx={{ fontWeight: 700, fontSize: '0.875rem', letterSpacing: '-0.01em', lineHeight: 1.2, color: '#ffffff' }}>
             G.P.R. ERP
           </Typography>
-          <Typography sx={{ color: 'rgba(255, 255, 255, 0.55)', fontSize: '0.625rem' }}>
+          <Typography sx={{ color: 'rgba(255, 255, 255, 0.55)', fontSize: '0.625rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
             Press Management
           </Typography>
         </Box>
@@ -125,35 +111,23 @@ export const AppShell = () => {
                 to={item.path}
                 onClick={isMobile ? handleDrawerToggle : undefined}
                 sx={{
-                  borderRadius: 1,
-                  py: 0.6,
-                  px: 1.5,
-                  minHeight: 34,
-                  bgcolor: isActive ? 'rgba(2, 132, 199, 0.18)' : 'transparent',
-                  color: isActive ? '#38bdf8' : 'rgba(226, 232, 240, 0.85)',
-                  position: 'relative',
+                  borderRadius: 0,
+                  py: 0.5,
+                  px: 2,
+                  minHeight: 32,
+                  bgcolor: isActive ? '#1e293b' : 'transparent',
+                  color: isActive ? '#ffffff' : '#94a3b8',
+                  borderLeft: isActive ? '3px solid #38bdf8' : '3px solid transparent',
                   '&:hover': {
-                    bgcolor: isActive ? 'rgba(2, 132, 199, 0.22)' : 'rgba(255, 255, 255, 0.06)',
-                    color: isActive ? '#38bdf8' : '#ffffff',
-                  },
-                  '&::before': isActive
-                    ? {
-                        content: '""',
-                        position: 'absolute',
-                        left: 0,
-                        top: '15%',
-                        bottom: '15%',
-                        width: 3.5,
-                        borderRadius: '0 4px 4px 0',
-                        bgcolor: '#0284c7',
-                      }
-                    : undefined,
+                    bgcolor: isActive ? '#1e293b' : 'rgba(255, 255, 255, 0.04)',
+                    color: '#ffffff',
+                  }
                 }}
               >
                 <ListItemIcon
                   sx={{
-                    minWidth: 30,
-                    color: isActive ? '#38bdf8' : 'rgba(226, 232, 240, 0.65)',
+                    minWidth: 28,
+                    color: isActive ? '#38bdf8' : '#94a3b8',
                   }}
                 >
                   {item.icon}
@@ -173,8 +147,8 @@ export const AppShell = () => {
 
       {/* Sidebar User Footer Info */}
       <Box sx={{ p: 1.5, borderTop: '1px solid rgba(255, 255, 255, 0.08)' }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', p: 0.75, borderRadius: 1, bgcolor: 'rgba(255, 255, 255, 0.04)', mb: 0.75 }}>
-          <Avatar sx={{ bgcolor: 'secondary.main', color: '#ffffff', fontWeight: 700, fontSize: '0.75rem', width: 28, height: 28, mr: 1.25 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', p: 0.75, mb: 0.75 }}>
+          <Avatar sx={{ bgcolor: 'rgba(255,255,255,0.1)', color: '#ffffff', fontWeight: 600, fontSize: '0.75rem', width: 24, height: 24, mr: 1, borderRadius: 1 }}>
             {profile?.name ? profile.name.charAt(0).toUpperCase() : 'U'}
           </Avatar>
           <Box sx={{ overflow: 'hidden' }}>
@@ -212,7 +186,7 @@ export const AppShell = () => {
   const activeTitle = menuItems.find((item) => item.path === location.pathname)?.text || 'Dashboard';
 
   return (
-    <Box sx={{ display: 'flex', minHeight: '100vh', bgcolor: 'background.default' }}>
+    <Box sx={{ display: 'flex', height: '100vh', minHeight: '100vh', bgcolor: 'background.default', overflow: 'hidden' }}>
       {/* Mobile Menu Toggle (Floating) */}
       <IconButton
         color="primary"
@@ -264,13 +238,20 @@ export const AppShell = () => {
         component="main"
         sx={{
           flexGrow: 1,
-          p: { xs: 1.5, sm: 2, md: 2.5 },
-          pt: { xs: 7, md: 2.5 }, // Extra padding top on mobile to clear the floating button
+          height: '100vh',
+          overflow: 'hidden',
+          p: { xs: 1, sm: 1.5, md: 2 },
+          pt: { xs: 7, md: 2 },
           width: { md: `calc(100% - ${DRAWER_WIDTH}px)` },
           minWidth: 0,
+          display: 'flex',
+          flexDirection: 'column',
+          boxSizing: 'border-box',
         }}
       >
-        <Outlet />
+        <Box sx={{ flexGrow: 1, minHeight: 0, overflow: 'hidden' }}>
+          <Outlet />
+        </Box>
       </Box>
     </Box>
   );
