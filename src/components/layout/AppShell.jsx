@@ -21,6 +21,7 @@ import {
   useMediaQuery,
   Chip,
   Tooltip,
+  Button,
 } from '@mui/material';
 
 import MenuIcon from '@mui/icons-material/Menu';
@@ -50,22 +51,12 @@ export const AppShell = () => {
   const { profile, signOut } = useAuth();
 
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [anchorEl, setAnchorEl] = useState(null);
 
   const handleDrawerToggle = () => {
     setMobileOpen(!mobileOpen);
   };
 
-  const handleProfileMenuOpen = (event) => {
-    setAnchorEl(event.currentTarget);
-  };
-
-  const handleProfileMenuClose = () => {
-    setAnchorEl(null);
-  };
-
   const handleSignOutClick = async () => {
-    handleProfileMenuClose();
     await signOut();
   };
 
@@ -181,7 +172,7 @@ export const AppShell = () => {
 
       {/* Sidebar User Footer Info */}
       <Box sx={{ p: 2, borderTop: '1px solid rgba(255, 255, 255, 0.08)' }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', p: 1, borderRadius: 2, bgcolor: 'rgba(255, 255, 255, 0.04)' }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', p: 1, borderRadius: 2, bgcolor: 'rgba(255, 255, 255, 0.04)', mb: 1 }}>
           <Avatar sx={{ bgcolor: 'secondary.main', color: '#ffffff', fontWeight: 700, width: 34, height: 34, mr: 1.5 }}>
             {profile?.name ? profile.name.charAt(0).toUpperCase() : 'U'}
           </Avatar>
@@ -194,6 +185,24 @@ export const AppShell = () => {
             </Typography>
           </Box>
         </Box>
+        <Button
+          fullWidth
+          variant="outlined"
+          color="inherit"
+          startIcon={<LogoutIcon />}
+          onClick={handleSignOutClick}
+          sx={{
+            borderColor: 'rgba(255, 255, 255, 0.2)',
+            color: 'rgba(255, 255, 255, 0.7)',
+            '&:hover': {
+              borderColor: '#ffffff',
+              color: '#ffffff',
+              bgcolor: 'rgba(255, 255, 255, 0.08)'
+            }
+          }}
+        >
+          Sign Out
+        </Button>
       </Box>
     </Box>
   );
@@ -202,134 +211,24 @@ export const AppShell = () => {
 
   return (
     <Box sx={{ display: 'flex', minHeight: '100vh', bgcolor: 'background.default' }}>
-      {/* Top Header Navbar */}
-      <AppBar
-        position="fixed"
-        elevation={0}
+      {/* Mobile Menu Toggle (Floating) */}
+      <IconButton
+        color="primary"
+        aria-label="open drawer"
+        onClick={handleDrawerToggle}
         sx={{
-          width: { md: `calc(100% - ${DRAWER_WIDTH}px)` },
-          ml: { md: `${DRAWER_WIDTH}px` },
-          bgcolor: 'rgba(255, 255, 255, 0.92)',
-          backdropFilter: 'blur(12px)',
-          color: 'text.primary',
-          borderBottom: '1px solid rgba(15, 23, 42, 0.08)',
-          zIndex: (theme) => theme.zIndex.drawer + 1,
+          display: { md: 'none' },
+          position: 'fixed',
+          top: 16,
+          left: 16,
+          bgcolor: 'white',
+          boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
+          zIndex: (theme) => theme.zIndex.drawer - 1,
+          '&:hover': { bgcolor: '#f1f5f9' },
         }}
       >
-        <Toolbar sx={{ justifyContent: 'space-between', height: 70 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center' }}>
-            <IconButton
-              color="inherit"
-              aria-label="open drawer"
-              edge="start"
-              onClick={handleDrawerToggle}
-              sx={{ mr: 2, display: { md: 'none' } }}
-            >
-              <MenuIcon />
-            </IconButton>
-            <Typography variant="h5" noWrap component="h1" sx={{ fontWeight: 800, color: '#0f172a' }}>
-              {activeTitle}
-            </Typography>
-          </Box>
-
-          {/* Right Header Actions */}
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-            <Tooltip title="View Customer Storefront">
-              <IconButton
-                onClick={() => navigate('/')}
-                sx={{
-                  bgcolor: 'rgba(15, 23, 42, 0.04)',
-                  '&:hover': { bgcolor: 'rgba(15, 23, 42, 0.08)' },
-                }}
-              >
-                <StorefrontIcon fontSize="small" color="action" />
-              </IconButton>
-            </Tooltip>
-
-            {/* Profile menu toggler */}
-            <IconButton
-              onClick={handleProfileMenuOpen}
-              sx={{
-                p: 0.5,
-                pl: 1,
-                pr: 1.5,
-                borderRadius: 6,
-                bgcolor: 'rgba(15, 23, 42, 0.04)',
-                '&:hover': { bgcolor: 'rgba(15, 23, 42, 0.08)' },
-              }}
-            >
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <Avatar
-                  sx={{
-                    bgcolor: 'primary.main',
-                    color: '#ffffff',
-                    fontWeight: 700,
-                    width: 32,
-                    height: 32,
-                    fontSize: '0.875rem',
-                  }}
-                >
-                  {profile?.name ? profile.name.charAt(0).toUpperCase() : 'U'}
-                </Avatar>
-                <Typography variant="body2" sx={{ display: { xs: 'none', sm: 'block' }, fontWeight: 600, color: '#0f172a' }}>
-                  {profile?.name || 'User'}
-                </Typography>
-                <KeyboardArrowDownIcon fontSize="small" sx={{ color: 'text.secondary' }} />
-              </Box>
-            </IconButton>
-
-            {/* Profile Dropdown Menu */}
-            <Menu
-              anchorEl={anchorEl}
-              open={Boolean(anchorEl)}
-              onClose={handleProfileMenuClose}
-              transformOrigin={{ horizontal: 'right', vertical: 'top' }}
-              anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
-              PaperProps={{
-                sx: {
-                  mt: 1.5,
-                  width: 240,
-                  borderRadius: 3,
-                  p: 0.5,
-                },
-              }}
-            >
-              <Box sx={{ px: 2, py: 1.5 }}>
-                <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
-                  {profile?.name || 'User'}
-                </Typography>
-                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
-                  {profile?.email}
-                </Typography>
-                <Chip
-                  label={profile?.role === 'SUPER_ADMIN' ? 'Super Admin' : 'Staff Member'}
-                  size="small"
-                  color={profile?.role === 'SUPER_ADMIN' ? 'primary' : 'secondary'}
-                  sx={{ height: 20, fontSize: '0.7rem', fontWeight: 700 }}
-                />
-              </Box>
-
-              <Divider sx={{ my: 1 }} />
-
-              <MenuItem onClick={() => { handleProfileMenuClose(); navigate('/'); }} sx={{ py: 1.2 }}>
-                <ListItemIcon sx={{ minWidth: 32 }}>
-                  <StorefrontIcon fontSize="small" />
-                </ListItemIcon>
-                <ListItemText primary="Customer Storefront" primaryTypographyProps={{ fontSize: '0.875rem' }} />
-              </MenuItem>
-
-              <Divider sx={{ my: 1 }} />
-
-              <MenuItem onClick={handleSignOutClick} sx={{ py: 1.2, color: 'error.main' }}>
-                <ListItemIcon sx={{ minWidth: 32, color: 'error.main' }}>
-                  <LogoutIcon fontSize="small" />
-                </ListItemIcon>
-                <ListItemText primary="Sign Out" primaryTypographyProps={{ fontSize: '0.875rem', fontWeight: 700 }} />
-              </MenuItem>
-            </Menu>
-          </Box>
-        </Toolbar>
-      </AppBar>
+        <MenuIcon />
+      </IconButton>
 
       {/* Drawer Side Navigation */}
       <Box component="nav" sx={{ width: { md: DRAWER_WIDTH }, flexShrink: { md: 0 } }}>
@@ -364,8 +263,8 @@ export const AppShell = () => {
         sx={{
           flexGrow: 1,
           p: { xs: 2, sm: 3, md: 4 },
+          pt: { xs: 8, md: 4 }, // Extra padding top on mobile to clear the floating button
           width: { md: `calc(100% - ${DRAWER_WIDTH}px)` },
-          mt: '70px',
         }}
       >
         <Outlet />

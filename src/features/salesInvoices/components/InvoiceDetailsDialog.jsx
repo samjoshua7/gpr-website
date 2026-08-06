@@ -25,6 +25,8 @@ import {
 import EditIcon from '@mui/icons-material/Edit';
 import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
 import WhatsAppIcon from '@mui/icons-material/WhatsApp';
+import ContentCopyIcon from '@mui/icons-material/ContentCopy';
+import PrintIcon from '@mui/icons-material/Print';
 import { getInvoiceById } from '../api';
 import { getCompanySettings } from '../../settings/api';
 
@@ -35,11 +37,19 @@ const STATUS_MAP = {
   void: { label: 'Voided', color: 'default' },
 };
 
-export const InvoiceDetailsDialog = ({ open, onClose, invoiceId, onEdit }) => {
+export const InvoiceDetailsDialog = ({ open, onClose, invoiceId, onEdit, onClone }) => {
   const [invoice, setInvoice] = useState(null);
   const [companySettings, setCompanySettings] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+
+  const handlePrint = () => {
+    window.print();
+  };
+
+  const handleWhatsApp = () => {
+    alert('WhatsApp integration coming soon.');
+  };
 
   useEffect(() => {
     const fetchInvoiceDetails = async () => {
@@ -85,9 +95,38 @@ export const InvoiceDetailsDialog = ({ open, onClose, invoiceId, onEdit }) => {
 
   const balanceDue = invoice ? (invoice.total_amount - invoice.amount_paid) : 0;
 
+  const printStyles = `
+    @media print {
+      body * {
+        visibility: hidden;
+      }
+      #printable-invoice-container, #printable-invoice-container * {
+        visibility: visible;
+      }
+      #printable-invoice-container {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+        margin: 0;
+        padding: 0;
+      }
+      .no-print {
+        display: none !important;
+      }
+      .MuiDialog-paper {
+        box-shadow: none !important;
+        border: none !important;
+        margin: 0 !important;
+        max-width: 100% !important;
+      }
+    }
+  `;
+
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
-      <DialogTitle sx={{ fontWeight: 700, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+    <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth PaperProps={{ id: 'printable-invoice-container' }}>
+      <style>{printStyles}</style>
+      <DialogTitle className="no-print" sx={{ fontWeight: 700, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <span>Invoice Details</span>
         {invoice && (
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -97,18 +136,30 @@ export const InvoiceDetailsDialog = ({ open, onClose, invoiceId, onEdit }) => {
               size="small"
               sx={{ fontWeight: 600, mr: 1 }}
             />
+            {onClone && (
+              <Tooltip title="Clone Invoice">
+                <IconButton size="small" onClick={() => onClone(invoice)}>
+                  <ContentCopyIcon fontSize="small" />
+                </IconButton>
+              </Tooltip>
+            )}
             <Tooltip title="Edit Invoice">
               <IconButton size="small" onClick={() => onEdit && onEdit(invoice)}>
                 <EditIcon fontSize="small" />
               </IconButton>
             </Tooltip>
+            <Tooltip title="Print Invoice">
+              <IconButton size="small" color="primary" onClick={handlePrint}>
+                <PrintIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
             <Tooltip title="Download PDF">
-              <IconButton size="small" color="error">
+              <IconButton size="small" color="error" onClick={handlePrint}>
                 <PictureAsPdfIcon fontSize="small" />
               </IconButton>
             </Tooltip>
             <Tooltip title="Send via WhatsApp">
-              <IconButton size="small" color="success">
+              <IconButton size="small" color="success" onClick={handleWhatsApp}>
                 <WhatsAppIcon fontSize="small" />
               </IconButton>
             </Tooltip>
@@ -125,7 +176,36 @@ export const InvoiceDetailsDialog = ({ open, onClose, invoiceId, onEdit }) => {
         ) : !invoice ? (
           <Typography>No invoice loaded.</Typography>
         ) : (
-          <Box sx={{ p: 0.5 }}>
+          <Box sx={{ p: { xs: 1, md: 3 } }}>
+            {/* Professional Company Header */}
+            {companySettings && (
+              <Box sx={{ textAlign: 'center', mb: 4, borderBottom: '2px solid rgba(0,0,0,0.1)', pb: 2 }}>
+                <Typography variant="h4" sx={{ fontWeight: 800, color: 'primary.main', textTransform: 'uppercase' }}>
+                  {companySettings.company_name}
+                </Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mt: 1, whiteSpace: 'pre-wrap' }}>
+                  {companySettings.address}
+                </Typography>
+                <Box sx={{ display: 'flex', justifyContent: 'center', gap: 2, mt: 0.5, flexWrap: 'wrap' }}>
+                  {companySettings.phone && (
+                    <Typography variant="body2" color="text.secondary">
+                      <strong>Phone:</strong> {companySettings.phone}
+                    </Typography>
+                  )}
+                  {companySettings.email && (
+                    <Typography variant="body2" color="text.secondary">
+                      <strong>Email:</strong> {companySettings.email}
+                    </Typography>
+                  )}
+                  {companySettings.gstin && (
+                    <Typography variant="body2" color="text.secondary">
+                      <strong>GSTIN:</strong> {companySettings.gstin}
+                    </Typography>
+                  )}
+                </Box>
+              </Box>
+            )}
+
             {/* Header info */}
             <Grid container spacing={3} sx={{ mb: 4 }}>
               <Grid item xs={12} sm={6}>
@@ -135,6 +215,16 @@ export const InvoiceDetailsDialog = ({ open, onClose, invoiceId, onEdit }) => {
                 <Typography variant="body1" sx={{ fontWeight: 700, mt: 0.5 }}>
                   {invoice.customers?.name}
                 </Typography>
+                {invoice.customers?.identification_name && (
+                   <Typography variant="body2" color="text.secondary">
+                     {invoice.customers.identification_name}
+                   </Typography>
+                )}
+                {invoice.customers?.gstin && (
+                   <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                     GSTIN: <strong>{invoice.customers.gstin}</strong>
+                   </Typography>
+                )}
                 <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
                   Phone: {invoice.customers?.phone || '—'}
                 </Typography>
@@ -313,7 +403,7 @@ export const InvoiceDetailsDialog = ({ open, onClose, invoiceId, onEdit }) => {
            </Box>
         )}
       </DialogContent>
-      <DialogActions sx={{ p: 2 }}>
+      <DialogActions className="no-print" sx={{ p: 2 }}>
         <Button onClick={onClose} variant="outlined" color="primary">
           Close
         </Button>

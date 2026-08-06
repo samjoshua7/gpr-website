@@ -192,9 +192,20 @@ export const InvoiceDialog = ({ open, onClose, onSaveSuccess, preselectedJob = n
       if (!open) return;
       
       if (editInvoice) {
-        // Edit mode - populate with existing invoice data
-        setInvoiceNo(editInvoice.invoice_no);
-        setInvoiceDate(editInvoice.invoice_date);
+        // Edit or Clone mode - populate with existing invoice data
+        if (editInvoice.invoice_id) {
+          setInvoiceNo(editInvoice.invoice_no);
+          setInvoiceDate(editInvoice.invoice_date);
+        } else {
+          try {
+            const nextNo = await getNextInvoiceNumber(editInvoice.invoice_type || 'NON_GST');
+            setInvoiceNo(nextNo);
+          } catch (err) {
+            console.error('Failed to generate invoice sequence:', err);
+            setInvoiceNo('ERR-GEN');
+          }
+          setInvoiceDate(new Date().toISOString().split('T')[0]);
+        }
         setInvoiceType(editInvoice.invoice_type || 'NON_GST');
         setCustomerType(editInvoice.customer_type || 'B2C');
         setIsIntraState(editInvoice.is_interstate === false);
@@ -220,12 +231,12 @@ export const InvoiceDialog = ({ open, onClose, onSaveSuccess, preselectedJob = n
             quantity: i.quantity.toString(),
             unit: 'unit', // Best guess since we don't save unit in db currently
             unit_price: i.unit_price.toString(),
-            discount_amount: i.discount_amount.toString(),
+            discount_amount: (i.discount_amount || 0).toString(),
             tax_rate_id: '',
-            gst_rate: i.gst_rate,
-            tax_amount: i.tax_amount,
+            gst_rate: i.gst_rate || 0,
+            tax_amount: i.tax_amount || 0,
             hsn_code: i.hsn_code || '',
-            amount: i.amount
+            amount: i.amount || 0
           })));
         }
       } else {
@@ -510,7 +521,7 @@ export const InvoiceDialog = ({ open, onClose, onSaveSuccess, preselectedJob = n
     };
 
     try {
-      if (editInvoice) {
+      if (editInvoice && editInvoice.invoice_id) {
         await updateSalesInvoice(editInvoice.invoice_id, parentPayload, lineItems);
       } else {
         await createSalesInvoice(parentPayload, lineItems);

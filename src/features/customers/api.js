@@ -40,7 +40,7 @@ export const getCustomers = async (searchQuery = '', forceRefresh = false) => {
 
 export const getCustomerById = async (id) => {
   const { data, error } = await supabase
-    .from('customers')
+    .from('customers_with_balance')
     .select('*')
     .eq('customer_id', id)
     .single();
@@ -51,6 +51,8 @@ export const getCustomerById = async (id) => {
 
   return data;
 };
+
+
 
 export const createCustomer = async (customerData) => {
   const { data, error } = await supabase

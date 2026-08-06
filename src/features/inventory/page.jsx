@@ -26,6 +26,7 @@ import {
 
 import AddIcon from '@mui/icons-material/Add';
 import StorageIcon from '@mui/icons-material/Storage';
+import EditIcon from '@mui/icons-material/Edit';
 import { TablePagination, TableSortLabel, Stack } from '@mui/material';
 import { SearchInput } from '../../components/ui/SearchInput';
 import { HighlightText } from '../../components/ui/HighlightText';

@@ -41,6 +41,27 @@ export const getReceipts = async (searchQuery = '', forceRefresh = false) => {
   return data || [];
 };
 
+export const getReceiptsByCustomer = async (customerId) => {
+  const { data, error } = await supabase
+    .from('receipts')
+    .select(`
+      *,
+      sales_invoices (
+        invoice_no,
+        total_amount,
+        amount_paid
+      )
+    `)
+    .eq('customer_id', customerId)
+    .order('receipt_date', { ascending: true });
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return data || [];
+};
+
 export const createReceipt = async (receiptData) => {
   const { data, error } = await supabase
     .from('receipts')

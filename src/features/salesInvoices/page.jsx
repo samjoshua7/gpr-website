@@ -117,6 +117,34 @@ export const SalesInvoicesPage = () => {
   const [voidLoading, setVoidLoading] = useState(false);
   const [voidError, setVoidError] = useState(null);
 
+  const handleCloneInvoice = (invoiceData) => {
+    setDetailsOpen(false); // Close details dialog
+    // Map existing items, stripping out ids, and resetting invoice data
+    const clonedItems = (invoiceData.items || []).map(item => ({
+      description: item.description,
+      quantity: item.quantity,
+      unit_price: item.unit_price,
+      amount: item.amount,
+      hsn_code: item.hsn_code || '',
+      discount_amount: item.discount_amount || 0,
+      gst_rate: item.gst_rate || 0,
+      tax_amount: item.tax_amount || 0
+    }));
+
+    const clonedInvoice = {
+      ...invoiceData,
+      invoice_id: undefined, // ensure it's treated as new
+      invoice_no: '', 
+      invoice_date: new Date().toISOString().split('T')[0],
+      amount_paid: 0,
+      status: 'unpaid',
+      items: clonedItems,
+    };
+
+    setInvoiceToEdit(clonedInvoice);
+    setCreateOpen(true);
+  };
+
   const fetchInvoices = useCallback(async (filter) => {
     setLoading(true);
     setError(null);
@@ -489,6 +517,7 @@ export const SalesInvoicesPage = () => {
         onClose={() => setDetailsOpen(false)}
         invoiceId={selectedInvoiceId}
         onEdit={handleEditClick}
+        onClone={handleCloneInvoice}
       />
 
       {/* Dialog Form */}

@@ -11,6 +11,7 @@ import { LoginPage } from '../features/auth/page';
 import { PublicHomePage } from '../features/public/page';
 import { DashboardPage } from '../features/dashboard/page';
 import { CustomersPage } from '../features/customers/page';
+import { CustomerLedgerPage } from '../features/customers/CustomerLedgerPage';
 import { JobCardsPage } from '../features/jobCards/page';
 import { SalesInvoicesPage } from '../features/salesInvoices/page';
 import { ReceiptsPage } from '../features/receipts/page';
@@ -60,6 +61,14 @@ export const router = createBrowserRouter([
         element: (
           <AuthGuard allowedRoles={['SUPER_ADMIN']}>
             <CustomersPage />
+          </AuthGuard>
+        ),
+      },
+      {
+        path: 'customers/:customerId',
+        element: (
+          <AuthGuard allowedRoles={['SUPER_ADMIN']}>
+            <CustomerLedgerPage />
           </AuthGuard>
         ),
       },

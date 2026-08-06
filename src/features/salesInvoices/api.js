@@ -50,6 +50,22 @@ export const getSalesInvoices = async (searchQuery = '', statusFilter = '', forc
   return data;
 };
 
+export const getInvoicesByCustomer = async (customerId) => {
+  const { data, error } = await supabase
+    .from('sales_invoices')
+    .select(`
+      *,
+      customers (
+        name
+      )
+    `)
+    .eq('customer_id', customerId)
+    .order('invoice_date', { ascending: true });
+
+  if (error) throw new Error(error.message);
+  return data;
+};
+
 export const getInvoiceById = async (id) => {
   // Fetch invoice details
   const { data: invoice, error: invoiceError } = await supabase

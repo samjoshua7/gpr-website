@@ -44,6 +44,8 @@ export const SettingsPage = () => {
         setSettings({
           company_name: 'G.P.R Offset Printers',
           address: '',
+          phone: '',
+          email: '',
           gstin: '',
           invoice_prefix: 'INV',
           financial_year_start: new Date().toISOString().split('T')[0],
@@ -107,6 +109,8 @@ export const SettingsPage = () => {
       await updateCompanySettings(settings.setting_id, {
         company_name: settings.company_name,
         address: settings.address,
+        phone: settings.phone,
+        email: settings.email,
         gstin: settings.gstin,
         invoice_prefix: settings.invoice_prefix,
         financial_year_start: settings.financial_year_start,
@@ -182,6 +186,34 @@ export const SettingsPage = () => {
                   value={settings?.gstin || ''}
                   onChange={handleChange}
                   inputProps={{ style: { textTransform: 'uppercase' } }}
+                />
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  fullWidth
+                  label="Phone"
+                  name="phone"
+                  value={settings?.phone || ''}
+                  onChange={handleChange}
+                />
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  fullWidth
+                  label="Email"
+                  name="email"
+                  type="email"
+                  value={settings?.email || ''}
+                  onChange={handleChange}
+                />
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  fullWidth
+                  label="Invoice Prefix"
+                  name="invoice_prefix"
+                  value={settings?.invoice_prefix || ''}
+                  onChange={handleChange}
                 />
               </Grid>
               <Grid item xs={12} sm={6}>

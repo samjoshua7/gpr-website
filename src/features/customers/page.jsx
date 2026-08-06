@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Box,
   Button,
@@ -33,6 +34,7 @@ import SearchIcon from '@mui/icons-material/Search';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import PeopleIcon from '@mui/icons-material/People';
+import VisibilityIcon from '@mui/icons-material/Visibility';
 
 import { getCustomers, deleteCustomer } from './api';
 import CustomerDialog from './components/CustomerDialog';
@@ -70,6 +72,7 @@ const formatDate = (dateString) => {
 };
 
 export const CustomersPage = () => {
+  const navigate = useNavigate();
   const [allCustomers, setAllCustomers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -359,6 +362,11 @@ export const CustomersPage = () => {
                       </Typography>
                     </TableCell>
                     <TableCell align="center">
+                      <Tooltip title="View Ledger">
+                        <IconButton color="info" onClick={() => navigate(`/dashboard/customers/${customer.customer_id}`)} size="small" sx={{ mr: 0.5 }}>
+                          <VisibilityIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
                       <Tooltip title="Edit">
                         <IconButton color="primary" onClick={() => handleEditClick(customer)} size="small" sx={{ mr: 0.5 }}>
                           <EditIcon fontSize="small" />
