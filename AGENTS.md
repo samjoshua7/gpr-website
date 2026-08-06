@@ -35,6 +35,18 @@ Never poll timers.
 Never repeatedly wait.
 Never enter waiting loops.
 
+## UI/UX Rule
+
+Think like you are designing software that an accountant will use for 8–10 hours every day.
+
+Every pixel should justify its existence.
+
+If a UI element does not improve speed, readability, or workflow, simplify or remove it.
+
+Prefer information density and consistency over decorative styling.
+
+The application should feel invisible—the user should notice their work, not the interface.
+
 ## Database-First Rule
 
 Whenever a feature requires adding, removing, or modifying database fields:
@@ -49,6 +61,25 @@ Whenever a feature requires adding, removing, or modifying database fields:
 Never assume the live database matches the source code.
 
 Every database change must have a corresponding migration file.
+
+## Handover Rule
+
+Every implementation must end with a HANDOVER.md style summary.
+
+The summary should contain:
+
+- Objective
+- Decisions made
+- Files modified
+- Database changes
+- SQL migrations executed/pending
+- APIs changed
+- Components added
+- Remaining TODOs (priority order)
+- Known risks
+- Exact next task for the following coding agent
+
+Assume another AI agent with no previous context will continue development. Write the handover so they can resume work immediately without re-auditing the repository.
 
 ## 1. Project Vision
 

@@ -41,7 +41,8 @@ import StorefrontIcon from '@mui/icons-material/Storefront';
 import PrintIcon from '@mui/icons-material/Print';
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 
-const DRAWER_WIDTH = 260;
+const DRAWER_WIDTH = 224;
+const HEADER_HEIGHT = 52;
 
 export const AppShell = () => {
   const theme = useTheme();
@@ -81,55 +82,55 @@ export const AppShell = () => {
       {/* Sidebar Branding Header */}
       <Box
         sx={{
-          height: 70,
+          height: HEADER_HEIGHT,
           display: 'flex',
           alignItems: 'center',
-          px: 3,
+          px: 2,
           borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
         }}
       >
         <Box
           sx={{
-            width: 36,
-            height: 36,
-            borderRadius: '10px',
+            width: 28,
+            height: 28,
+            borderRadius: '6px',
             bgcolor: 'primary.main',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            mr: 1.5,
-            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)',
-            p: 0.5,
+            mr: 1.25,
+            p: 0.4,
           }}
         >
-          <Box component="img" src="/favicon.svg" alt="G.P.R. ERP Logo" sx={{ width: 24, height: 24, objectFit: 'contain' }} />
+          <Box component="img" src="/favicon.svg" alt="G.P.R. ERP Logo" sx={{ width: 18, height: 18, objectFit: 'contain' }} />
         </Box>
         <Box>
-          <Typography variant="h6" sx={{ fontWeight: 800, letterSpacing: '-0.02em', lineHeight: 1.2, color: '#ffffff' }}>
+          <Typography sx={{ fontWeight: 700, fontSize: '0.875rem', letterSpacing: '-0.01em', lineHeight: 1.2, color: '#ffffff' }}>
             G.P.R. ERP
           </Typography>
-          <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.5)', fontSize: '0.7rem' }}>
+          <Typography sx={{ color: 'rgba(255, 255, 255, 0.55)', fontSize: '0.625rem' }}>
             Press Management
           </Typography>
         </Box>
       </Box>
 
       {/* Sidebar Navigation Items */}
-      <List sx={{ px: 1.5, py: 2, flexGrow: 1, overflowY: 'auto' }}>
+      <List sx={{ px: 1, py: 1.5, flexGrow: 1, overflowY: 'auto' }}>
         {filteredMenuItems.map((item) => {
           const isActive = location.pathname === item.path;
           return (
-            <ListItem key={item.text} disablePadding sx={{ mb: 0.5 }}>
+            <ListItem key={item.text} disablePadding sx={{ mb: 0.25 }}>
               <ListItemButton
                 component={Link}
                 to={item.path}
                 onClick={isMobile ? handleDrawerToggle : undefined}
                 sx={{
-                  borderRadius: 2,
-                  py: 1.1,
-                  px: 2,
-                  bgcolor: isActive ? 'rgba(2, 132, 199, 0.16)' : 'transparent',
-                  color: isActive ? '#38bdf8' : 'rgba(248, 250, 252, 0.75)',
+                  borderRadius: 1,
+                  py: 0.6,
+                  px: 1.5,
+                  minHeight: 34,
+                  bgcolor: isActive ? 'rgba(2, 132, 199, 0.18)' : 'transparent',
+                  color: isActive ? '#38bdf8' : 'rgba(226, 232, 240, 0.85)',
                   position: 'relative',
                   '&:hover': {
                     bgcolor: isActive ? 'rgba(2, 132, 199, 0.22)' : 'rgba(255, 255, 255, 0.06)',
@@ -151,8 +152,8 @@ export const AppShell = () => {
               >
                 <ListItemIcon
                   sx={{
-                    minWidth: 36,
-                    color: isActive ? '#38bdf8' : 'rgba(255, 255, 255, 0.5)',
+                    minWidth: 30,
+                    color: isActive ? '#38bdf8' : 'rgba(226, 232, 240, 0.65)',
                   }}
                 >
                   {item.icon}
@@ -160,7 +161,7 @@ export const AppShell = () => {
                 <ListItemText
                   primary={item.text}
                   primaryTypographyProps={{
-                    fontSize: '0.875rem',
+                    fontSize: '0.8125rem',
                     fontWeight: isActive ? 700 : 500,
                   }}
                 />
@@ -171,25 +172,26 @@ export const AppShell = () => {
       </List>
 
       {/* Sidebar User Footer Info */}
-      <Box sx={{ p: 2, borderTop: '1px solid rgba(255, 255, 255, 0.08)' }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', p: 1, borderRadius: 2, bgcolor: 'rgba(255, 255, 255, 0.04)', mb: 1 }}>
-          <Avatar sx={{ bgcolor: 'secondary.main', color: '#ffffff', fontWeight: 700, width: 34, height: 34, mr: 1.5 }}>
+      <Box sx={{ p: 1.5, borderTop: '1px solid rgba(255, 255, 255, 0.08)' }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', p: 0.75, borderRadius: 1, bgcolor: 'rgba(255, 255, 255, 0.04)', mb: 0.75 }}>
+          <Avatar sx={{ bgcolor: 'secondary.main', color: '#ffffff', fontWeight: 700, fontSize: '0.75rem', width: 28, height: 28, mr: 1.25 }}>
             {profile?.name ? profile.name.charAt(0).toUpperCase() : 'U'}
           </Avatar>
           <Box sx={{ overflow: 'hidden' }}>
-            <Typography variant="body2" sx={{ fontWeight: 600, noWrap: true, color: '#ffffff' }}>
+            <Typography sx={{ fontWeight: 600, fontSize: '0.8125rem', noWrap: true, color: '#ffffff' }}>
               {profile?.name || 'User'}
             </Typography>
-            <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.5)', noWrap: true, display: 'block' }}>
+            <Typography sx={{ color: 'rgba(255, 255, 255, 0.6)', fontSize: '0.6875rem', noWrap: true, display: 'block' }}>
               {profile?.role === 'SUPER_ADMIN' ? 'Super Admin' : 'Staff Member'}
             </Typography>
           </Box>
         </Box>
         <Button
           fullWidth
+          size="small"
           variant="outlined"
           color="inherit"
-          startIcon={<LogoutIcon />}
+          startIcon={<LogoutIcon fontSize="small" />}
           onClick={handleSignOutClick}
           sx={{
             borderColor: 'rgba(255, 255, 255, 0.2)',
@@ -262,9 +264,10 @@ export const AppShell = () => {
         component="main"
         sx={{
           flexGrow: 1,
-          p: { xs: 2, sm: 3, md: 4 },
-          pt: { xs: 8, md: 4 }, // Extra padding top on mobile to clear the floating button
+          p: { xs: 1.5, sm: 2, md: 2.5 },
+          pt: { xs: 7, md: 2.5 }, // Extra padding top on mobile to clear the floating button
           width: { md: `calc(100% - ${DRAWER_WIDTH}px)` },
+          minWidth: 0,
         }}
       >
         <Outlet />
