@@ -13,20 +13,21 @@ import {
   Chip,
   IconButton,
   Tooltip,
+  Select,
+  MenuItem,
+  Paper,
 } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
 import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
 import WhatsAppIcon from '@mui/icons-material/WhatsApp';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import PrintIcon from '@mui/icons-material/Print';
-import html2canvas from 'html2canvas';
-import { jsPDF } from 'jspdf';
-
 import { getInvoiceById } from '../api';
 import { getCompanySettings } from '../../settings/api';
 import { InvoiceDocument } from './InvoiceDocument';
 import { InvoiceNotesPanel } from './InvoiceNotesPanel';
 import { getSavedDirectoryHandle } from '../../../lib/savedLocation';
+import { generateInvoicePdf } from '../../../lib/pdfGenerator';
 
 const STATUS_MAP = {
   unpaid: { label: 'Unpaid', color: 'error' },
@@ -38,6 +39,7 @@ const STATUS_MAP = {
 export const InvoiceDetailsDialog = ({ open, onClose, invoiceId, onEdit, onClone }) => {
   const [invoice, setInvoice] = useState(null);
   const [companySettings, setCompanySettings] = useState(null);
+  const [paperSize, setPaperSize] = useState('A4');
   const [loading, setLoading] = useState(false);
   const [downloadingPdf, setDownloadingPdf] = useState(false);
   const [error, setError] = useState(null);
@@ -51,26 +53,12 @@ export const InvoiceDetailsDialog = ({ open, onClose, invoiceId, onEdit, onClone
 
     try {
       setDownloadingPdf(true);
-      const element = document.getElementById('printable-invoice-container');
-      if (!element) {
-        throw new Error('Invoice container element not found.');
+
+      // Generate vector PDF using selected paper size
+      const pdfBlob = await generateInvoicePdf(invoice, companySettings, paperSize);
+      if (!pdfBlob) {
+        throw new Error('Failed to generate PDF document.');
       }
-
-      // Capture high-res canvas
-      const canvas = await html2canvas(element, {
-        scale: 2,
-        useCORS: true,
-        logging: false,
-        backgroundColor: '#ffffff',
-      });
-
-      const imgData = canvas.toDataURL('image/png');
-      const pdf = new jsPDF('p', 'mm', 'a4');
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
-
-      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
-      const pdfBlob = pdf.output('blob');
 
       const cleanCustomerName = (invoice.customer_name || invoice.customers?.name || 'Customer').replace(/[/\\?%*:|"<>]/g, '');
       const cleanInvoiceNo = (invoice.invoice_no || 'INVOICE').replace(/[/\\?%*:|"<>]/g, '-');
@@ -150,6 +138,9 @@ export const InvoiceDetailsDialog = ({ open, onClose, invoiceId, onEdit, onClone
         ]);
         setInvoice(data);
         setCompanySettings(settingsData);
+        if (settingsData?.default_invoice_paper_size) {
+          setPaperSize(settingsData.default_invoice_paper_size);
+        }
       } catch (err) {
         console.error(err);
         setError(err.message || 'Failed to load invoice details.');
@@ -194,12 +185,22 @@ export const InvoiceDetailsDialog = ({ open, onClose, invoiceId, onEdit, onClone
   `;
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
+    <Dialog open={open} onClose={onClose} maxWidth="lg" fullWidth>
       <style>{printStyles}</style>
       <DialogTitle className="no-print" sx={{ fontWeight: 700, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <span>Invoice Details</span>
         {invoice && (
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Select
+              size="small"
+              value={paperSize}
+              onChange={(e) => setPaperSize(e.target.value)}
+              sx={{ height: 32, fontSize: '0.85rem', bgcolor: 'background.paper', mr: 1 }}
+            >
+              <MenuItem value="A4">A4 Paper</MenuItem>
+              <MenuItem value="A5">A5 Paper</MenuItem>
+            </Select>
+
             <Chip
               label={STATUS_MAP[invoice.status]?.label || invoice.status}
               color={STATUS_MAP[invoice.status]?.color || 'default'}
@@ -236,7 +237,7 @@ export const InvoiceDetailsDialog = ({ open, onClose, invoiceId, onEdit, onClone
           </Box>
         )}
       </DialogTitle>
-      <DialogContent dividers sx={{ p: { xs: 2, md: 3 } }}>
+      <DialogContent dividers sx={{ p: { xs: 2, md: 3 }, bgcolor: '#f4f6f8' }}>
         {loading ? (
           <Box display="flex" justifyContent="center" alignItems="center" py={6}>
             <CircularProgress />
@@ -247,19 +248,22 @@ export const InvoiceDetailsDialog = ({ open, onClose, invoiceId, onEdit, onClone
           <Typography>No invoice loaded.</Typography>
         ) : (
           <Grid container spacing={3}>
-            {/* Screen-only internal notes panel */}
-            <Grid item xs={12} className="no-print">
+            {/* Left Column (md=8): Printable Invoice Document styled as a page */}
+            <Grid item xs={12} md={8}>
+              <Paper elevation={2} sx={{ p: 1, bgcolor: '#ffffff', borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
+                <InvoiceDocument
+                  invoice={invoice}
+                  companySettings={companySettings}
+                  paperSize={paperSize}
+                />
+              </Paper>
+            </Grid>
+
+            {/* Right Column (md=4): Screen-only internal notes panel styled as sticky note */}
+            <Grid item xs={12} md={4} className="no-print">
               <InvoiceNotesPanel
                 invoice={invoice}
                 onNotesUpdated={(updated) => setInvoice(updated)}
-              />
-            </Grid>
-
-            {/* Main Presentational Invoice Document */}
-            <Grid item xs={12}>
-              <InvoiceDocument
-                invoice={invoice}
-                companySettings={companySettings}
               />
             </Grid>
           </Grid>

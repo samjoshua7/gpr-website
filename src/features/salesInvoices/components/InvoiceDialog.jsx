@@ -42,6 +42,7 @@ import {
 
 import { getCustomers } from '../../customers/api';
 import { getInventoryItems } from '../../inventory/api';
+import { reverseFromLineTotal, forwardLineTotal } from '../../../lib/invoiceLineMath';
 
 const GSTIN_REGEX = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/;
 
@@ -350,14 +351,45 @@ export const InvoiceDialog = ({ open, onClose, onSaveSuccess, preselectedJob = n
     const item = items[index];
     const qty = parseFloat(item.quantity) || 0;
     const rate = parseFloat(item.unit_price) || 0;
+    const gst = parseFloat(item.gst_rate) || 0;
 
-    const lineTotal = qty * rate;
+    const calc = forwardLineTotal({
+      quantity: qty,
+      unitPrice: rate,
+      gstRate: gst,
+      isGst: isGstInvoice,
+    });
 
     items[index] = {
       ...item,
-      amount: lineTotal,
+      amount: calc.amount,
+      tax_amount: calc.taxAmount,
     };
     setLineItems([...items]);
+  };
+
+  // Step 6: Reverse calculation when Line Total is edited directly
+  const handleLineTotalChange = (index, value) => {
+    const newItems = [...lineItems];
+    const item = newItems[index];
+    const lineTotalVal = parseFloat(value) || 0;
+    const qty = parseFloat(item.quantity) || 1;
+    const gst = parseFloat(item.gst_rate) || 0;
+
+    const result = reverseFromLineTotal({
+      lineTotal: lineTotalVal,
+      quantity: qty,
+      gstRate: gst,
+      isGst: isGstInvoice,
+    });
+
+    newItems[index] = {
+      ...item,
+      unit_price: result.unitPrice.toString(),
+      amount: result.amount,
+      tax_amount: result.taxAmount,
+    };
+    setLineItems([...newItems]);
   };
 
   // Recalculate all lines when GST checkbox is toggled
@@ -393,11 +425,7 @@ export const InvoiceDialog = ({ open, onClose, onSaveSuccess, preselectedJob = n
     setLineItems(newItems);
   };
 
-  // Invoice Totals calculation according to Section 7 rule:
-  // Subtotal = Σ (item.quantity × item.unit_price)
-  // Taxable Value = Subtotal − sales_invoices.discount_amount
-  // GST (if GST inv) = calculated per item on its share of Taxable Value, summed to CGST/SGST or IGST
-  // Grand Total = Taxable Value + GST + Round Off
+  // Invoice Totals calculation
   const getTotals = () => {
     let subtotal = 0;
     lineItems.forEach((line) => {
@@ -564,8 +592,9 @@ export const InvoiceDialog = ({ open, onClose, onSaveSuccess, preselectedJob = n
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="lg" fullWidth PaperProps={{ sx: { width: { xs: '100%', lg: '95%' } } }}>
+      {/* Step 7a: Fix DialogTitle invalid h2 > h5 HTML nesting by specifying component="span" */}
       <DialogTitle sx={{ fontWeight: 800, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <Typography variant="h5" sx={{ fontWeight: 800 }}>
+        <Typography variant="h5" component="span" sx={{ fontWeight: 800 }}>
           {preselectedJob ? `Create Invoice for Job #JC-${String(preselectedJob.job_number || 0).padStart(4, '0')}` : 'Create Sales Invoice'}
         </Typography>
         <Chip
@@ -701,6 +730,7 @@ export const InvoiceDialog = ({ open, onClose, onSaveSuccess, preselectedJob = n
                   <Box sx={{ mb: 2, display: 'flex', gap: 2, flexWrap: 'wrap' }}>
                     <Box sx={{ minWidth: 150 }}>
                       <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>Invoice Type</Typography>
+                      {/* Step 7b: Clean up GST fields on switch to NON_GST */}
                       <Select
                         size="small"
                         fullWidth
@@ -710,6 +740,14 @@ export const InvoiceDialog = ({ open, onClose, onSaveSuccess, preselectedJob = n
                           setInvoiceType(val);
                           if (val === 'NON_GST') {
                             setIsIntraState(true);
+                            setLineItems((prevItems) =>
+                              prevItems.map((item) => ({
+                                ...item,
+                                gst_rate: 0,
+                                tax_amount: 0,
+                                hsn_code: '',
+                              }))
+                            );
                           } else if (selectedCustomer?.gstin) {
                             setCustomerGstin(selectedCustomer.gstin);
                             setCustomerType('B2B');
@@ -829,19 +867,22 @@ export const InvoiceDialog = ({ open, onClose, onSaveSuccess, preselectedJob = n
               </Button>
             </Box>
 
-            <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 2, mb: 3 }}>
+            {/* Step 6a: Horizontal scroll fallback wrapper on TableContainer */}
+            <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 2, mb: 3, overflowX: 'auto' }}>
               <Table size="small">
                 <TableHead sx={{ bgcolor: 'action.hover' }}>
                   <TableRow>
                     <TableCell sx={{ fontWeight: 700 }} width="25%">Product Name *</TableCell>
                     <TableCell sx={{ fontWeight: 700 }} width="25%">Description / Sub-line</TableCell>
                     {isGstInvoice && <TableCell sx={{ fontWeight: 700 }} width="10%">HSN/SAC</TableCell>}
-                    <TableCell sx={{ fontWeight: 700 }} align="right" width={80}>Qty *</TableCell>
+                    {/* Step 6b: Flexible minWidth for Qty and Rate */}
+                    <TableCell sx={{ fontWeight: 700, minWidth: 90 }} align="right">Qty *</TableCell>
                     <TableCell sx={{ fontWeight: 700 }} width={60}>Unit</TableCell>
-                    <TableCell sx={{ fontWeight: 700 }} align="right" width={100}>Rate *</TableCell>
+                    <TableCell sx={{ fontWeight: 700, minWidth: 110 }} align="right">Rate *</TableCell>
                     {isGstInvoice && <TableCell sx={{ fontWeight: 700 }} width="10%">GST %</TableCell>}
                     {isGstInvoice && <TableCell sx={{ fontWeight: 700 }} align="right" width={90}>GST Amt</TableCell>}
-                    <TableCell sx={{ fontWeight: 700 }} align="right" width={110}>Line Total</TableCell>
+                    {/* Step 6c: Editable Line Total header */}
+                    <TableCell sx={{ fontWeight: 700, minWidth: 130 }} align="right">Line Total</TableCell>
                     <TableCell sx={{ fontWeight: 700 }} align="center" width={50}>Action</TableCell>
                   </TableRow>
                 </TableHead>
@@ -908,8 +949,8 @@ export const InvoiceDialog = ({ open, onClose, onSaveSuccess, preselectedJob = n
                           </TableCell>
                         )}
 
-                        {/* Quantity */}
-                        <TableCell align="right">
+                        {/* Quantity with minWidth: 90 */}
+                        <TableCell align="right" sx={{ minWidth: 90 }}>
                           <TextField
                             size="small"
                             type="number"
@@ -929,8 +970,8 @@ export const InvoiceDialog = ({ open, onClose, onSaveSuccess, preselectedJob = n
                           </Typography>
                         </TableCell>
 
-                        {/* Rate */}
-                        <TableCell align="right">
+                        {/* Rate with minWidth: 110 */}
+                        <TableCell align="right" sx={{ minWidth: 110 }}>
                           <TextField
                             size="small"
                             type="number"
@@ -969,9 +1010,18 @@ export const InvoiceDialog = ({ open, onClose, onSaveSuccess, preselectedJob = n
                           </TableCell>
                         )}
 
-                        {/* Line Total */}
-                        <TableCell align="right" sx={{ fontWeight: 700, fontSize: '0.95rem' }}>
-                          {line.amount.toFixed(2)}
+                        {/* Step 6c: Editable Line Total field with reverse calculation */}
+                        <TableCell align="right" sx={{ minWidth: 130 }}>
+                          <TextField
+                            size="small"
+                            type="number"
+                            value={line.amount}
+                            onChange={(e) => handleLineTotalChange(index, e.target.value)}
+                            onFocus={(e) => e.target.select()}
+                            disabled={loading || !isCustomerSelected}
+                            inputProps={{ min: '0', step: '0.01', style: { textAlign: 'right', fontWeight: 'bold' } }}
+                            helperText={isGstInvoice ? 'GST-inclusive' : ''}
+                          />
                         </TableCell>
 
                         {/* Remove Line Action */}
