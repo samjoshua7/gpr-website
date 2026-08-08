@@ -22,9 +22,15 @@ import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 
 import { getCompanySettings, updateCompanySettings } from './api';
+import { useAuth } from '../../hooks/useAuth';
+import { BrandingUpload } from './components/BrandingUpload';
 
 export const SettingsPage = () => {
+  const { profile } = useAuth();
+  const isSuperAdmin = profile?.role === 'SUPER_ADMIN';
+
   const [settings, setSettings] = useState(null);
+
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
@@ -115,6 +121,9 @@ export const SettingsPage = () => {
         invoice_prefix: settings.invoice_prefix,
         financial_year_start: settings.financial_year_start,
         production_workflow: settings.production_workflow,
+        logo_url: settings.logo_url || null,
+        signatory_image_url: settings.signatory_image_url || null,
+        signatory_name: settings.signatory_name || null,
       });
       setSuccess('Settings saved successfully.');
     } catch (err) {
@@ -152,6 +161,12 @@ export const SettingsPage = () => {
 
       {error && <Alert severity="error" sx={{ mb: 3 }}>{error}</Alert>}
       {success && <Alert severity="success" sx={{ mb: 3 }}>{success}</Alert>}
+
+      <BrandingUpload
+        settings={settings}
+        onChange={handleChange}
+        isSuperAdmin={isSuperAdmin}
+      />
 
       <Grid container spacing={3}>
         <Grid item xs={12} md={6}>

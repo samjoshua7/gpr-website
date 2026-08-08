@@ -127,6 +127,7 @@ export const createSalesInvoice = async (invoiceData, lineItems) => {
         status: 'unpaid',
         tax_amount: parseFloat(invoiceData.tax_amount || 0),
         gst_amount: parseFloat(invoiceData.gst_amount || 0),
+        discount_amount: parseFloat(invoiceData.discount_amount || 0),
         notes: invoiceData.notes || null,
         delivery_details: invoiceData.delivery_details || null,
       },
@@ -142,6 +143,7 @@ export const createSalesInvoice = async (invoiceData, lineItems) => {
   const itemsPayload = lineItems.map((item) => ({
     invoice_id: invoice.invoice_id,
     item_id: item.item_id || null,
+    product_name: item.product_name || item.description || null,
     description: item.description,
     quantity: parseFloat(item.quantity),
     unit_price: parseFloat(item.unit_price),
@@ -184,6 +186,7 @@ export const updateSalesInvoice = async (invoiceId, invoiceData, lineItems) => {
       total_amount: parseFloat(invoiceData.total_amount),
       tax_amount: parseFloat(invoiceData.tax_amount || 0),
       gst_amount: parseFloat(invoiceData.gst_amount || 0),
+      discount_amount: parseFloat(invoiceData.discount_amount || 0),
       notes: invoiceData.notes || null,
       delivery_details: invoiceData.delivery_details || null,
     })
@@ -209,6 +212,7 @@ export const updateSalesInvoice = async (invoiceId, invoiceData, lineItems) => {
   const itemsPayload = lineItems.map((item) => ({
     invoice_id: invoiceId,
     item_id: item.item_id || null,
+    product_name: item.product_name || item.description || null,
     description: item.description,
     quantity: parseFloat(item.quantity),
     unit_price: parseFloat(item.unit_price),

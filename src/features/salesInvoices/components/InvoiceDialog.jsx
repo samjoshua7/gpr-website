@@ -76,10 +76,14 @@ export const InvoiceDialog = ({ open, onClose, onSaveSuccess, preselectedJob = n
   const [notes, setNotes] = useState('');
   const [deliveryDetails, setDeliveryDetails] = useState('');
 
+  // Invoice-level discount state
+  const [discountAmount, setDiscountAmount] = useState('0.00');
+
   // Line items state
   const [lineItems, setLineItems] = useState([
     {
       item_id: null,
+      product_name: '',
       description: '',
       quantity: '1',
       unit: 'sheet',
@@ -140,6 +144,7 @@ export const InvoiceDialog = ({ open, onClose, onSaveSuccess, preselectedJob = n
       setInvoiceDate(new Date().toISOString().split('T')[0]);
       setNotes(preselectedJob?.description || '');
       setDeliveryDetails('');
+      setDiscountAmount('0.00');
       setErrors({});
       setApiError(null);
 
@@ -147,7 +152,8 @@ export const InvoiceDialog = ({ open, onClose, onSaveSuccess, preselectedJob = n
         setLineItems([
           {
             item_id: null,
-            description: `Print Job: ${preselectedJob.description}`,
+            product_name: `Print Job: ${preselectedJob.description}`,
+            description: preselectedJob.description || '',
             quantity: preselectedJob.quantity?.toString() || '1',
             unit: 'sheet',
             unit_price: '0.00',
@@ -163,6 +169,7 @@ export const InvoiceDialog = ({ open, onClose, onSaveSuccess, preselectedJob = n
         setLineItems([
           {
             item_id: null,
+            product_name: '',
             description: '',
             quantity: '1',
             unit: 'sheet',
@@ -214,6 +221,7 @@ export const InvoiceDialog = ({ open, onClose, onSaveSuccess, preselectedJob = n
         setAddress(editInvoice.billing_address || '');
         setShippingAddress(editInvoice.shipping_address || '');
         setCustomerGstin(editInvoice.customer_gstin || '');
+        setDiscountAmount((editInvoice.discount_amount || 0).toString());
         
         // Wait for customers to load then select
         if (editInvoice.customer_id && customers.length > 0) {
@@ -227,9 +235,10 @@ export const InvoiceDialog = ({ open, onClose, onSaveSuccess, preselectedJob = n
         if (editInvoice.items && editInvoice.items.length > 0) {
           setLineItems(editInvoice.items.map(i => ({
             item_id: i.item_id,
-            description: i.description,
+            product_name: i.product_name || i.description || '',
+            description: i.description || '',
             quantity: i.quantity.toString(),
-            unit: 'unit', // Best guess since we don't save unit in db currently
+            unit: 'unit',
             unit_price: i.unit_price.toString(),
             discount_amount: (i.discount_amount || 0).toString(),
             tax_rate_id: '',
@@ -305,7 +314,7 @@ export const InvoiceDialog = ({ open, onClose, onSaveSuccess, preselectedJob = n
       newItems[index] = {
         ...newItems[index],
         item_id: null,
-        description: '',
+        product_name: '',
         unit: 'sheet',
         unit_price: '0.00',
         tax_rate_id: '',
@@ -319,7 +328,8 @@ export const InvoiceDialog = ({ open, onClose, onSaveSuccess, preselectedJob = n
     newItems[index] = {
       ...newItems[index],
       item_id: product.item_id,
-      description: product.name,
+      product_name: product.name,
+      description: newItems[index].description || product.description || '',
       unit: product.unit || 'sheet',
       unit_price: product.unit_price?.toString() || '0.00',
       tax_rate_id: product.tax_rate_id || '',
@@ -340,18 +350,12 @@ export const InvoiceDialog = ({ open, onClose, onSaveSuccess, preselectedJob = n
     const item = items[index];
     const qty = parseFloat(item.quantity) || 0;
     const rate = parseFloat(item.unit_price) || 0;
-    const discount = parseFloat(item.discount_amount) || 0;
 
-    const taxableValue = Math.max(0, qty * rate - discount);
-    const gst = isGstInvoice ? parseFloat(item.gst_rate) || 0 : 0;
-
-    const tax = (taxableValue * gst) / 100;
-    const total = taxableValue + tax;
+    const lineTotal = qty * rate;
 
     items[index] = {
       ...item,
-      tax_amount: tax,
-      amount: total,
+      amount: lineTotal,
     };
     setLineItems([...items]);
   };
@@ -367,6 +371,7 @@ export const InvoiceDialog = ({ open, onClose, onSaveSuccess, preselectedJob = n
       ...lineItems,
       {
         item_id: null,
+        product_name: '',
         description: '',
         quantity: '1',
         unit: 'sheet',
@@ -388,11 +393,22 @@ export const InvoiceDialog = ({ open, onClose, onSaveSuccess, preselectedJob = n
     setLineItems(newItems);
   };
 
-  // Invoice Totals calculation
+  // Invoice Totals calculation according to Section 7 rule:
+  // Subtotal = Σ (item.quantity × item.unit_price)
+  // Taxable Value = Subtotal − sales_invoices.discount_amount
+  // GST (if GST inv) = calculated per item on its share of Taxable Value, summed to CGST/SGST or IGST
+  // Grand Total = Taxable Value + GST + Round Off
   const getTotals = () => {
     let subtotal = 0;
-    let totalDiscount = 0;
-    let taxableValue = 0;
+    lineItems.forEach((line) => {
+      const qty = parseFloat(line.quantity) || 0;
+      const rate = parseFloat(line.unit_price) || 0;
+      subtotal += qty * rate;
+    });
+
+    const overallDiscount = parseFloat(discountAmount) || 0;
+    const taxableValue = Math.max(0, subtotal - overallDiscount);
+
     let cgst = 0;
     let sgst = 0;
     let igst = 0;
@@ -401,17 +417,13 @@ export const InvoiceDialog = ({ open, onClose, onSaveSuccess, preselectedJob = n
     lineItems.forEach((line) => {
       const qty = parseFloat(line.quantity) || 0;
       const rate = parseFloat(line.unit_price) || 0;
-      const discount = parseFloat(line.discount_amount) || 0;
-
-      subtotal += qty * rate;
-      totalDiscount += discount;
-
-      const lineTaxable = Math.max(0, qty * rate - discount);
-      taxableValue += lineTaxable;
+      const lineSubtotal = qty * rate;
+      const lineTaxable = subtotal > 0 ? (lineSubtotal / subtotal) * taxableValue : 0;
 
       if (isGstInvoice) {
-        const gst = parseFloat(line.gst_rate) || 0;
-        const lineTax = (lineTaxable * gst) / 100;
+        const gstRate = parseFloat(line.gst_rate) || 0;
+        const lineTax = (lineTaxable * gstRate) / 100;
+        line.tax_amount = lineTax;
         totalTax += lineTax;
 
         if (isIntraState) {
@@ -420,16 +432,18 @@ export const InvoiceDialog = ({ open, onClose, onSaveSuccess, preselectedJob = n
         } else {
           igst += lineTax;
         }
+      } else {
+        line.tax_amount = 0;
       }
     });
 
-    const totalBeforeRound = taxableValue + cgst + sgst + igst;
+    const totalBeforeRound = taxableValue + totalTax;
     const grandTotal = Math.round(totalBeforeRound);
     const roundOff = grandTotal - totalBeforeRound;
 
     return {
       subtotal,
-      totalDiscount,
+      totalDiscount: overallDiscount,
       taxableValue,
       cgst,
       sgst,
@@ -462,8 +476,9 @@ export const InvoiceDialog = ({ open, onClose, onSaveSuccess, preselectedJob = n
 
     lineItems.forEach((item, index) => {
       const itemErr = {};
-      if (!item.description.trim()) {
-        itemErr.description = 'Product required';
+      const prodName = item.product_name || item.description;
+      if (!prodName.trim()) {
+        itemErr.product_name = 'Product name required';
         hasLineErrors = true;
       }
       const qty = parseFloat(item.quantity);
@@ -474,11 +489,6 @@ export const InvoiceDialog = ({ open, onClose, onSaveSuccess, preselectedJob = n
       const price = parseFloat(item.unit_price);
       if (isNaN(price) || price < 0) {
         itemErr.unit_price = 'Rate >= 0';
-        hasLineErrors = true;
-      }
-      const disc = parseFloat(item.discount_amount);
-      if (isNaN(disc) || disc < 0) {
-        itemErr.discount_amount = 'Discount >= 0';
         hasLineErrors = true;
       }
       itemsErrors[index] = itemErr;
@@ -512,6 +522,7 @@ export const InvoiceDialog = ({ open, onClose, onSaveSuccess, preselectedJob = n
       billing_address: address.trim() || null,
       shipping_address: shippingSameAsBilling ? (address.trim() || null) : (shippingAddress.trim() || null),
       total_amount: totals.grandTotal,
+      discount_amount: totals.totalDiscount,
       amount_paid: 0.00,
       status: 'unpaid',
       tax_amount: totals.totalTax,
@@ -520,11 +531,17 @@ export const InvoiceDialog = ({ open, onClose, onSaveSuccess, preselectedJob = n
       delivery_details: deliveryDetails.trim() || null,
     };
 
+    const formattedLineItems = lineItems.map((item) => ({
+      ...item,
+      product_name: item.product_name || item.description,
+      description: item.description || item.product_name,
+    }));
+
     try {
       if (editInvoice && editInvoice.invoice_id) {
-        await updateSalesInvoice(editInvoice.invoice_id, parentPayload, lineItems);
+        await updateSalesInvoice(editInvoice.invoice_id, parentPayload, formattedLineItems);
       } else {
-        await createSalesInvoice(parentPayload, lineItems);
+        await createSalesInvoice(parentPayload, formattedLineItems);
       }
       onSaveSuccess();
       onClose();
@@ -604,7 +621,7 @@ export const InvoiceDialog = ({ open, onClose, onSaveSuccess, preselectedJob = n
                     sx={{ mb: 2 }}
                   />
 
-                  {/* Requirement 2: Dynamic GSTIN input - Revealed ONLY when GST Invoice = ON and B2B */}
+                  {/* GSTIN input - Revealed ONLY when GST Invoice = ON and B2B */}
                   {isGstInvoice && customerType === 'B2B' && (
                     <TextField
                       fullWidth
@@ -636,7 +653,7 @@ export const InvoiceDialog = ({ open, onClose, onSaveSuccess, preselectedJob = n
                       />
                     </Grid>
 
-                    {/* Requirement 6: Shipping Address Mirroring */}
+                    {/* Shipping Address Mirroring */}
                     <Grid item xs={12}>
                       <FormControlLabel
                         control={
@@ -816,15 +833,15 @@ export const InvoiceDialog = ({ open, onClose, onSaveSuccess, preselectedJob = n
               <Table size="small">
                 <TableHead sx={{ bgcolor: 'action.hover' }}>
                   <TableRow>
-                    <TableCell sx={{ fontWeight: 700 }} width="32%">Product / Work Item *</TableCell>
+                    <TableCell sx={{ fontWeight: 700 }} width="25%">Product Name *</TableCell>
+                    <TableCell sx={{ fontWeight: 700 }} width="25%">Description / Sub-line</TableCell>
                     {isGstInvoice && <TableCell sx={{ fontWeight: 700 }} width="10%">HSN/SAC</TableCell>}
-                    <TableCell sx={{ fontWeight: 700 }} align="right" width={90}>Qty *</TableCell>
-                    <TableCell sx={{ fontWeight: 700 }} width={70}>Unit</TableCell>
-                    <TableCell sx={{ fontWeight: 700 }} align="right" width={110}>Rate *</TableCell>
-                    <TableCell sx={{ fontWeight: 700 }} align="right" width={100}>Discount</TableCell>
-                    {isGstInvoice && <TableCell sx={{ fontWeight: 700 }} width="12%">GST %</TableCell>}
-                    {isGstInvoice && <TableCell sx={{ fontWeight: 700 }} align="right" width={100}>GST Amt</TableCell>}
-                    <TableCell sx={{ fontWeight: 700 }} align="right" width={120}>Line Total</TableCell>
+                    <TableCell sx={{ fontWeight: 700 }} align="right" width={80}>Qty *</TableCell>
+                    <TableCell sx={{ fontWeight: 700 }} width={60}>Unit</TableCell>
+                    <TableCell sx={{ fontWeight: 700 }} align="right" width={100}>Rate *</TableCell>
+                    {isGstInvoice && <TableCell sx={{ fontWeight: 700 }} width="10%">GST %</TableCell>}
+                    {isGstInvoice && <TableCell sx={{ fontWeight: 700 }} align="right" width={90}>GST Amt</TableCell>}
+                    <TableCell sx={{ fontWeight: 700 }} align="right" width={110}>Line Total</TableCell>
                     <TableCell sx={{ fontWeight: 700 }} align="center" width={50}>Action</TableCell>
                   </TableRow>
                 </TableHead>
@@ -835,24 +852,46 @@ export const InvoiceDialog = ({ open, onClose, onSaveSuccess, preselectedJob = n
 
                     return (
                       <TableRow key={index}>
-                        {/* Product selection */}
+                        {/* Product Name Autocomplete / Input */}
                         <TableCell>
                           <Autocomplete
+                            freeSolo
                             id={`line-product-${index}`}
                             options={inventoryItems}
-                            getOptionLabel={(option) => option.name}
+                            getOptionLabel={(option) => typeof option === 'string' ? option : option.name}
                             loading={inventoryLoading}
-                            value={selectedProduct}
-                            onChange={(e, val) => handleProductSelection(index, val)}
+                            value={selectedProduct || line.product_name}
+                            onChange={(e, val) => {
+                              if (typeof val === 'string') {
+                                handleLineChange(index, 'product_name', val);
+                              } else {
+                                handleProductSelection(index, val);
+                              }
+                            }}
+                            onInputChange={(e, val) => {
+                              handleLineChange(index, 'product_name', val);
+                            }}
                             disabled={loading || !isCustomerSelected}
                             renderInput={(params) => (
                               <TextField
                                 {...params}
                                 size="small"
-                                placeholder="Choose item..."
-                                error={!!lineErr.description}
+                                placeholder="Product name..."
+                                error={!!lineErr.product_name}
                               />
                             )}
+                          />
+                        </TableCell>
+
+                        {/* Description / Sub-line */}
+                        <TableCell>
+                          <TextField
+                            size="small"
+                            fullWidth
+                            placeholder="e.g. 1/8 2+2 Bond Paper"
+                            value={line.description}
+                            onChange={(e) => handleLineChange(index, 'description', e.target.value)}
+                            disabled={loading || !isCustomerSelected}
                           />
                         </TableCell>
 
@@ -869,7 +908,7 @@ export const InvoiceDialog = ({ open, onClose, onSaveSuccess, preselectedJob = n
                           </TableCell>
                         )}
 
-                        {/* Quantity - Requirement 3: onFocus text selection */}
+                        {/* Quantity */}
                         <TableCell align="right">
                           <TextField
                             size="small"
@@ -890,7 +929,7 @@ export const InvoiceDialog = ({ open, onClose, onSaveSuccess, preselectedJob = n
                           </Typography>
                         </TableCell>
 
-                        {/* Rate - Requirement 3: onFocus text selection */}
+                        {/* Rate */}
                         <TableCell align="right">
                           <TextField
                             size="small"
@@ -899,20 +938,6 @@ export const InvoiceDialog = ({ open, onClose, onSaveSuccess, preselectedJob = n
                             onChange={(e) => handleLineChange(index, 'unit_price', e.target.value)}
                             onFocus={(e) => e.target.select()}
                             error={!!lineErr.unit_price}
-                            disabled={loading || !isCustomerSelected}
-                            inputProps={{ min: '0', step: '0.01', style: { textAlign: 'right' } }}
-                          />
-                        </TableCell>
-
-                        {/* Discount - Requirement 3: onFocus text selection */}
-                        <TableCell align="right">
-                          <TextField
-                            size="small"
-                            type="number"
-                            value={line.discount_amount}
-                            onChange={(e) => handleLineChange(index, 'discount_amount', e.target.value)}
-                            onFocus={(e) => e.target.select()}
-                            error={!!lineErr.discount_amount}
                             disabled={loading || !isCustomerSelected}
                             inputProps={{ min: '0', step: '0.01', style: { textAlign: 'right' } }}
                           />
@@ -976,19 +1001,27 @@ export const InvoiceDialog = ({ open, onClose, onSaveSuccess, preselectedJob = n
                   </Typography>
                   <Divider sx={{ mb: 1.5 }} />
 
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
                     <Typography variant="body2" color="text.secondary">Subtotal Amount:</Typography>
                     <Typography variant="body2" sx={{ fontWeight: 600 }}>{formatCurrency(totals.subtotal)}</Typography>
                   </Box>
 
-                  {totals.totalDiscount > 0 && (
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                      <Typography variant="body2" color="error.main">Total Discounts:</Typography>
-                      <Typography variant="body2" color="error.main" sx={{ fontWeight: 600 }}>- {formatCurrency(totals.totalDiscount)}</Typography>
-                    </Box>
-                  )}
+                  {/* Invoice-Level Discount Field */}
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                    <Typography variant="body2" color="error.main">Invoice Discount (₹):</Typography>
+                    <TextField
+                      size="small"
+                      type="number"
+                      value={discountAmount}
+                      onChange={(e) => setDiscountAmount(e.target.value)}
+                      onFocus={(e) => e.target.select()}
+                      disabled={loading || !isCustomerSelected}
+                      inputProps={{ min: '0', step: '0.01', style: { textAlign: 'right' } }}
+                      sx={{ width: 130 }}
+                    />
+                  </Box>
 
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
                     <Typography variant="body2" color="text.secondary">Taxable Amount:</Typography>
                     <Typography variant="body2" sx={{ fontWeight: 600 }}>{formatCurrency(totals.taxableValue)}</Typography>
                   </Box>

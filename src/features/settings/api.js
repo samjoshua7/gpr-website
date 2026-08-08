@@ -52,3 +52,22 @@ export const updateCompanySettings = async (id, payload) => {
     return data;
   }
 };
+
+export const uploadCompanyAsset = async (file, type) => {
+  const fileExt = file.name.split('.').pop();
+  const fileName = `${type}_${Date.now()}.${fileExt}`;
+  const filePath = fileName;
+
+  const { data, error } = await supabase.storage
+    .from('company-assets')
+    .upload(filePath, file, { upsert: true });
+
+  if (error) throw new Error(error.message);
+
+  const { data: publicUrlData } = supabase.storage
+    .from('company-assets')
+    .getPublicUrl(filePath);
+
+  return publicUrlData.publicUrl;
+};
+
