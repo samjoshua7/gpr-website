@@ -38,6 +38,7 @@ import VisibilityIcon from '@mui/icons-material/Visibility';
 
 import { getCustomers, deleteCustomer } from './api';
 import CustomerDialog from './components/CustomerDialog';
+import PageToolbar from '../../components/layout/PageToolbar';
 import { CustomerImportWizard } from './components/CustomerImportWizard';
 import { checkReferences } from '../../lib/referenceChecker';
 import CannotDeleteDialog from '../../components/feedback/CannotDeleteDialog';
@@ -235,32 +236,31 @@ export const CustomersPage = () => {
   return (
     <Box sx={{ p: { xs: 1, sm: 2 }, height: '100%', display: 'flex', flexDirection: 'column' }}>
       
-      {/* 1. HORIZONTAL TOOLBAR (60/20/20 layout) */}
-      <Stack direction="row" spacing={2} sx={{ mb: 2, alignItems: 'center' }}>
-        <SearchInput
-          sx={{ flex: 6, bgcolor: 'background.paper', borderRadius: 1 }}
-          placeholder="Search customers..."
-          value={searchQuery}
-          onChange={setSearchQuery}
-        />
-        <Button
-          sx={{ flex: 2, height: 40 }}
-          variant="outlined"
-          color="primary"
-          onClick={() => setImportWizardOpen(true)}
-        >
-          Import Customers
-        </Button>
-        <Button
-          sx={{ flex: 2, height: 40 }}
-          variant="contained"
-          color="primary"
-          startIcon={<AddIcon />}
-          onClick={handleAddClick}
-        >
-          Add Customer
-        </Button>
-      </Stack>
+      <PageToolbar
+        title="Customer Directory"
+        searchQuery={searchQuery}
+        onSearchChange={setSearchQuery}
+        searchPlaceholder="Search customers..."
+        actions={
+          <React.Fragment>
+            <Button
+              variant="outlined"
+              color="primary"
+              onClick={() => setImportWizardOpen(true)}
+            >
+              Import Customers
+            </Button>
+            <Button
+              variant="contained"
+              color="primary"
+              startIcon={<AddIcon />}
+              onClick={handleAddClick}
+            >
+              Add Customer
+            </Button>
+          </React.Fragment>
+        }
+      />
 
       {error && (
         <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>

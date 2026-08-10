@@ -62,6 +62,32 @@ export const getReceiptsByCustomer = async (customerId) => {
   return data || [];
 };
 
+export const getReceiptById = async (id) => {
+  const { data, error } = await supabase
+    .from('receipts')
+    .select(`
+      *,
+      customers (
+        name,
+        phone,
+        address
+      ),
+      sales_invoices (
+        invoice_no,
+        total_amount,
+        amount_paid
+      )
+    `)
+    .eq('receipt_id', id)
+    .single();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return data;
+};
+
 export const createReceipt = async (receiptData) => {
   const { data, error } = await supabase
     .from('receipts')
@@ -74,6 +100,28 @@ export const createReceipt = async (receiptData) => {
         mode: receiptData.mode,
       },
     ])
+    .select()
+    .single();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  invalidateReceiptsCache();
+  return data;
+};
+
+export const updateReceipt = async (receiptId, receiptData) => {
+  const { data, error } = await supabase
+    .from('receipts')
+    .update({
+      customer_id: receiptData.customer_id,
+      invoice_id: receiptData.invoice_id || null,
+      amount: parseFloat(receiptData.amount),
+      receipt_date: receiptData.receipt_date,
+      mode: receiptData.mode,
+    })
+    .eq('receipt_id', receiptId)
     .select()
     .single();
 

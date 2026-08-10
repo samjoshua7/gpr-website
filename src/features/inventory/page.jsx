@@ -27,8 +27,10 @@ import {
 import AddIcon from '@mui/icons-material/Add';
 import StorageIcon from '@mui/icons-material/Storage';
 import EditIcon from '@mui/icons-material/Edit';
+import DeleteIcon from '@mui/icons-material/Delete';
 import { TablePagination, TableSortLabel, Stack } from '@mui/material';
 import { SearchInput } from '../../components/ui/SearchInput';
+import PageToolbar from '../../components/layout/PageToolbar';
 import { HighlightText } from '../../components/ui/HighlightText';
 
 import { getItems, deleteItem } from './api';
@@ -220,31 +222,19 @@ export const InventoryPage = () => {
   };
 
   return (
-    <Box sx={{ p: 4 }}>
-      {/* Header block */}
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 4 }}>
-        <Box>
-          <Typography variant="h4" sx={{ fontWeight: 800, mb: 1 }}>
-            Inventory Catalog & Ledger
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            Monitor printing stocks (papers, plates, inks) and manage reorder warnings in real-time.
-          </Typography>
-        </Box>
-        <Button variant="contained" startIcon={<AddIcon />} onClick={handleAddClick} size="large">
-          Add Catalog Product
-        </Button>
-      </Box>
-
-      {/* Filters and search */}
-      <Box sx={{ mb: 3 }}>
-        <SearchInput
-          placeholder="Search by product name or HSN code..."
-          value={searchQuery}
-          onChange={setSearchQuery}
-          sx={{ bgcolor: 'background.paper', borderRadius: 2, width: '100%' }}
-        />
-      </Box>
+    <Box sx={{ p: 3 }}>
+      <PageToolbar
+        title="Inventory Catalog & Ledger"
+        subtitle="Monitor printing stocks (papers, plates, inks) and manage reorder warnings in real-time."
+        searchQuery={searchQuery}
+        onSearchChange={setSearchQuery}
+        searchPlaceholder="Search by product name or HSN code..."
+        actions={
+          <Button variant="contained" startIcon={<AddIcon />} onClick={handleAddClick}>
+            Add Catalog Product
+          </Button>
+        }
+      />
 
       {error && (
         <Alert severity="error" sx={{ mb: 3 }}>
@@ -370,7 +360,6 @@ export const InventoryPage = () => {
           page={page}
           onPageChange={handleChangePage}
           onRowsPerPageChange={handleChangeRowsPerPage}
-          component={Paper}
           sx={{ borderTopLeftRadius: 0, borderTopRightRadius: 0 }}
         />
       )}

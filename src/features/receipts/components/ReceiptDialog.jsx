@@ -18,10 +18,10 @@ import {
   FormHelperText,
 } from '@mui/material';
 
-import { createReceipt, getCustomerOutstandingInvoices } from '../api';
+import { createReceipt, updateReceipt, getCustomerOutstandingInvoices } from '../api';
 import { getCustomers } from '../../customers/api';
 
-export const ReceiptDialog = ({ open, onClose, onSaveSuccess }) => {
+export const ReceiptDialog = ({ open, onClose, onSaveSuccess, editReceipt = null }) => {
   const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [customers, setCustomers] = useState([]);
   const [customersLoading, setCustomersLoading] = useState(false);
@@ -45,6 +45,10 @@ export const ReceiptDialog = ({ open, onClose, onSaveSuccess }) => {
       try {
         const data = await getCustomers();
         setCustomers(data);
+        if (editReceipt && editReceipt.customer_id) {
+          const matched = data.find((c) => c.customer_id === editReceipt.customer_id);
+          if (matched) setSelectedCustomer(matched);
+        }
       } catch (err) {
         console.error('Failed to load customers:', err);
       } finally {
@@ -54,16 +58,23 @@ export const ReceiptDialog = ({ open, onClose, onSaveSuccess }) => {
 
     if (open) {
       fetchCustomers();
-      setSelectedCustomer(null);
-      setInvoices([]);
-      setSelectedInvoice('');
-      setAmount('');
-      setReceiptDate(new Date().toISOString().split('T')[0]);
-      setMode('cash');
+      if (editReceipt) {
+        setSelectedInvoice(editReceipt.invoice_id || '');
+        setAmount((editReceipt.amount || 0).toString());
+        setReceiptDate(editReceipt.receipt_date || new Date().toISOString().split('T')[0]);
+        setMode(editReceipt.mode || 'cash');
+      } else {
+        setSelectedCustomer(null);
+        setInvoices([]);
+        setSelectedInvoice('');
+        setAmount('');
+        setReceiptDate(new Date().toISOString().split('T')[0]);
+        setMode('cash');
+      }
       setErrors({});
       setApiError(null);
     }
-  }, [open]);
+  }, [open, editReceipt]);
 
   // Load outstanding invoices when customer changes
   useEffect(() => {
@@ -136,7 +147,11 @@ export const ReceiptDialog = ({ open, onClose, onSaveSuccess }) => {
     };
 
     try {
-      await createReceipt(payload);
+      if (editReceipt && editReceipt.receipt_id) {
+        await updateReceipt(editReceipt.receipt_id, payload);
+      } else {
+        await createReceipt(payload);
+      }
       onSaveSuccess();
       onClose();
     } catch (err) {
@@ -149,7 +164,9 @@ export const ReceiptDialog = ({ open, onClose, onSaveSuccess }) => {
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
-      <DialogTitle sx={{ fontWeight: 800 }}>Record Payment Receipt</DialogTitle>
+      <DialogTitle sx={{ fontWeight: 800 }}>
+        {editReceipt && editReceipt.receipt_id ? 'Edit Payment Receipt' : 'Record Payment Receipt'}
+      </DialogTitle>
       <Box component="form" onSubmit={handleSubmit} noValidate>
         <DialogContent dividers>
           {apiError && (

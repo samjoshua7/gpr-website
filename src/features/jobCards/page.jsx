@@ -46,6 +46,54 @@ import { getCompanySettings } from '../settings/api';
 import JobCardDialog from './components/JobCardDialog';
 import { checkReferences } from '../../lib/referenceChecker';
 import CannotDeleteDialog from '../../components/feedback/CannotDeleteDialog';
+import {
+  DndContext,
+  useDroppable,
+  useDraggable,
+  PointerSensor,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core';
+
+const DroppableColumn = ({ stepName, children }) => {
+  const { setNodeRef, isOver } = useDroppable({ id: stepName });
+  return (
+    <Box
+      ref={setNodeRef}
+      sx={{
+        bgcolor: isOver ? 'action.selected' : 'action.hover',
+        borderRadius: 3,
+        display: 'flex',
+        flexDirection: 'column',
+        border: isOver ? '2px solid #0288d1' : '1px solid rgba(0,0,0,0.06)',
+        transition: 'all 0.2s ease',
+        height: '100%',
+      }}
+    >
+      {children}
+    </Box>
+  );
+};
+
+const DraggableCard = ({ id, card, stepName, isFirstStep, children }) => {
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+    id: `${isFirstStep ? 'job' : 'task'}-${id}`,
+    data: { card, stepName, isFirstStep },
+  });
+
+  const style = {
+    transform: transform ? `translate3d(${transform.x}px, ${transform.y}px, 0)` : undefined,
+    opacity: isDragging ? 0.4 : 1,
+    cursor: 'grab',
+    touchAction: 'none',
+  };
+
+  return (
+    <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
+      {children}
+    </div>
+  );
+};
 
 const PREDEFINED_COLORS = [
   '#ed6c02', // orange
@@ -238,6 +286,45 @@ export const JobCardsPage = () => {
     });
   };
 
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: { distance: 5 },
+    })
+  );
+
+  const handleDragEnd = async (event) => {
+    const { active, over } = event;
+    if (!over || !active) return;
+    const activeData = active.data.current;
+    if (!activeData) return;
+
+    const targetStepName = over.id;
+    const { card, stepName, isFirstStep } = activeData;
+
+    if (stepName === targetStepName) return;
+
+    if (isFirstStep) {
+      const matchedJob = jobs.find((j) => j.job_id === card.job_id);
+      if (matchedJob) {
+        navigate('/dashboard/invoices', { state: { kickoffJob: matchedJob } });
+      }
+      return;
+    }
+
+    const previousTasks = [...tasks];
+    setTasks((prev) =>
+      prev.map((t) => (t.task_id === card.task_id ? { ...t, status: targetStepName } : t))
+    );
+
+    try {
+      await updateProductionTaskStatus(card.task_id, targetStepName);
+    } catch (err) {
+      console.error(err);
+      setTasks(previousTasks);
+      setError('Failed to update production stage via drag-and-drop.');
+    }
+  };
+
   const formatDate = (dateStr) => {
     if (!dateStr) return '—';
     return new Date(dateStr).toLocaleDateString('en-IN', {
@@ -289,197 +376,197 @@ export const JobCardsPage = () => {
         </Alert>
       )}
 
-      {/* Kanban Columns Grid using Swiper */}
-      <Box
-        sx={{
-          flexGrow: 1,
-          pb: 4,
-          '.swiper': { height: '100%', pb: 3 },
-          '.swiper-slide': { width: { xs: '100%', sm: 350, md: 350 } }, // Responsive widths
-        }}
-      >
-        <Swiper
-          modules={[Navigation, Pagination]}
-          spaceBetween={16}
-          slidesPerView={'auto'}
-          navigation
-          pagination={{ clickable: true, dynamicBullets: true }}
-          grabCursor={true}
+      {/* Kanban Columns Grid using DndContext + Swiper */}
+      <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+        <Box
+          sx={{
+            flexGrow: 1,
+            pb: 4,
+            '.swiper': { height: '100%', pb: 3 },
+            '.swiper-slide': { width: { xs: '100%', sm: 350, md: 350 } }, // Responsive widths
+          }}
         >
-          {workflow.map((stepName, index) => {
-            const isFirstStep = index === 0;
-            const isLastStep = index === workflow.length - 1;
-            const colCards = getFilteredCards(stepName, isFirstStep);
-            const colColor = PREDEFINED_COLORS[index % PREDEFINED_COLORS.length];
+          <Swiper
+            modules={[Navigation, Pagination]}
+            spaceBetween={16}
+            slidesPerView={'auto'}
+            navigation
+            pagination={{ clickable: true, dynamicBullets: true }}
+            grabCursor={false}
+          >
+            {workflow.map((stepName, index) => {
+              const isFirstStep = index === 0;
+              const isLastStep = index === workflow.length - 1;
+              const colCards = getFilteredCards(stepName, isFirstStep);
+              const colColor = PREDEFINED_COLORS[index % PREDEFINED_COLORS.length];
 
-            return (
-              <SwiperSlide key={stepName}>
-                <Box
-                  sx={{
-                    bgcolor: 'action.hover',
-                    borderRadius: 3,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    border: '1px solid rgba(0,0,0,0.06)',
-                    height: '100%',
-                  }}
-                >
-                  {/* Column Header */}
-                  <Box
-                    sx={{
-                      p: 2,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      borderBottom: '2px solid',
-                      borderColor: colColor,
-                      bgcolor: 'background.paper',
-                      borderTopLeftRadius: 12,
-                      borderTopRightRadius: 12,
-                    }}
-                  >
-                    <Typography variant="subtitle2" sx={{ fontWeight: 800, textTransform: 'uppercase' }}>
-                      {stepName}
-                    </Typography>
-                    <Chip
-                      label={loading ? '...' : colCards.length}
-                      size="small"
+              return (
+                <SwiperSlide key={stepName}>
+                  <DroppableColumn stepName={stepName}>
+                    {/* Column Header */}
+                    <Box
                       sx={{
-                        fontWeight: 700,
-                        bgcolor: colColor,
-                        color: '#fff',
-                        fontSize: '0.75rem',
+                        p: 2,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        borderBottom: '2px solid',
+                        borderColor: colColor,
+                        bgcolor: 'background.paper',
+                        borderTopLeftRadius: 12,
+                        borderTopRightRadius: 12,
                       }}
-                    />
-                  </Box>
-
-                  {/* Cards List container */}
-                  <Box
-                    sx={{
-                      flexGrow: 1,
-                      p: 1.5,
-                      overflowY: 'auto',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: 1.5,
-                    }}
-                  >
-                    {loading ? (
-                      Array.from(new Array(3)).map((_, i) => (
-                        <Card key={i} variant="outlined" sx={{ borderRadius: 2 }}>
-                          <CardContent sx={{ p: 2 }}>
-                            <Skeleton width="40%" height={20} />
-                            <Skeleton width="80%" height={40} sx={{ my: 1 }} />
-                            <Skeleton width="60%" height={20} />
-                          </CardContent>
-                        </Card>
-                      ))
-                    ) : colCards.length === 0 ? (
-                      <Box
+                    >
+                      <Typography variant="subtitle2" sx={{ fontWeight: 800, textTransform: 'uppercase' }}>
+                        {stepName}
+                      </Typography>
+                      <Chip
+                        label={loading ? '...' : colCards.length}
+                        size="small"
                         sx={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          height: 120,
-                          border: '2px dashed rgba(0,0,0,0.08)',
-                          borderRadius: 2,
+                          fontWeight: 700,
+                          bgcolor: colColor,
+                          color: '#fff',
+                          fontSize: '0.75rem',
                         }}
-                      >
-                        <Typography variant="caption" color="text.secondary">
-                          No tasks
-                        </Typography>
-                      </Box>
-                    ) : (
-                      colCards.map((card) => {
-                        const titleId = isFirstStep
-                          ? `JC-${String(card.job_number || 0).padStart(4, '0')}`
-                          : `TASK-${String(card.task_number || 0).padStart(4, '0')}`;
+                      />
+                    </Box>
 
-                        const description = isFirstStep ? card.description : card.product_name;
-                        const customerName = isFirstStep
-                          ? card.customers?.name || 'Walk-in / Inquiry'
-                          : card.job_cards?.customers?.name || 'Walk-in / Inquiry';
-
-                        return (
-                          <Card
-                            key={isFirstStep ? card.job_id : card.task_id}
-                            sx={{
-                              flexShrink: 0,
-                              borderRadius: 2,
-                              boxShadow: '0 2px 5px rgba(0,0,0,0.05)',
-                              borderLeft: '4px solid',
-                              borderLeftColor: colColor,
-                              '&:hover': {
-                                transform: 'translateY(-2px)',
-                                boxShadow: '0 4px 10px rgba(0,0,0,0.12)',
-                                transition: 'all 0.2s ease-in-out',
-                              },
-                            }}
-                          >
-                            <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
-                              <Box 
-                                sx={{ cursor: 'pointer' }}
-                                onClick={() => handleOpenDetails(card, isFirstStep ? 'job' : 'task')}
-                              >
-                                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
-                                  <Typography variant="caption" sx={{ fontWeight: 800, color: colColor }}>
-                                    {titleId}
-                                  </Typography>
-                                </Box>
-
-                                <Typography variant="body2" sx={{ fontWeight: 600, mb: 1, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
-                                  {description}
-                                </Typography>
-
-                                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
-                                  Client: <strong>{customerName}</strong>
-                                </Typography>
-
-                                <Divider sx={{ my: 1 }} />
-
-                                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                                  <Typography variant="caption" color="text.secondary">
-                                    Qty: <strong>{card.quantity}</strong>
-                                  </Typography>
-                                  <Typography variant="caption" color="text.secondary">
-                                    {formatDate(card.created_at)}
-                                  </Typography>
-                                </Box>
-                              </Box>
-
-                              {/* Action Buttons for Employees */}
-                              {!isLastStep && (
-                                <Button 
-                                  variant="contained" 
-                                  fullWidth 
-                                  size="small"
-                                  startIcon={<CheckCircleIcon />}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleMoveToNext(card, isFirstStep ? 'job' : 'task', index);
-                                  }}
-                                  sx={{ 
-                                    textTransform: 'none', 
-                                    fontWeight: 700,
-                                    bgcolor: colColor,
-                                    '&:hover': { bgcolor: colColor, filter: 'brightness(0.9)' }
-                                  }}
-                                >
-                                  {isFirstStep ? 'Generate Invoice' : 'Mark Finished'}
-                                </Button>
-                              )}
+                    {/* Cards List container */}
+                    <Box
+                      sx={{
+                        flexGrow: 1,
+                        p: 1.5,
+                        overflowY: 'auto',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 1.5,
+                      }}
+                    >
+                      {loading ? (
+                        Array.from(new Array(3)).map((_, i) => (
+                          <Card key={i} variant="outlined" sx={{ borderRadius: 2 }}>
+                            <CardContent sx={{ p: 2 }}>
+                              <Skeleton width="40%" height={20} />
+                              <Skeleton width="80%" height={40} sx={{ my: 1 }} />
+                              <Skeleton width="60%" height={20} />
                             </CardContent>
                           </Card>
-                        );
-                      })
-                    )}
-                  </Box>
-                </Box>
-              </SwiperSlide>
-            );
-          })}
-        </Swiper>
-      </Box>
+                        ))
+                      ) : colCards.length === 0 ? (
+                        <Box
+                          sx={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            height: 120,
+                            border: '2px dashed rgba(0,0,0,0.08)',
+                            borderRadius: 2,
+                          }}
+                        >
+                          <Typography variant="caption" color="text.secondary">
+                            No tasks
+                          </Typography>
+                        </Box>
+                      ) : (
+                        colCards.map((card) => {
+                          const titleId = isFirstStep
+                            ? `JC-${String(card.job_number || 0).padStart(4, '0')}`
+                            : `TASK-${String(card.task_number || 0).padStart(4, '0')}`;
+
+                          const description = isFirstStep ? card.description : card.product_name;
+                          const customerName = isFirstStep
+                            ? card.customers?.name || 'Walk-in / Inquiry'
+                            : card.job_cards?.customers?.name || 'Walk-in / Inquiry';
+
+                          return (
+                            <DraggableCard
+                              key={isFirstStep ? card.job_id : card.task_id}
+                              id={isFirstStep ? card.job_id : card.task_id}
+                              card={card}
+                              stepName={stepName}
+                              isFirstStep={isFirstStep}
+                            >
+                              <Card
+                                sx={{
+                                  flexShrink: 0,
+                                  borderRadius: 2,
+                                  boxShadow: '0 2px 5px rgba(0,0,0,0.05)',
+                                  borderLeft: '4px solid',
+                                  borderLeftColor: colColor,
+                                  '&:hover': {
+                                    transform: 'translateY(-2px)',
+                                    boxShadow: '0 4px 10px rgba(0,0,0,0.12)',
+                                    transition: 'all 0.2s ease-in-out',
+                                  },
+                                }}
+                              >
+                                <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
+                                  <Box 
+                                    sx={{ cursor: 'pointer' }}
+                                    onClick={() => handleOpenDetails(card, isFirstStep ? 'job' : 'task')}
+                                  >
+                                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                                      <Typography variant="caption" sx={{ fontWeight: 800, color: colColor }}>
+                                        {titleId}
+                                      </Typography>
+                                    </Box>
+
+                                    <Typography variant="body2" sx={{ fontWeight: 600, mb: 1, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                                      {description}
+                                    </Typography>
+
+                                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
+                                      Client: <strong>{customerName}</strong>
+                                    </Typography>
+
+                                    <Divider sx={{ my: 1 }} />
+
+                                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                                      <Typography variant="caption" color="text.secondary">
+                                        Qty: <strong>{card.quantity}</strong>
+                                      </Typography>
+                                      <Typography variant="caption" color="text.secondary">
+                                        {formatDate(card.created_at)}
+                                      </Typography>
+                                    </Box>
+                                  </Box>
+
+                                  {/* Action Buttons for Employees */}
+                                  {!isLastStep && (
+                                    <Button 
+                                      variant="contained" 
+                                      fullWidth 
+                                      size="small"
+                                      startIcon={<CheckCircleIcon />}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleMoveToNext(card, isFirstStep ? 'job' : 'task', index);
+                                      }}
+                                      sx={{ 
+                                        textTransform: 'none', 
+                                        fontWeight: 700,
+                                        bgcolor: colColor,
+                                        '&:hover': { bgcolor: colColor, filter: 'brightness(0.9)' }
+                                      }}
+                                    >
+                                      {isFirstStep ? 'Generate Invoice' : 'Mark Finished'}
+                                    </Button>
+                                  )}
+                                </CardContent>
+                              </Card>
+                            </DraggableCard>
+                          );
+                        })
+                      )}
+                    </Box>
+                  </DroppableColumn>
+                </SwiperSlide>
+              );
+            })}
+          </Swiper>
+        </Box>
+      </DndContext>
 
       {/* Drawer Details Side Panel */}
       <Drawer anchor="right" open={drawerOpen} onClose={() => setDrawerOpen(false)}>

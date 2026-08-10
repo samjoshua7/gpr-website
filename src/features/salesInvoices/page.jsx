@@ -38,6 +38,7 @@ import { getSalesInvoices, deleteSalesInvoice, voidSalesInvoice } from './api';
 import { updateJobStatus } from '../jobCards/api';
 import InvoiceDialog from './components/InvoiceDialog';
 import InvoiceDetailsDialog from './components/InvoiceDetailsDialog';
+import PageToolbar from '../../components/layout/PageToolbar';
 import { checkReferences } from '../../lib/referenceChecker';
 import CannotDeleteDialog from '../../components/feedback/CannotDeleteDialog';
 import { SearchInput } from '../../components/ui/SearchInput';
@@ -344,33 +345,25 @@ export const SalesInvoicesPage = () => {
 
   return (
     <Box sx={{ p: { xs: 1, sm: 3 } }}>
-      {/* Header */}
-      <Grid container spacing={2} alignItems="center" justifyContent="space-between" sx={{ mb: 3 }}>
-        <Grid item xs={12} sm={auto => 'auto'}>
-          <Typography variant="h4" sx={{ fontWeight: 800 }}>
-            Sales Invoices
-          </Typography>
-        </Grid>
-        <Grid item xs={12} sm={auto => 'auto'}>
+      <PageToolbar
+        title="Sales Invoices"
+        searchQuery={searchQuery}
+        onSearchChange={setSearchQuery}
+        searchPlaceholder="Search by invoice number or customer name..."
+        actions={
           <Button
             variant="contained"
             startIcon={<AddIcon />}
             onClick={handleCreateClick}
-            sx={{ width: { xs: '100%', sm: 'auto' } }}
+            sx={{ whiteSpace: 'nowrap' }}
           >
             Create Invoice
           </Button>
-        </Grid>
-      </Grid>
+        }
+      />
 
-      {/* Search and Tabs */}
+      {/* Tabs */}
       <Box sx={{ mb: 3 }}>
-        <SearchInput
-          placeholder="Search by invoice number or customer name..."
-          value={searchQuery}
-          onChange={setSearchQuery}
-          sx={{ bgcolor: 'background.paper', borderRadius: 2, mb: 2, width: '100%' }}
-        />
 
         <Paper sx={{ borderRadius: 2, overflow: 'hidden' }}>
           <Tabs
@@ -507,7 +500,6 @@ export const SalesInvoicesPage = () => {
         page={page}
         onPageChange={handleChangePage}
         onRowsPerPageChange={handleChangeRowsPerPage}
-        component={Paper}
         sx={{ borderTopLeftRadius: 0, borderTopRightRadius: 0 }}
       />
 

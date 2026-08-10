@@ -14,6 +14,7 @@ import {
   ListItemSecondaryAction,
   IconButton,
   Divider,
+  MenuItem,
 } from '@mui/material';
 import SaveIcon from '@mui/icons-material/Save';
 import DeleteIcon from '@mui/icons-material/Delete';
@@ -124,6 +125,7 @@ export const SettingsPage = () => {
         logo_url: settings.logo_url || null,
         signatory_image_url: settings.signatory_image_url || null,
         signatory_name: settings.signatory_name || null,
+        default_invoice_paper_size: settings.default_invoice_paper_size || 'A4',
       });
       setSuccess('Settings saved successfully.');
     } catch (err) {
@@ -241,6 +243,19 @@ export const SettingsPage = () => {
                   value={settings?.financial_year_start || ''}
                   onChange={handleChange}
                 />
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  select
+                  fullWidth
+                  label="Default Invoice Paper Size"
+                  name="default_invoice_paper_size"
+                  value={settings?.default_invoice_paper_size || 'A4'}
+                  onChange={handleChange}
+                >
+                  <MenuItem value="A4">A4 (Standard Sheet)</MenuItem>
+                  <MenuItem value="A5">A5 (Compact Sheet)</MenuItem>
+                </TextField>
               </Grid>
             </Grid>
           </Paper>

@@ -29,6 +29,7 @@ import { getStatementData } from './api';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
 import { SearchInput } from '../../components/ui/SearchInput';
+import PageToolbar from '../../components/layout/PageToolbar';
 import { HighlightText } from '../../components/ui/HighlightText';
 
 const currencyFormatter = new Intl.NumberFormat('en-IN', {
@@ -239,22 +240,24 @@ export const StatementsPage = () => {
   }
 
   return (
-    <Box>
-      <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-        <Typography variant="h4" fontWeight={800} color="primary">
-          Financial Statements
-        </Typography>
-        <Button
-          variant="contained"
-          startIcon={<PictureAsPdfIcon />}
-          color="error"
-          onClick={handleExportPDF}
-          sx={{ fontWeight: 'bold' }}
-        >
-          Export PDF
-        </Button>
-      </Box>
-
+    <Box sx={{ p: 3 }}>
+      <PageToolbar
+        title="Financial Statements"
+        searchQuery={searchQuery}
+        onSearchChange={setSearchQuery}
+        searchPlaceholder="Search by ref no or customer..."
+        actions={
+          <Button
+            variant="contained"
+            startIcon={<PictureAsPdfIcon />}
+            color="error"
+            onClick={handleExportPDF}
+            sx={{ fontWeight: 'bold' }}
+          >
+            Export PDF
+          </Button>
+        }
+      />
       {error && <Alert severity="error" sx={{ mb: 3 }}>{error}</Alert>}
 
       <Paper elevation={0} variant="outlined" sx={{ borderRadius: 2, mb: 3 }}>
@@ -265,16 +268,6 @@ export const StatementsPage = () => {
         </Tabs>
         
         <Box p={3}>
-          <Grid container spacing={2} alignItems="center" sx={{ mb: 2 }}>
-            <Grid item xs={12}>
-              <SearchInput
-                placeholder="Search by ref no or customer..."
-                value={searchQuery}
-                onChange={setSearchQuery}
-                sx={{ bgcolor: 'background.paper', borderRadius: 2, width: '100%' }}
-              />
-            </Grid>
-          </Grid>
           <Grid container spacing={2} alignItems="center">
             {tabIndex === 1 && (
               <Grid item xs={12} md={4}>
@@ -417,7 +410,6 @@ export const StatementsPage = () => {
           page={page}
           onPageChange={handleChangePage}
           onRowsPerPageChange={handleChangeRowsPerPage}
-          component={Paper}
           sx={{ borderTopLeftRadius: 0, borderTopRightRadius: 0 }}
         />
       )}

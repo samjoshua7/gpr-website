@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import { useNavigate, Link } from 'react-router-dom';
 import {
@@ -10,9 +10,10 @@ import {
   Button,
   Stack,
   Chip,
-  Avatar,
   Paper,
   Divider,
+  CircularProgress,
+  Skeleton,
 } from '@mui/material';
 
 import PeopleIcon from '@mui/icons-material/People';
@@ -24,15 +25,55 @@ import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import StorefrontIcon from '@mui/icons-material/Storefront';
 
+import {
+  ResponsiveContainer,
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  Tooltip as RechartsTooltip,
+  CartesianGrid,
+  PieChart,
+  Pie,
+  Cell,
+  BarChart,
+  Bar,
+  Legend,
+} from 'recharts';
+
+import { getDashboardData } from './api';
+
 export const DashboardPage = () => {
   const { profile } = useAuth();
   const navigate = useNavigate();
 
   const isSuperAdmin = profile?.role === 'SUPER_ADMIN';
 
+  const [loading, setLoading] = useState(true);
+  const [metrics, setMetrics] = useState(null);
+
+  useEffect(() => {
+    const loadDashboard = async () => {
+      setLoading(true);
+      try {
+        const data = await getDashboardData();
+        setMetrics(data);
+      } catch (err) {
+        console.error('Failed to load dashboard metrics:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadDashboard();
+  }, []);
+
+  const formatCurrency = (amt) =>
+    new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(amt || 0);
+
   const STAT_CARDS = [
     {
       title: 'Active Customers',
+      val: metrics?.customerCount !== undefined ? metrics.customerCount : '...',
       subtitle: 'Registered Accounts',
       icon: <PeopleIcon fontSize="medium" />,
       color: '#0284c7',
@@ -40,7 +81,8 @@ export const DashboardPage = () => {
       link: '/dashboard/customers',
     },
     {
-      title: 'Job Cards',
+      title: 'Production Tasks',
+      val: metrics?.taskCount !== undefined ? metrics.taskCount : '...',
       subtitle: 'Press Production Queue',
       icon: <AssignmentIcon fontSize="medium" />,
       color: '#4338ca',
@@ -49,7 +91,8 @@ export const DashboardPage = () => {
     },
     {
       title: 'Sales Invoices',
-      subtitle: 'Billed & Outstanding',
+      val: metrics?.activeInvoiceCount !== undefined ? metrics.activeInvoiceCount : '...',
+      subtitle: metrics ? `Unpaid: ${formatCurrency(metrics.outstanding)}` : 'Billed & Outstanding',
       icon: <DescriptionIcon fontSize="medium" />,
       color: '#059669',
       bgcolor: 'rgba(5, 150, 105, 0.08)',
@@ -57,6 +100,7 @@ export const DashboardPage = () => {
     },
     {
       title: 'Inventory Stock',
+      val: metrics?.itemCount !== undefined ? metrics.itemCount : '...',
       subtitle: 'Paper & Ink Materials',
       icon: <LayersIcon fontSize="medium" />,
       color: '#d97706',
@@ -110,7 +154,7 @@ export const DashboardPage = () => {
                 }}
               />
               <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.6)' }}>
-                System Ready
+                System Live
               </Typography>
             </Stack>
 
@@ -118,7 +162,7 @@ export const DashboardPage = () => {
               Welcome back, {profile?.name || 'User'}!
             </Typography>
             <Typography variant="body1" sx={{ color: 'rgba(226, 232, 240, 0.8)', maxWidth: 600 }}>
-              G.P.R Offset Printers central control panel. Manage job cards, sales invoices, customer receipts, and raw inventory material stocks.
+              G.P.R Offset Printers central control panel. Real-time production analytics, revenue trends, and inventory stock monitoring.
             </Typography>
           </Grid>
 
@@ -172,10 +216,13 @@ export const DashboardPage = () => {
                   <ArrowForwardIcon sx={{ color: 'text.secondary', fontSize: 18 }} />
                 </Stack>
 
-                <Typography variant="h5" sx={{ fontWeight: 800, mb: 0.5 }}>
+                <Typography variant="h4" sx={{ fontWeight: 900, mb: 0.5 }}>
+                  {loading ? <Skeleton width="50%" /> : stat.val}
+                </Typography>
+                <Typography variant="subtitle2" sx={{ fontWeight: 700, color: 'text.primary' }}>
                   {stat.title}
                 </Typography>
-                <Typography variant="body2" color="text.secondary">
+                <Typography variant="caption" color="text.secondary">
                   {stat.subtitle}
                 </Typography>
               </CardContent>
@@ -184,7 +231,131 @@ export const DashboardPage = () => {
         ))}
       </Grid>
 
-      {/* Quick Action Shortcuts & Workflow Guidance */}
+      {/* Recharts Analytics Section */}
+      <Grid container spacing={3} sx={{ mb: 4 }}>
+        {/* Monthly Revenue Trend Chart */}
+        <Grid item xs={12} md={8}>
+          <Paper variant="outlined" sx={{ p: 3, borderRadius: 3, height: '100%' }}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+              <Typography variant="h6" sx={{ fontWeight: 800 }}>
+                Monthly Revenue Performance
+              </Typography>
+              {metrics && (
+                <Chip label={`Total Billed: ${formatCurrency(metrics.totalBilled)}`} color="primary" size="small" sx={{ fontWeight: 700 }} />
+              )}
+            </Box>
+            <Divider sx={{ mb: 3 }} />
+            {loading ? (
+              <Box display="flex" justifyContent="center" alignItems="center" height={260}>
+                <CircularProgress />
+              </Box>
+            ) : !metrics?.revenueTrend?.length ? (
+              <Box display="flex" justifyContent="center" alignItems="center" height={260}>
+                <Typography color="text.secondary">No invoice sales data recorded yet.</Typography>
+              </Box>
+            ) : (
+              <ResponsiveContainer width="100%" height={260}>
+                <LineChart data={metrics.revenueTrend}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                  <XAxis dataKey="month" tick={{ fontSize: 12 }} />
+                  <YAxis tick={{ fontSize: 12 }} tickFormatter={(val) => `₹${val}`} />
+                  <RechartsTooltip formatter={(val) => [formatCurrency(val), 'Revenue']} />
+                  <Line type="monotone" dataKey="revenue" stroke="#0284c7" strokeWidth={3} dot={{ r: 5 }} activeDot={{ r: 8 }} />
+                </LineChart>
+              </ResponsiveContainer>
+            )}
+          </Paper>
+        </Grid>
+
+        {/* Financial Collections vs Receivables */}
+        <Grid item xs={12} md={4}>
+          <Paper variant="outlined" sx={{ p: 3, borderRadius: 3, height: '100%' }}>
+            <Typography variant="h6" sx={{ fontWeight: 800, mb: 2 }}>
+              Collections vs Receivables
+            </Typography>
+            <Divider sx={{ mb: 3 }} />
+            {loading ? (
+              <Box display="flex" justifyContent="center" alignItems="center" height={260}>
+                <CircularProgress />
+              </Box>
+            ) : (
+              <ResponsiveContainer width="100%" height={260}>
+                <PieChart>
+                  <Pie
+                    data={metrics?.financialDistribution || []}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={55}
+                    outerRadius={80}
+                    paddingAngle={4}
+                    dataKey="value"
+                  >
+                    {(metrics?.financialDistribution || []).map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <RechartsTooltip formatter={(val) => formatCurrency(val)} />
+                  <Legend verticalAlign="bottom" height={36} />
+                </PieChart>
+              </ResponsiveContainer>
+            )}
+          </Paper>
+        </Grid>
+
+        {/* Production Stage Pipeline */}
+        <Grid item xs={12} md={6}>
+          <Paper variant="outlined" sx={{ p: 3, borderRadius: 3 }}>
+            <Typography variant="h6" sx={{ fontWeight: 800, mb: 2 }}>
+              Department Production Pipeline
+            </Typography>
+            <Divider sx={{ mb: 3 }} />
+            {loading ? (
+              <Box display="flex" justifyContent="center" alignItems="center" height={240}>
+                <CircularProgress />
+              </Box>
+            ) : (
+              <ResponsiveContainer width="100%" height={240}>
+                <BarChart data={metrics?.pipelineData || []}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                  <XAxis dataKey="stage" tick={{ fontSize: 10 }} interval={0} angle={-20} textAnchor="end" height={50} />
+                  <YAxis allowDecimals={false} tick={{ fontSize: 12 }} />
+                  <RechartsTooltip />
+                  <Bar dataKey="count" name="Tasks" fill="#4338ca" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </Paper>
+        </Grid>
+
+        {/* Inventory Stock Levels */}
+        <Grid item xs={12} md={6}>
+          <Paper variant="outlined" sx={{ p: 3, borderRadius: 3 }}>
+            <Typography variant="h6" sx={{ fontWeight: 800, mb: 2 }}>
+              Material Inventory Stock Levels
+            </Typography>
+            <Divider sx={{ mb: 3 }} />
+            {loading ? (
+              <Box display="flex" justifyContent="center" alignItems="center" height={240}>
+                <CircularProgress />
+              </Box>
+            ) : (
+              <ResponsiveContainer width="100%" height={240}>
+                <BarChart data={metrics?.inventoryStockData || []}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                  <XAxis dataKey="name" tick={{ fontSize: 11 }} />
+                  <YAxis tick={{ fontSize: 12 }} />
+                  <RechartsTooltip />
+                  <Legend />
+                  <Bar dataKey="stock" name="Current Stock" fill="#059669" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="reorder" name="Alert Level" fill="#d97706" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </Paper>
+        </Grid>
+      </Grid>
+
+      {/* Quick Action Shortcuts */}
       <Grid container spacing={3}>
         <Grid item xs={12} md={7}>
           <Paper sx={{ p: 3, borderRadius: 3, height: '100%' }}>

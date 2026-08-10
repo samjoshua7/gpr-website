@@ -22,11 +22,12 @@ import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import CancelIcon from '@mui/icons-material/Cancel';
+import { SearchInput } from '../../components/ui/SearchInput';
+import PageToolbar from '../../components/layout/PageToolbar';
 
 import { getEmployees, createEmployee, updateEmployee, deleteEmployee, toggleEmployeeStatus } from './api';
 import { getCompanySettings } from '../settings/api';
 import { EmployeeDialog } from './components/EmployeeDialog';
-import { SearchInput } from '../../components/ui/SearchInput';
 import { HighlightText } from '../../components/ui/HighlightText';
 
 const headCells = [
@@ -179,28 +180,22 @@ export const EmployeesPage = () => {
 
   return (
     <Box>
-      <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-        <Typography variant="h4" fontWeight={800} color="primary">
-          Employees
-        </Typography>
-        <Button
-          variant="contained"
-          startIcon={<AddIcon />}
-          onClick={handleAdd}
-          sx={{ fontWeight: 'bold' }}
-        >
-          Add Employee
-        </Button>
-      </Box>
-
-      <Box sx={{ mb: 3 }}>
-        <SearchInput
-          placeholder="Search by name, email, phone, or role..."
-          value={searchQuery}
-          onChange={setSearchQuery}
-          sx={{ bgcolor: 'background.paper', borderRadius: 2, width: '100%' }}
-        />
-      </Box>
+      <PageToolbar
+        title="Employees"
+        searchQuery={searchQuery}
+        onSearchChange={setSearchQuery}
+        searchPlaceholder="Search by name, email, phone, or role..."
+        actions={
+          <Button
+            variant="contained"
+            startIcon={<AddIcon />}
+            onClick={handleAdd}
+            sx={{ fontWeight: 'bold' }}
+          >
+            Add Employee
+          </Button>
+        }
+      />
 
       {error && (
         <Alert severity="error" sx={{ mb: 3 }}>
@@ -316,7 +311,6 @@ export const EmployeesPage = () => {
           page={page}
           onPageChange={handleChangePage}
           onRowsPerPageChange={handleChangeRowsPerPage}
-          component={Paper}
           sx={{ borderTopLeftRadius: 0, borderTopRightRadius: 0 }}
         />
       )}

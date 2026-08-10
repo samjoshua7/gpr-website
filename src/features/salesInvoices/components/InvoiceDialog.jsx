@@ -98,6 +98,10 @@ export const InvoiceDialog = ({ open, onClose, onSaveSuccess, preselectedJob = n
     },
   ]);
 
+  // Task 2: Raw string drafts and per-row error tracking for editable line totals
+  const [lineTotalDrafts, setLineTotalDrafts] = useState({});
+  const [lineTotalErrors, setLineTotalErrors] = useState({});
+
   // Status & errors
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
@@ -344,6 +348,13 @@ export const InvoiceDialog = ({ open, onClose, onSaveSuccess, preselectedJob = n
   const handleLineChange = (index, field, value) => {
     const newItems = [...lineItems];
     newItems[index][field] = value;
+    // Clear line total draft for this row so it syncs with updated forward calculation
+    setLineTotalDrafts((prev) => {
+      const next = { ...prev };
+      delete next[index];
+      return next;
+    });
+    setLineTotalErrors((prev) => ({ ...prev, [index]: false }));
     recalculateRow(newItems, index);
   };
 
@@ -368,35 +379,80 @@ export const InvoiceDialog = ({ open, onClose, onSaveSuccess, preselectedJob = n
     setLineItems([...items]);
   };
 
-  // Step 6: Reverse calculation when Line Total is edited directly
-  const handleLineTotalChange = (index, value) => {
-    const newItems = [...lineItems];
-    const item = newItems[index];
-    const lineTotalVal = parseFloat(value) || 0;
+  // Task 2: Store raw typing input without trigger calculation loop
+  const handleLineTotalInputChange = (index, rawValue) => {
+    setLineTotalDrafts((prev) => ({ ...prev, [index]: rawValue }));
+  };
+
+  // Task 2: Calculate reverse rate onBlur / Enter
+  const handleLineTotalBlur = (index) => {
+    const rawValue = lineTotalDrafts[index];
+    if (rawValue === undefined) return;
+
+    const parsedVal = parseFloat(rawValue);
+    const item = lineItems[index];
     const qty = parseFloat(item.quantity) || 1;
     const gst = parseFloat(item.gst_rate) || 0;
 
+    if (isNaN(parsedVal) || parsedVal <= 0 || !rawValue.trim()) {
+      setLineTotalErrors((prev) => ({ ...prev, [index]: true }));
+      return;
+    }
+
+    setLineTotalErrors((prev) => ({ ...prev, [index]: false }));
     const result = reverseFromLineTotal({
-      lineTotal: lineTotalVal,
+      lineTotal: parsedVal,
       quantity: qty,
       gstRate: gst,
       isGst: isGstInvoice,
     });
 
+    const newItems = [...lineItems];
     newItems[index] = {
       ...item,
       unit_price: result.unitPrice.toString(),
       amount: result.amount,
       tax_amount: result.taxAmount,
     };
-    setLineItems([...newItems]);
+    setLineItems(newItems);
+    setLineTotalDrafts((prev) => {
+      const next = { ...prev };
+      delete next[index];
+      return next;
+    });
   };
 
-  // Recalculate all lines when GST checkbox is toggled
+  // Recalculate all lines when GST toggle changes & reset line tax/hsn if switching to NON_GST (Task 3)
   useEffect(() => {
-    const updated = [...lineItems];
-    updated.forEach((_, idx) => recalculateRow(updated, idx));
-  }, [invoiceType, isIntraState]);
+    if (!open) return;
+    setLineItems((prevItems) => {
+      const updated = prevItems.map((item) => {
+        if (invoiceType === 'NON_GST') {
+          return {
+            ...item,
+            gst_rate: 0,
+            tax_amount: 0,
+            hsn_code: '',
+          };
+        }
+        return item;
+      });
+      updated.forEach((_, idx) => {
+        const qty = parseFloat(updated[idx].quantity) || 0;
+        const rate = parseFloat(updated[idx].unit_price) || 0;
+        const gst = parseFloat(updated[idx].gst_rate) || 0;
+        const calc = forwardLineTotal({
+          quantity: qty,
+          unitPrice: rate,
+          gstRate: gst,
+          isGst: invoiceType === 'GST',
+        });
+        updated[idx].amount = calc.amount;
+        updated[idx].tax_amount = calc.taxAmount;
+      });
+      return updated;
+    });
+  }, [invoiceType, isIntraState, open]);
 
   const handleAddLine = () => {
     setLineItems([
@@ -1010,17 +1066,31 @@ export const InvoiceDialog = ({ open, onClose, onSaveSuccess, preselectedJob = n
                           </TableCell>
                         )}
 
-                        {/* Step 6c: Editable Line Total field with reverse calculation */}
+                        {/* Step 6c & Task 2: Editable Line Total field with decoupled draft state */}
                         <TableCell align="right" sx={{ minWidth: 130 }}>
                           <TextField
                             size="small"
-                            type="number"
-                            value={line.amount}
-                            onChange={(e) => handleLineTotalChange(index, e.target.value)}
+                            type="text"
+                            value={lineTotalDrafts[index] !== undefined ? lineTotalDrafts[index] : (line.amount ? Number(line.amount).toFixed(2) : '0.00')}
+                            onChange={(e) => handleLineTotalInputChange(index, e.target.value)}
+                            onBlur={() => handleLineTotalBlur(index)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault();
+                                handleLineTotalBlur(index);
+                              }
+                            }}
                             onFocus={(e) => e.target.select()}
+                            error={!!lineTotalErrors[index]}
                             disabled={loading || !isCustomerSelected}
-                            inputProps={{ min: '0', step: '0.01', style: { textAlign: 'right', fontWeight: 'bold' } }}
-                            helperText={isGstInvoice ? 'GST-inclusive' : ''}
+                            inputProps={{ style: { textAlign: 'right', fontWeight: 'bold' } }}
+                            helperText={
+                              lineTotalErrors[index]
+                                ? 'Invalid line total'
+                                : isGstInvoice
+                                ? 'GST-inclusive'
+                                : ''
+                            }
                           />
                         </TableCell>
 
@@ -1118,18 +1188,23 @@ export const InvoiceDialog = ({ open, onClose, onSaveSuccess, preselectedJob = n
             </Grid>
           </Box>
         </DialogContent>
-        <DialogActions sx={{ p: 2.5 }}>
+        <DialogActions sx={{ p: 2.5, display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }}>
+          {Object.values(lineTotalErrors).some(Boolean) && (
+            <Typography color="error.main" variant="caption" sx={{ mr: 2, fontWeight: 700 }}>
+              Fix highlighted line totals to continue
+            </Typography>
+          )}
           <Button onClick={onClose} disabled={loading} color="inherit">
             Cancel
           </Button>
           <Button
             type="submit"
             variant="contained"
-            disabled={loading || !isCustomerSelected}
+            disabled={loading || !isCustomerSelected || Object.values(lineTotalErrors).some(Boolean)}
             startIcon={loading ? <CircularProgress size={20} color="inherit" /> : null}
             sx={{ px: 3, fontWeight: 700 }}
           >
-            Create & Issue Invoice
+            {editInvoice && editInvoice.invoice_id ? 'Update Invoice' : 'Create & Issue Invoice'}
           </Button>
         </DialogActions>
       </Box>

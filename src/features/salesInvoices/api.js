@@ -1,4 +1,5 @@
 import { supabase } from '../../lib/supabaseClient';
+import { advanceJobProductionTaskOnInvoice } from '../jobCards/api';
 
 let cachedSalesInvoices = null;
 let lastFetchTimeSalesInvoices = null;
@@ -162,6 +163,10 @@ export const createSalesInvoice = async (invoiceData, lineItems) => {
     // Attempt cleanup of orphaned invoice if line items fail
     await supabase.from('sales_invoices').delete().eq('invoice_id', invoice.invoice_id);
     throw new Error(`Failed to insert line items: ${itemsError.message}`);
+  }
+
+  if (invoiceData.job_id) {
+    await advanceJobProductionTaskOnInvoice(invoiceData.job_id);
   }
 
   invalidateSalesInvoicesCache();

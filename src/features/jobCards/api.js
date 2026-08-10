@@ -201,3 +201,74 @@ export const updateProductionTaskStatus = async (taskId, status) => {
   return data;
 };
 
+/**
+ * Auto-advances the production task/stage of a job card when a sales invoice is created.
+ */
+export const advanceJobProductionTaskOnInvoice = async (jobId) => {
+  if (!jobId) return;
+
+  try {
+    const { data: settingsData } = await supabase
+      .from('company_settings')
+      .select('production_workflow')
+      .single();
+
+    const workflow = settingsData?.production_workflow || [
+      'New Orders',
+      'Designing',
+      'Proof',
+      'Printing',
+      'Additional works',
+      'Cutting',
+      'Packing',
+      'Out for Delivery',
+      'Delivered',
+    ];
+
+    const { data: tasks } = await supabase
+      .from('production_tasks')
+      .select('*')
+      .eq('job_id', jobId);
+
+    if (tasks && tasks.length > 0) {
+      for (const task of tasks) {
+        const currIdx = workflow.indexOf(task.status);
+        const nextIdx = currIdx >= 0 ? currIdx + 1 : 1;
+        if (nextIdx < workflow.length) {
+          const nextStatus = workflow[nextIdx];
+          await supabase
+            .from('production_tasks')
+            .update({ status: nextStatus })
+            .eq('task_id', task.task_id);
+        }
+      }
+    } else {
+      const initialStatus = workflow[1] || 'Designing';
+      const { data: job } = await supabase
+        .from('job_cards')
+        .select('description, quantity')
+        .eq('job_id', jobId)
+        .single();
+
+      await supabase.from('production_tasks').insert([
+        {
+          job_id: jobId,
+          product_name: job?.description || 'Print Task',
+          quantity: job?.quantity || 1,
+          status: initialStatus,
+        },
+      ]);
+    }
+
+    await supabase
+      .from('job_cards')
+      .update({ status: 'in_progress' })
+      .eq('job_id', jobId);
+
+    invalidateProductionTasksCache();
+    invalidateJobCardsCache();
+  } catch (err) {
+    console.error('Failed to auto-advance job stage on invoice creation:', err);
+  }
+};
+

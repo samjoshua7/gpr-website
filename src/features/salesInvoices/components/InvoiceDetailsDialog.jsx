@@ -157,6 +157,10 @@ export const InvoiceDetailsDialog = ({ open, onClose, invoiceId, onEdit, onClone
   }, [open, invoiceId]);
 
   const printStyles = `
+    @page {
+      size: ${paperSize === 'A5' ? 'A5' : 'A4'};
+      margin: 10mm;
+    }
     @media print {
       body * {
         visibility: hidden;
@@ -168,9 +172,11 @@ export const InvoiceDetailsDialog = ({ open, onClose, invoiceId, onEdit, onClone
         position: absolute;
         left: 0;
         top: 0;
-        width: 100%;
-        margin: 0;
+        width: ${paperSize === 'A5' ? '148mm' : '210mm'};
+        max-width: 100%;
+        margin: 0 auto;
         padding: 0;
+        box-sizing: border-box;
       }
       .no-print {
         display: none !important;
@@ -191,16 +197,6 @@ export const InvoiceDetailsDialog = ({ open, onClose, invoiceId, onEdit, onClone
         <span>Invoice Details</span>
         {invoice && (
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <Select
-              size="small"
-              value={paperSize}
-              onChange={(e) => setPaperSize(e.target.value)}
-              sx={{ height: 32, fontSize: '0.85rem', bgcolor: 'background.paper', mr: 1 }}
-            >
-              <MenuItem value="A4">A4 Paper</MenuItem>
-              <MenuItem value="A5">A5 Paper</MenuItem>
-            </Select>
-
             <Chip
               label={STATUS_MAP[invoice.status]?.label || invoice.status}
               color={STATUS_MAP[invoice.status]?.color || 'default'}

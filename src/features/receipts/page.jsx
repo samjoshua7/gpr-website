@@ -25,12 +25,17 @@ import {
 
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
-import { TablePagination, TableSortLabel, Stack } from '@mui/material';
+import EditIcon from '@mui/icons-material/Edit';
+import VisibilityIcon from '@mui/icons-material/Visibility';
+import ContentCopyIcon from '@mui/icons-material/ContentCopy';
+import { TablePagination, TableSortLabel, Stack, Tooltip } from '@mui/material';
 import { SearchInput } from '../../components/ui/SearchInput';
+import PageToolbar from '../../components/layout/PageToolbar';
 import { HighlightText } from '../../components/ui/HighlightText';
 
 import { getReceipts, deleteReceipt } from './api';
 import ReceiptDialog from './components/ReceiptDialog';
+import ReceiptDetailsDialog from './components/ReceiptDetailsDialog';
 
 const MODE_MAP = {
   cash: { label: 'Cash', color: 'success' },
@@ -73,6 +78,10 @@ export const ReceiptsPage = () => {
   const [rowsPerPage, setRowsPerPage] = useState(25);
   const [orderBy, setOrderBy] = useState('receipt_date');
   const [order, setOrder] = useState('desc');
+  // View and Edit dialog states
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [selectedReceiptForView, setSelectedReceiptForView] = useState(null);
+  const [editReceipt, setEditReceipt] = useState(null);
 
   // Dialog Add state
   const [createOpen, setCreateOpen] = useState(false);
@@ -108,24 +117,16 @@ export const ReceiptsPage = () => {
       const q = searchQuery.toLowerCase();
       result = result.filter(r => 
         (r.customers?.name || '').toLowerCase().includes(q) ||
-        (r.sales_invoices?.invoice_no || '').toLowerCase().includes(q) ||
-        (r.mode || '').toLowerCase().includes(q)
+        (r.mode || '').toLowerCase().includes(q) ||
+        (r.sales_invoices?.invoice_no || '').toLowerCase().includes(q)
       );
     }
 
     if (orderBy) {
       result.sort((a, b) => {
-        let valA = a[orderBy];
-        let valB = b[orderBy];
+        let valA = orderBy === 'customer_name' ? a.customers?.name : orderBy === 'invoice_no' ? a.sales_invoices?.invoice_no : a[orderBy];
+        let valB = orderBy === 'customer_name' ? b.customers?.name : orderBy === 'invoice_no' ? b.sales_invoices?.invoice_no : b[orderBy];
         
-        if (orderBy === 'customer_name') {
-          valA = a.customers?.name;
-          valB = b.customers?.name;
-        } else if (orderBy === 'invoice_no') {
-          valA = a.sales_invoices?.invoice_no;
-          valB = b.sales_invoices?.invoice_no;
-        }
-
         valA = valA == null ? '' : valA;
         valB = valB == null ? '' : valB;
 
@@ -166,6 +167,27 @@ export const ReceiptsPage = () => {
   };
 
   const handleAddClick = () => {
+    setEditReceipt(null);
+    setCreateOpen(true);
+  };
+
+  const handleViewClick = (receipt) => {
+    setSelectedReceiptForView(receipt);
+    setDetailsOpen(true);
+  };
+
+  const handleEditClick = (receipt) => {
+    setEditReceipt(receipt);
+    setDetailsOpen(false);
+    setCreateOpen(true);
+  };
+
+  const handleCloneClick = (receipt) => {
+    setEditReceipt({
+      ...receipt,
+      receipt_id: undefined,
+    });
+    setDetailsOpen(false);
     setCreateOpen(true);
   };
 
@@ -197,31 +219,19 @@ export const ReceiptsPage = () => {
   };
 
   return (
-    <Box sx={{ p: 4 }}>
-      {/* Header section */}
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 4 }}>
-        <Box>
-          <Typography variant="h4" sx={{ fontWeight: 800, mb: 1 }}>
-            Customer Receipts
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            Manage payments from customer accounts and invoices. Outstanding invoice balances sync in real-time.
-          </Typography>
-        </Box>
-        <Button variant="contained" startIcon={<AddIcon />} onClick={handleAddClick} size="large">
-          Record Payment
-        </Button>
-      </Box>
-
-      {/* Filters and search */}
-      <Box sx={{ mb: 3 }}>
-        <SearchInput
-          placeholder="Search by customer name, mode, or linked invoice..."
-          value={searchQuery}
-          onChange={setSearchQuery}
-          sx={{ bgcolor: 'background.paper', borderRadius: 2, width: '100%' }}
-        />
-      </Box>
+    <Box sx={{ p: 3 }}>
+      <PageToolbar
+        title="Customer Receipts"
+        subtitle="Manage payments from customer accounts and invoices. Outstanding invoice balances sync in real-time."
+        searchQuery={searchQuery}
+        onSearchChange={setSearchQuery}
+        searchPlaceholder="Search by customer name, mode, or linked invoice..."
+        actions={
+          <Button variant="contained" startIcon={<AddIcon />} onClick={handleAddClick}>
+            Record Payment
+          </Button>
+        }
+      />
 
       {error && (
         <Alert severity="error" sx={{ mb: 3 }}>
@@ -295,13 +305,28 @@ export const ReceiptsPage = () => {
                     {formatCurrency(receipt.amount)}
                   </TableCell>
                   <TableCell align="center">
-                    <IconButton
-                      color="error"
-                      onClick={() => handleDeleteClick(receipt)}
-                      size="small"
-                    >
-                      <DeleteIcon fontSize="small" />
-                    </IconButton>
+                    <Box sx={{ display: 'flex', justifyContent: 'center', gap: 0.5 }}>
+                      <Tooltip title="View Receipt Details">
+                        <IconButton size="small" color="primary" onClick={() => handleViewClick(receipt)}>
+                          <VisibilityIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                      <Tooltip title="Edit Receipt">
+                        <IconButton size="small" color="info" onClick={() => handleEditClick(receipt)}>
+                          <EditIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                      <Tooltip title="Clone Receipt">
+                        <IconButton size="small" color="default" onClick={() => handleCloneClick(receipt)}>
+                          <ContentCopyIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                      <Tooltip title="Delete Receipt">
+                        <IconButton size="small" color="error" onClick={() => handleDeleteClick(receipt)}>
+                          <DeleteIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                    </Box>
                   </TableCell>
                 </TableRow>
               ))}
@@ -319,16 +344,28 @@ export const ReceiptsPage = () => {
           page={page}
           onPageChange={handleChangePage}
           onRowsPerPageChange={handleChangeRowsPerPage}
-          component={Paper}
           sx={{ borderTopLeftRadius: 0, borderTopRightRadius: 0 }}
         />
       )}
 
-      {/* Record receipt modal */}
+      {/* Record/Edit receipt modal */}
       <ReceiptDialog
         open={createOpen}
-        onClose={() => setCreateOpen(false)}
+        onClose={() => {
+          setCreateOpen(false);
+          setEditReceipt(null);
+        }}
         onSaveSuccess={handleSaveSuccess}
+        editReceipt={editReceipt}
+      />
+
+      {/* View receipt details modal */}
+      <ReceiptDetailsDialog
+        open={detailsOpen}
+        onClose={() => setDetailsOpen(false)}
+        receiptId={selectedReceiptForView?.receipt_id}
+        onEdit={handleEditClick}
+        onClone={handleCloneClick}
       />
 
       {/* Delete Confirmation */}

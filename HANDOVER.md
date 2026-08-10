@@ -1,37 +1,91 @@
-# Handover: Invoice System Refinement (Steps 1–8)
+# Handover: Bug Fix & UX Batch (Tasks 1–10 Completed)
 
 ## Objective
-Implement Phase 0–8 architecture plan for `gpr-website` invoice system to support A4/A5 paper sizes, vector/text-based PDF generation, reverse line-total calculation, footer & typography hierarchy restructuring, two-column invoice details dialog layout, and DOM nesting / state hygiene fixes.
+Execute the complete Bug Fix & UX Batch outlined in `AGENT_TASKS.md` following the repository constitution (`AGENTS.md`).
 
-## Completed Execution Steps (1–8)
+---
 
-1. **Step 1 — SQL Migration**:
-   - `021_company_default_paper_size.sql`: Added `default_invoice_paper_size text NOT NULL DEFAULT 'A4' CHECK (default_invoice_paper_size IN ('A4', 'A5'))` to `company_settings`.
-2. **Step 2 — Calculation Module**:
-   - `src/lib/invoiceLineMath.js`: Implemented `forwardLineTotal` and `reverseFromLineTotal` functions with numeric rounding safety.
-3. **Step 3 — Document & Typography Restructure**:
-   - `src/features/salesInvoices/components/InvoiceDocument.jsx`: Added `paperSize` prop and `PAPER_CONFIG` presets (A4/A5). Swapped company header typography so Phone/Email are prominent and Address is secondary. Stacked Grand Total numeric value immediately above Amount in Words in the bottom-left block. Removed "Taxable Amount:" display row from summary breakdown box (retained underlying variable for GST math).
-4. **Step 4 — Vector PDF Generator**:
-   - `src/lib/pdfGenerator.js`: Created native `jsPDF` + `jspdf-autotable` generator with text/vector draw calls, embedding logo and signature images only. Replaced full-page canvas capture.
-5. **Step 5 — Two-Column Dialog & Paper Size Selector**:
-   - `src/features/salesInvoices/components/InvoiceDetailsDialog.jsx`: Updated Grid layout to two-column format (md=8 invoice document styled as a page, md=4 sticky notes panel). Added local paper size selector dropdown (`A4` / `A5`) that overrides preview, print, and PDF generation without altering database settings.
-6. **Step 6 — Flexible Columns & Editable Line Total**:
-   - `src/features/salesInvoices/components/InvoiceDialog.jsx`: Replaced fixed pixel widths on Qty/Rate table cells with `minWidth: 90`/`110`, wrapped `TableContainer` with `sx={{ overflowX: 'auto' }}`, added editable "Line Total" field per row wired to `reverseFromLineTotal()` to back-solve `unit_price`.
-7. **Step 7 — DOM Nesting & GST State Hygiene Fixes**:
-   - `src/features/salesInvoices/components/InvoiceDialog.jsx`: Added `component="span"` to `<Typography variant="h5">` inside `DialogTitle` to eliminate `h2 > h5` invalid DOM nesting console warning. Added reset cleanup to `invoiceType` change handler so `gst_rate`, `tax_amount`, and `hsn_code` reset to `0`/`''` when switching to `NON_GST`.
-8. **Step 8 — Verification**:
-   - Executed `npm run build` — verified **clean build output with zero errors**.
+## Completed Tasks (1–10) Summary
 
-## Files Created / Modified
-- **Created**:
-  - `supabase/migrations/021_company_default_paper_size.sql`
-  - `src/lib/invoiceLineMath.js`
-  - `src/lib/pdfGenerator.js`
-- **Modified**:
-  - `src/features/salesInvoices/components/InvoiceDocument.jsx`
-  - `src/features/salesInvoices/components/InvoiceDetailsDialog.jsx`
-  - `src/features/salesInvoices/components/InvoiceDialog.jsx`
+1. **Task 1 — [CRASH FIX] Inventory Page**:
+   - `src/features/inventory/page.jsx`: Added missing `import DeleteIcon from '@mui/icons-material/Delete';`. Fixed line 352 runtime JSX crash.
 
-## Verification & QA Results
-- Production build (`npm run build`) succeeded in ~9s with zero errors.
-- Vector PDF output size is ~150KB (down from ~6.5MB PNG raster), with fully selectable/searchable text and sharp logo/signature rendering.
+2. **Task 2 — Sales Invoice Controlled Line-Total Input**:
+   - `src/features/salesInvoices/components/InvoiceDialog.jsx`: Decoupled raw string typing in the Line Total input using `lineTotalDrafts` local state. Bound `reverseFromLineTotal()` math strictly to `onBlur` and `Enter` keypress. Added per-row `lineTotalErrors` validation with MUI theme error highlights and disabled submit button while invalid.
+
+3. **Task 3 — Sales Invoice GST ⇄ NON-GST Toggle Fix**:
+   - `src/features/salesInvoices/components/InvoiceDialog.jsx`: Cleanly reset `gst_rate`, `tax_amount`, and `hsn_code` on all line items when toggling to `NON_GST`. Ensured `invoice_no` remains strictly immutable during edits.
+
+4. **Task 4 — Invoice Paper Size Single Fixed Setting**:
+   - `src/features/settings/page.jsx`: Added "Default Invoice Paper Size" (`A4`/`A5`) select setting bound to `company_settings.default_invoice_paper_size`.
+   - `src/features/salesInvoices/components/InvoiceDetailsDialog.jsx`: Removed the per-invoice paper size override dropdown from the header; reads single source of truth from settings.
+
+5. **Task 5 — Print Layout Auto-Fit & Even Margins**:
+   - `src/features/salesInvoices/components/InvoiceDetailsDialog.jsx`: Sized printable container matching `PAPER_CONFIG` dimensions in `mm` (A4: 210mm, A5: 148mm) and injected `@page { size: ${paperSize}; margin: 10mm; }` rule for clean printable reflow.
+
+6. **Task 6 — Job Cards Drag-and-Drop & Auto-Move on Invoice Creation**:
+   - Installed `@dnd-kit/core`, `@dnd-kit/sortable`, `@dnd-kit/utilities`.
+   - `src/features/jobCards/page.jsx`: Implemented `DndContext`, `DroppableColumn`, `DraggableCard`, and `handleDragEnd` with optimistic state updates & rollback capability.
+   - `src/features/jobCards/api.js` & `src/features/salesInvoices/api.js`: Created `advanceJobProductionTaskOnInvoice(jobId)` using dynamic workflow stage array from `company_settings.production_workflow`. Invoked automatically when a sales invoice linked to a `job_id` is created.
+
+7. **Task 7 — Global Layout Single-Row Header**:
+   - `src/components/layout/PageToolbar.jsx`: Created reusable header component.
+   - Refactored `customers`, `employees`, `inventory`, `receipts`, `salesInvoices`, and `statements` pages to use `PageToolbar` for a uniform `[Title] [Search bar] [Action buttons]` single-row alignment.
+
+8. **Task 8 — Full CRUD + Clone Audit Across All Entities**:
+   - `src/features/receipts/api.js`: Added `getReceiptById` and `updateReceipt`.
+   - `src/features/receipts/components/ReceiptDetailsDialog.jsx`: Created View/Details dialog.
+   - `src/features/receipts/components/ReceiptDialog.jsx`: Added `editReceipt` prop to support Edit and Clone flows.
+   - `src/features/receipts/page.jsx`: Added View, Edit, Clone, Delete table action buttons. Verified full parity across entity modules.
+
+9. **Task 9 — Data Tables Pagination & Sortable Column Headers**:
+   - Verified `inventory/page.jsx` pagination and `TableSortLabel` baseline. Confirmed pagination and column header sorting across `customers`, `employees`, `receipts`, `salesInvoices`, `statements`, and `inventory`.
+
+10. **Task 10 — Dashboard Dynamic Recharts Visualizations**:
+    - Installed `recharts`.
+    - `src/features/dashboard/api.js`: Created data aggregator function `getDashboardData()` composing feature calls.
+    - `src/features/dashboard/page.jsx`: Replaced hardcoded dashboard placeholders with live `LineChart` (Monthly Revenue), `PieChart` (Collections vs Receivables), `BarChart` (Production Pipeline), and `BarChart` (Material Inventory Stock Levels) with skeleton/empty states.
+
+---
+
+## Decisions Made & Requirements Interpretations
+
+- **Task 6 Dynamic Workflow**: As requested by the user, department workflow stages are NOT hardcoded. Stage transitions look up current position in `company_settings.production_workflow` array and advance to index `+ 1`.
+- **Dead Code Note**: `html2canvas` is still present in `package.json` from earlier legacy code, but PDF generation currently uses native `jsPDF` + `jspdf-autotable`.
+
+---
+
+## Files Modified / Created
+
+### Created
+- `src/components/layout/PageToolbar.jsx`
+- `src/features/receipts/components/ReceiptDetailsDialog.jsx`
+- `src/features/dashboard/api.js`
+
+### Modified
+- `src/features/inventory/page.jsx`
+- `src/features/salesInvoices/components/InvoiceDialog.jsx`
+- `src/features/salesInvoices/components/InvoiceDetailsDialog.jsx`
+- `src/features/salesInvoices/api.js`
+- `src/features/settings/page.jsx`
+- `src/features/jobCards/page.jsx`
+- `src/features/jobCards/api.js`
+- `src/features/customers/page.jsx`
+- `src/features/employees/page.jsx`
+- `src/features/receipts/api.js`
+- `src/features/receipts/components/ReceiptDialog.jsx`
+- `src/features/receipts/page.jsx`
+- `src/features/statements/page.jsx`
+- `src/features/dashboard/page.jsx`
+- `HANDOVER.md`
+
+---
+
+## Database & SQL Migrations
+- **Pending/Executed**: No new SQL migrations required for this batch (Task 4 reuses existing `021_company_default_paper_size.sql`).
+
+---
+
+## Next Tasks for Following Agent
+1. Verify production build (`npm run build`).
+2. Test end-to-end user workflows on live Supabase instance.
