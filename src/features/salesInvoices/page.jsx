@@ -34,7 +34,8 @@ import BlockIcon from '@mui/icons-material/Block';
 import DeleteIcon from '@mui/icons-material/Delete';
 
 import { useLocation, useNavigate } from 'react-router-dom';
-import { getSalesInvoices, deleteSalesInvoice, voidSalesInvoice } from './api';
+import { getSalesInvoices, deleteSalesInvoice, voidSalesInvoice, getInvoiceTaskProgress } from './api';
+import { getCompanySettings } from '../settings/api';
 import { updateJobStatus } from '../jobCards/api';
 import InvoiceDialog from './components/InvoiceDialog';
 import InvoiceDetailsDialog from './components/InvoiceDetailsDialog';
@@ -44,6 +45,7 @@ import CannotDeleteDialog from '../../components/feedback/CannotDeleteDialog';
 import { SearchInput } from '../../components/ui/SearchInput';
 import { HighlightText } from '../../components/ui/HighlightText';
 import { TablePagination, TableSortLabel, Stack } from '@mui/material';
+import { InvoiceProgressBar } from '../../components/ui/InvoiceProgressBar';
 
 const STATUS_MAP = {
   unpaid: { label: 'Unpaid', color: 'error' },
@@ -57,6 +59,7 @@ const headCells = [
   { id: 'invoice_type', label: 'Type', align: 'left' },
   { id: 'customer_name', label: 'Customer', align: 'left' },
   { id: 'invoice_date', label: 'Date', align: 'left' },
+  { id: 'progress', label: 'Task Progress', align: 'center', disableSort: true },
   { id: 'total_amount', label: 'Total Amount', align: 'right' },
   { id: 'amount_paid', label: 'Amount Paid', align: 'right' },
   { id: 'status', label: 'Status', align: 'center' },
@@ -93,6 +96,9 @@ export const SalesInvoicesPage = () => {
   const [rowsPerPage, setRowsPerPage] = useState(25);
   const [orderBy, setOrderBy] = useState('invoice_date');
   const [order, setOrder] = useState('desc');
+
+  const [taskProgressMap, setTaskProgressMap] = useState({});
+  const [workflow, setWorkflow] = useState([]);
 
   // Kickoff job card state
   const [kickoffJob, setKickoffJob] = useState(null);
@@ -199,6 +205,27 @@ export const SalesInvoicesPage = () => {
     const start = page * rowsPerPage;
     return processedInvoices.slice(start, start + rowsPerPage);
   }, [processedInvoices, page, rowsPerPage]);
+
+  useEffect(() => {
+    const loadTaskProgress = async () => {
+      if (!paginatedInvoices || paginatedInvoices.length === 0) return;
+      const ids = paginatedInvoices.map((inv) => inv.invoice_id);
+      try {
+        const [progressData, settings] = await Promise.all([
+          getInvoiceTaskProgress(ids),
+          getCompanySettings(),
+        ]);
+        setTaskProgressMap((prev) => ({ ...prev, ...progressData }));
+        if (settings?.production_workflow) {
+          setWorkflow(settings.production_workflow);
+        }
+      } catch (err) {
+        console.error('Failed to load invoice task progress:', err);
+      }
+    };
+
+    loadTaskProgress();
+  }, [paginatedInvoices]);
 
   useEffect(() => {
     setPage(0);
@@ -432,7 +459,7 @@ export const SalesInvoicesPage = () => {
               ))
             ) : paginatedInvoices.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={8} align="center" sx={{ py: 6 }}>
+                <TableCell colSpan={9} align="center" sx={{ py: 6 }}>
                   <Typography variant="body1" color="text.secondary">
                     No invoices found. Click "Create Invoice" to record sales billing.
                   </Typography>
@@ -451,6 +478,12 @@ export const SalesInvoicesPage = () => {
                     <HighlightText text={inv.customers?.name || '—'} highlight={searchQuery} />
                   </TableCell>
                   <TableCell>{formatDate(inv.invoice_date)}</TableCell>
+                  <TableCell align="center" sx={{ minWidth: 140 }}>
+                    <InvoiceProgressBar
+                      taskStatuses={taskProgressMap[inv.invoice_id] || []}
+                      workflow={workflow}
+                    />
+                  </TableCell>
                   <TableCell align="right" sx={{ fontWeight: 600 }}>{formatCurrency(inv.total_amount)}</TableCell>
                   <TableCell align="right" sx={{ color: 'success.main', fontWeight: 600 }}>
                     {formatCurrency(inv.amount_paid)}

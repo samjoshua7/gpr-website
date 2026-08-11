@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Box,
   Button,
@@ -28,6 +28,10 @@ import SearchIcon from '@mui/icons-material/Search';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import ArrowBackIcon from '@mui/icons-material/ArrowBack';
+import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
+import KeyboardArrowUpIcon from '@mui/icons-material/KeyboardArrowUp';
+import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Swiper, SwiperSlide } from 'swiper/react';
@@ -54,6 +58,107 @@ import {
   useSensor,
   useSensors,
 } from '@dnd-kit/core';
+
+const ColumnCardList = ({ children, colCardsCount }) => {
+  const containerRef = useRef(null);
+  const [canScrollUp, setCanScrollUp] = useState(false);
+  const [canScrollDown, setCanScrollDown] = useState(false);
+
+  const checkScroll = useCallback(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const { scrollTop, clientHeight, scrollHeight } = el;
+    setCanScrollUp(scrollTop > 5);
+    setCanScrollDown(scrollTop + clientHeight < scrollHeight - 5);
+  }, []);
+
+  useEffect(() => {
+    checkScroll();
+  }, [children, colCardsCount, checkScroll]);
+
+  const handleScrollStep = (direction) => {
+    const el = containerRef.current;
+    if (!el) return;
+    const step = 140;
+    el.scrollBy({
+      top: direction === 'up' ? -step : step,
+      behavior: 'smooth',
+    });
+  };
+
+  return (
+    <Box sx={{ position: 'relative', flexGrow: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      {/* Up Indicator */}
+      {canScrollUp && (
+        <IconButton
+          size="small"
+          onClick={() => handleScrollStep('up')}
+          sx={{
+            position: 'absolute',
+            top: 4,
+            left: '50%',
+            transform: 'translateX(-50%)',
+            zIndex: 4,
+            bgcolor: 'background.paper',
+            boxShadow: 2,
+            width: 28,
+            height: 28,
+            border: '1px solid rgba(0,0,0,0.12)',
+            '&:hover': { bgcolor: 'background.paper' },
+          }}
+        >
+          <KeyboardArrowUpIcon fontSize="small" />
+        </IconButton>
+      )}
+
+      {/* Fixed Height Scrollable Container with Modern Scrollbar */}
+      <Box
+        ref={containerRef}
+        onScroll={checkScroll}
+        sx={{
+          height: 'calc(100vh - 240px)',
+          minHeight: 460,
+          maxHeight: 700,
+          p: 1.5,
+          overflowY: 'auto',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 1.5,
+          scrollbarWidth: 'thin',
+          scrollbarColor: 'rgba(0,0,0,0.2) transparent',
+          '&::-webkit-scrollbar': { width: 6 },
+          '&::-webkit-scrollbar-thumb': { backgroundColor: 'rgba(0,0,0,0.2)', borderRadius: 3 },
+          '&::-webkit-scrollbar-track': { backgroundColor: 'transparent' },
+        }}
+      >
+        {children}
+      </Box>
+
+      {/* Down Indicator */}
+      {canScrollDown && (
+        <IconButton
+          size="small"
+          onClick={() => handleScrollStep('down')}
+          sx={{
+            position: 'absolute',
+            bottom: 4,
+            left: '50%',
+            transform: 'translateX(-50%)',
+            zIndex: 4,
+            bgcolor: 'background.paper',
+            boxShadow: 2,
+            width: 28,
+            height: 28,
+            border: '1px solid rgba(0,0,0,0.12)',
+            '&:hover': { bgcolor: 'background.paper' },
+          }}
+        >
+          <KeyboardArrowDownIcon fontSize="small" />
+        </IconButton>
+      )}
+    </Box>
+  );
+};
 
 const DroppableColumn = ({ stepName, children }) => {
   const { setNodeRef, isOver } = useDroppable({ id: stepName });
@@ -258,6 +363,44 @@ export const JobCardsPage = () => {
     }
   };
 
+  // Move task to previous workflow step
+  const handleMoveToPrevious = async (card, currentStepIndex) => {
+    const prevStep = workflow[currentStepIndex - 1];
+    if (prevStep && currentStepIndex > 1) {
+      try {
+        await updateProductionTaskStatus(card.task_id, prevStep);
+        fetchKanbanBoardData();
+      } catch (err) {
+        console.error(err);
+        setError('Failed to move task backward.');
+      }
+    }
+  };
+
+  const boardRef = useRef(null);
+
+  useEffect(() => {
+    const container = boardRef.current;
+    if (!container) return;
+
+    const handleWheel = (e) => {
+      if (e.shiftKey || Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
+        const delta = e.shiftKey ? e.deltaY || e.deltaX : e.deltaX;
+        if (delta !== 0) {
+          const swiperEl = container.querySelector('.swiper');
+          if (swiperEl) {
+            swiperEl.scrollLeft += delta;
+          } else {
+            container.scrollLeft += delta;
+          }
+        }
+      }
+    };
+
+    container.addEventListener('wheel', handleWheel, { passive: true });
+    return () => container.removeEventListener('wheel', handleWheel);
+  }, []);
+
   const getFilteredCards = (stepName, isFirstStep) => {
     const query = searchQuery.toLowerCase().trim();
     let filtered;
@@ -379,6 +522,7 @@ export const JobCardsPage = () => {
       {/* Kanban Columns Grid using DndContext + Swiper */}
       <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
         <Box
+          ref={boardRef}
           sx={{
             flexGrow: 1,
             pb: 4,
@@ -403,9 +547,12 @@ export const JobCardsPage = () => {
               return (
                 <SwiperSlide key={stepName}>
                   <DroppableColumn stepName={stepName}>
-                    {/* Column Header */}
+                    {/* Column Header - Sticky pinned at top */}
                     <Box
                       sx={{
+                        position: 'sticky',
+                        top: 0,
+                        zIndex: 2,
                         p: 2,
                         display: 'flex',
                         alignItems: 'center',
@@ -432,17 +579,8 @@ export const JobCardsPage = () => {
                       />
                     </Box>
 
-                    {/* Cards List container */}
-                    <Box
-                      sx={{
-                        flexGrow: 1,
-                        p: 1.5,
-                        overflowY: 'auto',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        gap: 1.5,
-                      }}
-                    >
+                    {/* Cards List container with fixed height and edge scroll indicators */}
+                    <ColumnCardList colCardsCount={colCards.length}>
                       {loading ? (
                         Array.from(new Array(3)).map((_, i) => (
                           <Card key={i} variant="outlined" sx={{ borderRadius: 2 }}>
@@ -532,8 +670,8 @@ export const JobCardsPage = () => {
                                     </Box>
                                   </Box>
 
-                                  {/* Action Buttons for Employees */}
-                                  {!isLastStep && (
+                                  {/* Per-column action button scheme */}
+                                  {isFirstStep ? (
                                     <Button 
                                       variant="contained" 
                                       fullWidth 
@@ -541,7 +679,7 @@ export const JobCardsPage = () => {
                                       startIcon={<CheckCircleIcon />}
                                       onClick={(e) => {
                                         e.stopPropagation();
-                                        handleMoveToNext(card, isFirstStep ? 'job' : 'task', index);
+                                        handleMoveToNext(card, 'job', index);
                                       }}
                                       sx={{ 
                                         textTransform: 'none', 
@@ -550,16 +688,56 @@ export const JobCardsPage = () => {
                                         '&:hover': { bgcolor: colColor, filter: 'brightness(0.9)' }
                                       }}
                                     >
-                                      {isFirstStep ? 'Generate Invoice' : 'Mark Finished'}
+                                      CREATE INVOICE
                                     </Button>
-                                  )}
+                                  ) : index === 1 ? (
+                                    <Button
+                                      variant="contained"
+                                      fullWidth
+                                      size="small"
+                                      color="success"
+                                      endIcon={<ArrowForwardIcon />}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleMoveToNext(card, 'task', index);
+                                      }}
+                                      sx={{ textTransform: 'none', fontWeight: 700 }}
+                                    >
+                                      Next Stage
+                                    </Button>
+                                  ) : !isLastStep ? (
+                                    <Box sx={{ display: 'flex', gap: 1, justifyContent: 'space-between' }}>
+                                      <IconButton
+                                        size="small"
+                                        color="error"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleMoveToPrevious(card, index);
+                                        }}
+                                        sx={{ border: '1px solid', borderColor: 'error.main', borderRadius: 1 }}
+                                      >
+                                        <ArrowBackIcon fontSize="small" />
+                                      </IconButton>
+                                      <IconButton
+                                        size="small"
+                                        color="success"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleMoveToNext(card, 'task', index);
+                                        }}
+                                        sx={{ border: '1px solid', borderColor: 'success.main', borderRadius: 1 }}
+                                      >
+                                        <ArrowForwardIcon fontSize="small" />
+                                      </IconButton>
+                                    </Box>
+                                  ) : null}
                                 </CardContent>
                               </Card>
                             </DraggableCard>
                           );
                         })
                       )}
-                    </Box>
+                    </ColumnCardList>
                   </DroppableColumn>
                 </SwiperSlide>
               );

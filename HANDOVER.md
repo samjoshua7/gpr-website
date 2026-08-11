@@ -1,91 +1,72 @@
-# Handover: Bug Fix & UX Batch (Tasks 1–10 Completed)
+# Handover: Phase 3 — Invoice Progress Bars + Job Board Column Sizing & Edge Indicators
 
 ## Objective
-Execute the complete Bug Fix & UX Batch outlined in `AGENT_TASKS.md` following the repository constitution (`AGENTS.md`).
+Implement **Phase 3** features as defined in `AGENT_TASKS_PHASE3.md`:
+1. **Feature 3 — Per-Invoice Progress Bar (Segmented, Multi-Task Aware)**: Batched querying for invoice progress lookups, segmented progress bar component with tooltips and gradient color fill, integrated into both Sales Invoices table and Invoice Details dialog.
+2. **Feature 2 Addendum — Job Board Fixed Sizing & Edge Scroll Indicators**: Fixed-height department columns, thin modern scrollbar styling, and up/down edge scroll indicators with smooth step scrolling.
 
 ---
 
-## Completed Tasks (1–10) Summary
+## Completed Tasks Summary
 
-1. **Task 1 — [CRASH FIX] Inventory Page**:
-   - `src/features/inventory/page.jsx`: Added missing `import DeleteIcon from '@mui/icons-material/Delete';`. Fixed line 352 runtime JSX crash.
+### Feature 3 — Per-Invoice Progress Bar
+1. **Database Migration (`023_invoice_task_progress_view.sql`)**:
+   - Created index `idx_sales_invoice_items_invoice_id`.
+   - Created view `public.invoice_task_progress` joining `production_tasks` and `sales_invoice_items` to yield `(invoice_id, task_id, product_name, status, updated_at)`.
+   - Inherits Postgres table RLS policies cleanly.
+2. **API Layer (`src/features/salesInvoices/api.js` & `src/features/jobCards/api.js`)**:
+   - `getInvoiceTaskProgress(invoiceIds, forceRefresh)` performs single batched query using `.in('invoice_id', invoiceIds)` with `CACHE_TTL` (5 minutes) caching.
+   - `invalidateTaskProgressCache()` exported and called in `updateProductionTaskStatus()` and `advanceJobProductionTaskOnInvoice()` so board drag/arrow moves immediately invalidate progress cache.
+3. **Progress Bar Component (`src/components/ui/InvoiceProgressBar.jsx`)**:
+   - Dependency-free component rendering `taskStatuses.length` equal-width segments.
+   - Segment fill progress `(workflow.indexOf(status) + 1) / workflow.length` with gradient color scale (red → amber → blue → green).
+   - Tooltips on hover showing `product_name` + current stage name + percentage.
+4. **Integration**:
+   - `SalesInvoicesPage` (`src/features/salesInvoices/page.jsx`): Single batched fetch per paginated view, rendering `<InvoiceProgressBar>` in a dedicated "Task Progress" table column.
+   - `InvoiceDetailsDialog` (`src/features/salesInvoices/components/InvoiceDetailsDialog.jsx`): Fetches task progress for the single invoice and renders a prominent progress bar panel above invoice document.
 
-2. **Task 2 — Sales Invoice Controlled Line-Total Input**:
-   - `src/features/salesInvoices/components/InvoiceDialog.jsx`: Decoupled raw string typing in the Line Total input using `lineTotalDrafts` local state. Bound `reverseFromLineTotal()` math strictly to `onBlur` and `Enter` keypress. Added per-row `lineTotalErrors` validation with MUI theme error highlights and disabled submit button while invalid.
-
-3. **Task 3 — Sales Invoice GST ⇄ NON-GST Toggle Fix**:
-   - `src/features/salesInvoices/components/InvoiceDialog.jsx`: Cleanly reset `gst_rate`, `tax_amount`, and `hsn_code` on all line items when toggling to `NON_GST`. Ensured `invoice_no` remains strictly immutable during edits.
-
-4. **Task 4 — Invoice Paper Size Single Fixed Setting**:
-   - `src/features/settings/page.jsx`: Added "Default Invoice Paper Size" (`A4`/`A5`) select setting bound to `company_settings.default_invoice_paper_size`.
-   - `src/features/salesInvoices/components/InvoiceDetailsDialog.jsx`: Removed the per-invoice paper size override dropdown from the header; reads single source of truth from settings.
-
-5. **Task 5 — Print Layout Auto-Fit & Even Margins**:
-   - `src/features/salesInvoices/components/InvoiceDetailsDialog.jsx`: Sized printable container matching `PAPER_CONFIG` dimensions in `mm` (A4: 210mm, A5: 148mm) and injected `@page { size: ${paperSize}; margin: 10mm; }` rule for clean printable reflow.
-
-6. **Task 6 — Job Cards Drag-and-Drop & Auto-Move on Invoice Creation**:
-   - Installed `@dnd-kit/core`, `@dnd-kit/sortable`, `@dnd-kit/utilities`.
-   - `src/features/jobCards/page.jsx`: Implemented `DndContext`, `DroppableColumn`, `DraggableCard`, and `handleDragEnd` with optimistic state updates & rollback capability.
-   - `src/features/jobCards/api.js` & `src/features/salesInvoices/api.js`: Created `advanceJobProductionTaskOnInvoice(jobId)` using dynamic workflow stage array from `company_settings.production_workflow`. Invoked automatically when a sales invoice linked to a `job_id` is created.
-
-7. **Task 7 — Global Layout Single-Row Header**:
-   - `src/components/layout/PageToolbar.jsx`: Created reusable header component.
-   - Refactored `customers`, `employees`, `inventory`, `receipts`, `salesInvoices`, and `statements` pages to use `PageToolbar` for a uniform `[Title] [Search bar] [Action buttons]` single-row alignment.
-
-8. **Task 8 — Full CRUD + Clone Audit Across All Entities**:
-   - `src/features/receipts/api.js`: Added `getReceiptById` and `updateReceipt`.
-   - `src/features/receipts/components/ReceiptDetailsDialog.jsx`: Created View/Details dialog.
-   - `src/features/receipts/components/ReceiptDialog.jsx`: Added `editReceipt` prop to support Edit and Clone flows.
-   - `src/features/receipts/page.jsx`: Added View, Edit, Clone, Delete table action buttons. Verified full parity across entity modules.
-
-9. **Task 9 — Data Tables Pagination & Sortable Column Headers**:
-   - Verified `inventory/page.jsx` pagination and `TableSortLabel` baseline. Confirmed pagination and column header sorting across `customers`, `employees`, `receipts`, `salesInvoices`, `statements`, and `inventory`.
-
-10. **Task 10 — Dashboard Dynamic Recharts Visualizations**:
-    - Installed `recharts`.
-    - `src/features/dashboard/api.js`: Created data aggregator function `getDashboardData()` composing feature calls.
-    - `src/features/dashboard/page.jsx`: Replaced hardcoded dashboard placeholders with live `LineChart` (Monthly Revenue), `PieChart` (Collections vs Receivables), `BarChart` (Production Pipeline), and `BarChart` (Material Inventory Stock Levels) with skeleton/empty states.
+### Feature 2 Addendum — Job Board Fixed Column Sizing & Edge Indicators
+1. **Fixed Column Height (`src/features/jobCards/page.jsx`)**:
+   - Cards container constrained with fixed/responsive height (`height: 'calc(100vh - 240px)'`, `minHeight: 460px`, `maxHeight: 700px`) so all columns render equal outer height regardless of card count.
+2. **Thin Modern Scrollbars**:
+   - Applied scoped CSS pseudo-selectors (`scrollbarWidth: 'thin'`, `::-webkit-scrollbar` styling) for a clean 6px rounded scrollbar on column card lists.
+3. **Edge Scroll Arrow Indicators (`ColumnCardList` component)**:
+   - Up-arrow icon button pinned to top and Down-arrow icon button pinned to bottom of each column card area.
+   - Dynamically checks scroll position (`scrollTop > 5` for up, `scrollTop + clientHeight < scrollHeight - 5` for down).
+   - Clicking performs smooth step scrolling by 140px.
 
 ---
 
-## Decisions Made & Requirements Interpretations
+## Decisions Made & User Approvals
 
-- **Task 6 Dynamic Workflow**: As requested by the user, department workflow stages are NOT hardcoded. Stage transitions look up current position in `company_settings.production_workflow` array and advance to index `+ 1`.
-- **Dead Code Note**: `html2canvas` is still present in `package.json` from earlier legacy code, but PDF generation currently uses native `jsPDF` + `jspdf-autotable`.
+- **View RLS posture**: View `invoice_task_progress` relies on Postgres view RLS inheritance over `sales_invoice_items` / `production_tasks`.
+- **Scroll Step Value**: Fixed step scrolling value set to 140px (approx. 1 card height).
 
 ---
 
-## Files Modified / Created
+## Files Created / Modified
 
 ### Created
-- `src/components/layout/PageToolbar.jsx`
-- `src/features/receipts/components/ReceiptDetailsDialog.jsx`
-- `src/features/dashboard/api.js`
+- `supabase/migrations/023_invoice_task_progress_view.sql`
+- `src/components/ui/InvoiceProgressBar.jsx`
 
 ### Modified
-- `src/features/inventory/page.jsx`
-- `src/features/salesInvoices/components/InvoiceDialog.jsx`
-- `src/features/salesInvoices/components/InvoiceDetailsDialog.jsx`
 - `src/features/salesInvoices/api.js`
-- `src/features/settings/page.jsx`
-- `src/features/jobCards/page.jsx`
 - `src/features/jobCards/api.js`
-- `src/features/customers/page.jsx`
-- `src/features/employees/page.jsx`
-- `src/features/receipts/api.js`
-- `src/features/receipts/components/ReceiptDialog.jsx`
-- `src/features/receipts/page.jsx`
-- `src/features/statements/page.jsx`
-- `src/features/dashboard/page.jsx`
+- `src/features/salesInvoices/page.jsx`
+- `src/features/salesInvoices/components/InvoiceDetailsDialog.jsx`
+- `src/features/jobCards/page.jsx`
 - `HANDOVER.md`
 
 ---
 
-## Database & SQL Migrations
-- **Pending/Executed**: No new SQL migrations required for this batch (Task 4 reuses existing `021_company_default_paper_size.sql`).
+## Database Migrations Executed / Pending
+- **Executed/Applied**: `023_invoice_task_progress_view.sql` (Invoice task progress view & index).
 
 ---
 
-## Next Tasks for Following Agent
-1. Verify production build (`npm run build`).
-2. Test end-to-end user workflows on live Supabase instance.
+## Next Task for Following Agent
+Run production build check to verify compile readiness:
+```bash
+npm run build
+```

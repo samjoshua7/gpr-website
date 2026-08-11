@@ -22,12 +22,13 @@ import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
 import WhatsAppIcon from '@mui/icons-material/WhatsApp';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import PrintIcon from '@mui/icons-material/Print';
-import { getInvoiceById } from '../api';
+import { getInvoiceById, getInvoiceTaskProgress } from '../api';
 import { getCompanySettings } from '../../settings/api';
 import { InvoiceDocument } from './InvoiceDocument';
 import { InvoiceNotesPanel } from './InvoiceNotesPanel';
 import { getSavedDirectoryHandle } from '../../../lib/savedLocation';
 import { generateInvoicePdf } from '../../../lib/pdfGenerator';
+import { InvoiceProgressBar } from '../../../components/ui/InvoiceProgressBar';
 
 const STATUS_MAP = {
   unpaid: { label: 'Unpaid', color: 'error' },
@@ -40,6 +41,8 @@ export const InvoiceDetailsDialog = ({ open, onClose, invoiceId, onEdit, onClone
   const [invoice, setInvoice] = useState(null);
   const [companySettings, setCompanySettings] = useState(null);
   const [paperSize, setPaperSize] = useState('A4');
+  const [taskStatuses, setTaskStatuses] = useState([]);
+  const [workflow, setWorkflow] = useState([]);
   const [loading, setLoading] = useState(false);
   const [downloadingPdf, setDownloadingPdf] = useState(false);
   const [error, setError] = useState(null);
@@ -132,12 +135,17 @@ export const InvoiceDetailsDialog = ({ open, onClose, invoiceId, onEdit, onClone
       setLoading(true);
       setError(null);
       try {
-        const [data, settingsData] = await Promise.all([
+        const [data, settingsData, progressData] = await Promise.all([
           getInvoiceById(invoiceId),
           getCompanySettings(),
+          getInvoiceTaskProgress([invoiceId]),
         ]);
         setInvoice(data);
         setCompanySettings(settingsData);
+        setTaskStatuses(progressData[invoiceId] || []);
+        if (settingsData?.production_workflow) {
+          setWorkflow(settingsData.production_workflow);
+        }
         if (settingsData?.default_invoice_paper_size) {
           setPaperSize(settingsData.default_invoice_paper_size);
         }
@@ -153,6 +161,7 @@ export const InvoiceDetailsDialog = ({ open, onClose, invoiceId, onEdit, onClone
       fetchInvoiceDetails();
     } else {
       setInvoice(null);
+      setTaskStatuses([]);
     }
   }, [open, invoiceId]);
 
@@ -243,26 +252,37 @@ export const InvoiceDetailsDialog = ({ open, onClose, invoiceId, onEdit, onClone
         ) : !invoice ? (
           <Typography>No invoice loaded.</Typography>
         ) : (
-          <Grid container spacing={3}>
-            {/* Left Column (md=8): Printable Invoice Document styled as a page */}
-            <Grid item xs={12} md={8}>
-              <Paper elevation={2} sx={{ p: 1, bgcolor: '#ffffff', borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
-                <InvoiceDocument
-                  invoice={invoice}
-                  companySettings={companySettings}
-                  paperSize={paperSize}
-                />
+          <Box>
+            {taskStatuses && taskStatuses.length > 0 && (
+              <Paper className="no-print" elevation={0} sx={{ p: 2, mb: 3, bgcolor: '#ffffff', borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
+                <Typography variant="caption" color="text.secondary" fontWeight={700} display="block" sx={{ mb: 1, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                  Production Task Progress:
+                </Typography>
+                <InvoiceProgressBar taskStatuses={taskStatuses} workflow={workflow} height={12} showLabel />
               </Paper>
-            </Grid>
+            )}
 
-            {/* Right Column (md=4): Screen-only internal notes panel styled as sticky note */}
-            <Grid item xs={12} md={4} className="no-print">
-              <InvoiceNotesPanel
-                invoice={invoice}
-                onNotesUpdated={(updated) => setInvoice(updated)}
-              />
+            <Grid container spacing={3}>
+              {/* Left Column (md=8): Printable Invoice Document styled as a page */}
+              <Grid item xs={12} md={8}>
+                <Paper elevation={2} sx={{ p: 1, bgcolor: '#ffffff', borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
+                  <InvoiceDocument
+                    invoice={invoice}
+                    companySettings={companySettings}
+                    paperSize={paperSize}
+                  />
+                </Paper>
+              </Grid>
+
+              {/* Right Column (md=4): Screen-only internal notes panel styled as sticky note */}
+              <Grid item xs={12} md={4} className="no-print">
+                <InvoiceNotesPanel
+                  invoice={invoice}
+                  onNotesUpdated={(updated) => setInvoice(updated)}
+                />
+              </Grid>
             </Grid>
-          </Grid>
+          </Box>
         )}
       </DialogContent>
       <DialogActions className="no-print" sx={{ p: 2 }}>

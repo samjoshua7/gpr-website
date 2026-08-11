@@ -3,11 +3,65 @@ import { advanceJobProductionTaskOnInvoice } from '../jobCards/api';
 
 let cachedSalesInvoices = null;
 let lastFetchTimeSalesInvoices = null;
+let cachedTaskProgressMap = null;
+let lastFetchTimeTaskProgress = null;
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
 export const invalidateSalesInvoicesCache = () => {
   cachedSalesInvoices = null;
   lastFetchTimeSalesInvoices = null;
+};
+
+export const invalidateTaskProgressCache = () => {
+  cachedTaskProgressMap = null;
+  lastFetchTimeTaskProgress = null;
+};
+
+export const getInvoiceTaskProgress = async (invoiceIds = [], forceRefresh = false) => {
+  if (!invoiceIds || invoiceIds.length === 0) return {};
+
+  if (
+    !forceRefresh &&
+    cachedTaskProgressMap &&
+    lastFetchTimeTaskProgress &&
+    Date.now() - lastFetchTimeTaskProgress < CACHE_TTL
+  ) {
+    const result = {};
+    invoiceIds.forEach((id) => {
+      if (cachedTaskProgressMap[id]) {
+        result[id] = cachedTaskProgressMap[id];
+      }
+    });
+    return result;
+  }
+
+  const { data, error } = await supabase
+    .from('invoice_task_progress')
+    .select('*')
+    .in('invoice_id', invoiceIds);
+
+  if (error) {
+    console.error('Error fetching invoice task progress:', error);
+    return {};
+  }
+
+  const grouped = {};
+  (data || []).forEach((row) => {
+    if (!grouped[row.invoice_id]) {
+      grouped[row.invoice_id] = [];
+    }
+    grouped[row.invoice_id].push({
+      task_id: row.task_id,
+      product_name: row.product_name,
+      status: row.status,
+      updated_at: row.updated_at,
+    });
+  });
+
+  cachedTaskProgressMap = { ...(cachedTaskProgressMap || {}), ...grouped };
+  lastFetchTimeTaskProgress = Date.now();
+
+  return grouped;
 };
 export const getSalesInvoices = async (searchQuery = '', statusFilter = '', forceRefresh = false) => {
   if (!forceRefresh && cachedSalesInvoices && !searchQuery && (!statusFilter || statusFilter === 'all') && lastFetchTimeSalesInvoices && (Date.now() - lastFetchTimeSalesInvoices < CACHE_TTL)) {

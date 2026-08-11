@@ -13,6 +13,7 @@ import { DashboardPage } from '../features/dashboard/page';
 import { CustomersPage } from '../features/customers/page';
 import { CustomerLedgerPage } from '../features/customers/CustomerLedgerPage';
 import { JobCardsPage } from '../features/jobCards/page';
+import { QuotationsPage } from '../features/quotations/page';
 import { SalesInvoicesPage } from '../features/salesInvoices/page';
 import { ReceiptsPage } from '../features/receipts/page';
 import { InventoryPage } from '../features/inventory/page';
@@ -75,6 +76,14 @@ export const router = createBrowserRouter([
       {
         path: 'jobs',
         element: <JobCardsPage />,
+      },
+      {
+        path: 'quotations',
+        element: (
+          <AuthGuard allowedRoles={['SUPER_ADMIN', 'STAFF']}>
+            <QuotationsPage />
+          </AuthGuard>
+        ),
       },
       {
         path: 'invoices',

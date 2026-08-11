@@ -1,4 +1,5 @@
 import { supabase } from '../../lib/supabaseClient';
+import { invalidateTaskProgressCache } from '../salesInvoices/api';
 
 let cachedJobCards = null;
 let lastFetchTimeJobCards = null;
@@ -198,6 +199,7 @@ export const updateProductionTaskStatus = async (taskId, status) => {
   }
 
   invalidateProductionTasksCache();
+  invalidateTaskProgressCache();
   return data;
 };
 
@@ -267,6 +269,7 @@ export const advanceJobProductionTaskOnInvoice = async (jobId) => {
 
     invalidateProductionTasksCache();
     invalidateJobCardsCache();
+    invalidateTaskProgressCache();
   } catch (err) {
     console.error('Failed to auto-advance job stage on invoice creation:', err);
   }
