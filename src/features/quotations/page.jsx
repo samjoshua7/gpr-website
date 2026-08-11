@@ -33,8 +33,10 @@ import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import PageToolbar from '../../components/layout/PageToolbar';
 import { HighlightText } from '../../components/ui/HighlightText';
 import { getQuotations, deleteQuotation } from './api';
-import QuotationDialog from './components/QuotationDialog';
+import InvoiceDialog from '../salesInvoices/components/InvoiceDialog';
 import QuotationDetailsDialog from './components/QuotationDetailsDialog';
+
+import { formatDate } from '../../lib/formatDate';
 
 const STATUS_MAP = {
   draft: { label: 'Draft', color: 'warning' },
@@ -59,17 +61,6 @@ const currencyFormatter = new Intl.NumberFormat('en-IN', {
 });
 
 const formatCurrency = (amount) => currencyFormatter.format(amount || 0);
-
-const dateFormatter = new Intl.DateTimeFormat('en-IN', {
-  day: '2-digit',
-  month: 'short',
-  year: 'numeric',
-});
-
-const formatDate = (dateStr) => {
-  if (!dateStr) return '—';
-  return dateFormatter.format(new Date(dateStr));
-};
 
 export const QuotationsPage = () => {
   const [quotations, setQuotations] = useState([]);
@@ -352,11 +343,12 @@ export const QuotationsPage = () => {
       )}
 
       {/* Dialogs */}
-      <QuotationDialog
+      <InvoiceDialog
         open={dialogOpen}
         onClose={() => setDialogOpen(false)}
         onSaveSuccess={fetchQuotationsData}
         editQuotation={editQuotation}
+        isQuotation={true}
       />
 
       <QuotationDetailsDialog

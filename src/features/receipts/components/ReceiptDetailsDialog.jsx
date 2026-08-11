@@ -22,6 +22,7 @@ import PrintIcon from '@mui/icons-material/Print';
 import DeleteIcon from '@mui/icons-material/Delete';
 import { getReceiptById, deleteReceipt } from '../api';
 import { getCompanySettings } from '../../settings/api';
+import { formatDate } from '../../../lib/formatDate';
 
 const MODE_MAP = {
   cash: { label: 'Cash', color: 'success' },
@@ -67,15 +68,6 @@ export const ReceiptDetailsDialog = ({ open, onClose, receiptId, onEdit, onClone
 
   const formatCurrency = (amt) =>
     new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(amt || 0);
-
-  const formatDate = (dateStr) => {
-    if (!dateStr) return '—';
-    return new Date(dateStr).toLocaleDateString('en-IN', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-    });
-  };
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>

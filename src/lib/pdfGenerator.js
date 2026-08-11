@@ -1,6 +1,7 @@
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { amountInWords } from './amountInWords';
+import { formatDate } from './formatDate';
 
 function loadImageAsBase64(url) {
   if (!url) return Promise.resolve(null);
@@ -213,7 +214,7 @@ export async function generateInvoicePdf(invoice, companySettings, paperSize = '
   doc.text('Date:', rightCardX + 3, cy);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(0, 0, 0);
-  const formattedDate = invoice.invoice_date ? new Date(invoice.invoice_date).toLocaleDateString('en-IN') : 'N/A';
+  const formattedDate = formatDate(invoice.invoice_date);
   doc.text(formattedDate, rightCardX + cardWidth - 3, cy, { align: 'right' });
 
   if (isGst) {

@@ -5,6 +5,7 @@ import { AuthGuard } from './guards/AuthGuard';
 // Layout and Feedback Pages
 import AppShell from '../components/layout/AppShell';
 import NotFoundPage from '../components/feedback/NotFoundPage';
+import RouteErrorPage from '../components/feedback/RouteErrorPage';
 
 // Feature Pages
 import { LoginPage } from '../features/auth/page';
@@ -52,6 +53,7 @@ export const router = createBrowserRouter([
         <AppShell />
       </AuthGuard>
     ),
+    errorElement: <RouteErrorPage />,
     children: [
       {
         index: true,

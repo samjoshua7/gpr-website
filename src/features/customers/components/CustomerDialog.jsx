@@ -10,8 +10,10 @@ import {
   Alert,
   CircularProgress,
   Grid,
+  Typography,
 } from '@mui/material';
 import { createCustomer, updateCustomer } from '../api';
+import { formatDate } from '../../../lib/formatDate';
 
 const GSTIN_REGEX = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/;
 
@@ -93,7 +95,7 @@ export const CustomerDialog = ({ open, onClose, customer, onSaveSuccess }) => {
       email: email.trim() || null,
       address: address.trim() || null,
       gstin: gstin.trim().toUpperCase() || null,
-      opening_balance: parseFloat(openingBalance),
+      opening_balance: parseFloat(openingBalance) || 0.00,
     };
 
     try {
@@ -114,8 +116,13 @@ export const CustomerDialog = ({ open, onClose, customer, onSaveSuccess }) => {
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
-      <DialogTitle sx={{ fontWeight: 700 }}>
-        {isEditMode ? 'Edit Customer' : 'Add New Customer'}
+      <DialogTitle sx={{ fontWeight: 700, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span>{isEditMode ? 'Edit Customer' : 'Add New Customer'}</span>
+        {isEditMode && customer?.created_at && (
+          <Typography variant="caption" color="text.secondary" fontWeight={600}>
+            Created on {formatDate(customer.created_at)}
+          </Typography>
+        )}
       </DialogTitle>
       <Box component="form" onSubmit={handleSubmit} noValidate>
         <DialogContent dividers>

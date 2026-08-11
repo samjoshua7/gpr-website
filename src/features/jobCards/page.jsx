@@ -35,10 +35,12 @@ import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Swiper, SwiperSlide } from 'swiper/react';
-import { Navigation, Pagination } from 'swiper/modules';
+import { Navigation, Pagination, Mousewheel } from 'swiper/modules';
 import 'swiper/css';
 import 'swiper/css/navigation';
 import 'swiper/css/pagination';
+import { formatDate } from '../../lib/formatDate';
+import { HighlightText } from '../../components/ui/HighlightText';
 
 import {
   getJobCards,
@@ -379,28 +381,6 @@ export const JobCardsPage = () => {
 
   const boardRef = useRef(null);
 
-  useEffect(() => {
-    const container = boardRef.current;
-    if (!container) return;
-
-    const handleWheel = (e) => {
-      if (e.shiftKey || Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
-        const delta = e.shiftKey ? e.deltaY || e.deltaX : e.deltaX;
-        if (delta !== 0) {
-          const swiperEl = container.querySelector('.swiper');
-          if (swiperEl) {
-            swiperEl.scrollLeft += delta;
-          } else {
-            container.scrollLeft += delta;
-          }
-        }
-      }
-    };
-
-    container.addEventListener('wheel', handleWheel, { passive: true });
-    return () => container.removeEventListener('wheel', handleWheel);
-  }, []);
-
   const getFilteredCards = (stepName, isFirstStep) => {
     const query = searchQuery.toLowerCase().trim();
     let filtered;
@@ -409,16 +389,22 @@ export const JobCardsPage = () => {
         .filter((j) => j.status === 'pending')
         .filter(
           (j) =>
+            !query ||
             j.description?.toLowerCase().includes(query) ||
-            j.customers?.name?.toLowerCase().includes(query)
+            j.customers?.name?.toLowerCase().includes(query) ||
+            `jc-${String(j.job_number || 0).padStart(4, '0')}`.includes(query) ||
+            String(j.job_number || 0).includes(query)
         );
     } else {
       filtered = tasks
         .filter((t) => t.status === stepName)
         .filter(
           (t) =>
+            !query ||
             t.product_name?.toLowerCase().includes(query) ||
-            t.job_cards?.customers?.name?.toLowerCase().includes(query)
+            t.job_cards?.customers?.name?.toLowerCase().includes(query) ||
+            `task-${String(t.task_number || 0).padStart(4, '0')}`.includes(query) ||
+            String(t.task_number || 0).includes(query)
         );
     }
 
@@ -466,15 +452,6 @@ export const JobCardsPage = () => {
       setTasks(previousTasks);
       setError('Failed to update production stage via drag-and-drop.');
     }
-  };
-
-  const formatDate = (dateStr) => {
-    if (!dateStr) return '—';
-    return new Date(dateStr).toLocaleDateString('en-IN', {
-      day: '2-digit',
-      month: 'short',
-      year: '2-digit',
-    });
   };
 
   return (
@@ -531,11 +508,12 @@ export const JobCardsPage = () => {
           }}
         >
           <Swiper
-            modules={[Navigation, Pagination]}
+            modules={[Navigation, Pagination, Mousewheel]}
             spaceBetween={16}
             slidesPerView={'auto'}
             navigation
             pagination={{ clickable: true, dynamicBullets: true }}
+            mousewheel={{ forceToAxis: true, sensitivity: 1, releaseOnEdges: true }}
             grabCursor={false}
           >
             {workflow.map((stepName, index) => {
@@ -646,16 +624,16 @@ export const JobCardsPage = () => {
                                   >
                                     <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
                                       <Typography variant="caption" sx={{ fontWeight: 800, color: colColor }}>
-                                        {titleId}
+                                        <HighlightText text={titleId} highlight={searchQuery} />
                                       </Typography>
                                     </Box>
 
                                     <Typography variant="body2" sx={{ fontWeight: 600, mb: 1, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
-                                      {description}
+                                      <HighlightText text={description} highlight={searchQuery} />
                                     </Typography>
 
                                     <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
-                                      Client: <strong>{customerName}</strong>
+                                      Client: <strong><HighlightText text={customerName} highlight={searchQuery} /></strong>
                                     </Typography>
 
                                     <Divider sx={{ my: 1 }} />
@@ -763,7 +741,10 @@ export const JobCardsPage = () => {
               <List sx={{ mb: 3 }}>
                 <Typography variant="caption" color="text.secondary">DESCRIPTION / PRODUCT</Typography>
                 <Typography variant="body1" sx={{ fontWeight: 600, mb: 2 }}>
-                  {activeCardDetails.cardType === 'job' ? activeCardDetails.description : activeCardDetails.product_name}
+                  <HighlightText
+                    text={activeCardDetails.cardType === 'job' ? activeCardDetails.description : activeCardDetails.product_name}
+                    highlight={searchQuery}
+                  />
                 </Typography>
 
                 <Typography variant="caption" color="text.secondary">QUANTITY</Typography>
@@ -773,9 +754,14 @@ export const JobCardsPage = () => {
 
                 <Typography variant="caption" color="text.secondary">CUSTOMER</Typography>
                 <Typography variant="body2" sx={{ mb: 2 }}>
-                  {activeCardDetails.cardType === 'job'
-                    ? activeCardDetails.customers?.name || 'Walk-in / Quote'
-                    : activeCardDetails.job_cards?.customers?.name || 'Walk-in / Quote'}
+                  <HighlightText
+                    text={
+                      activeCardDetails.cardType === 'job'
+                        ? activeCardDetails.customers?.name || 'Walk-in / Quote'
+                        : activeCardDetails.job_cards?.customers?.name || 'Walk-in / Quote'
+                    }
+                    highlight={searchQuery}
+                  />
                 </Typography>
 
                 <Typography variant="caption" color="text.secondary">CREATED ON</Typography>

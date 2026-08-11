@@ -31,6 +31,7 @@ import 'jspdf-autotable';
 import { SearchInput } from '../../components/ui/SearchInput';
 import PageToolbar from '../../components/layout/PageToolbar';
 import { HighlightText } from '../../components/ui/HighlightText';
+import { formatDate } from '../../lib/formatDate';
 
 const currencyFormatter = new Intl.NumberFormat('en-IN', {
   style: 'currency',
@@ -38,15 +39,6 @@ const currencyFormatter = new Intl.NumberFormat('en-IN', {
 });
 
 const formatCurrency = (amount) => currencyFormatter.format(amount || 0);
-
-const dateFormatter = new Intl.DateTimeFormat('en-IN', {
-  day: '2-digit', month: 'short', year: 'numeric'
-});
-
-const formatDate = (date) => {
-  if (!date) return '—';
-  return dateFormatter.format(typeof date === 'string' ? new Date(date) : date);
-};
 
 export const StatementsPage = () => {
   const [tabIndex, setTabIndex] = useState(0);

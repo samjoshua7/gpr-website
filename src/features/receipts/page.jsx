@@ -36,6 +36,7 @@ import { HighlightText } from '../../components/ui/HighlightText';
 import { getReceipts, deleteReceipt } from './api';
 import ReceiptDialog from './components/ReceiptDialog';
 import ReceiptDetailsDialog from './components/ReceiptDetailsDialog';
+import { formatDate } from '../../lib/formatDate';
 
 const MODE_MAP = {
   cash: { label: 'Cash', color: 'success' },
@@ -58,15 +59,6 @@ const currencyFormatter = new Intl.NumberFormat('en-IN', {
 });
 
 const formatCurrency = (amount) => currencyFormatter.format(amount || 0);
-
-const dateFormatter = new Intl.DateTimeFormat('en-IN', {
-  day: '2-digit', month: 'short', year: 'numeric'
-});
-
-const formatDate = (dateStr) => {
-  if (!dateStr) return '—';
-  return dateFormatter.format(new Date(dateStr));
-};
 
 export const ReceiptsPage = () => {
   const [receipts, setReceipts] = useState([]);

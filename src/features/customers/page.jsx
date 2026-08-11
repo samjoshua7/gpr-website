@@ -44,13 +44,13 @@ import { checkReferences } from '../../lib/referenceChecker';
 import CannotDeleteDialog from '../../components/feedback/CannotDeleteDialog';
 import { SearchInput } from '../../components/ui/SearchInput';
 import { HighlightText } from '../../components/ui/HighlightText';
+import { formatDate } from '../../lib/formatDate';
 
 const headCells = [
   { id: 'name', label: 'Customer Name', align: 'left' },
   { id: 'phone', label: 'Phone Number', align: 'left' },
   { id: 'gstin', label: 'GSTIN', align: 'left', disableSort: true },
   { id: 'identification_name', label: 'Identification Name', align: 'left' },
-  { id: 'created_at', label: 'Created Date', align: 'left' },
   { id: 'outstanding_balance', label: 'Outstanding Balance', align: 'right' },
   { id: 'actions', label: 'Actions', align: 'center', disableSort: true }
 ];
@@ -62,15 +62,6 @@ const currencyFormatter = new Intl.NumberFormat('en-IN', {
 });
 
 const formatCurrency = (amount) => currencyFormatter.format(amount || 0);
-
-const dateFormatter = new Intl.DateTimeFormat('en-IN', {
-  year: 'numeric', month: 'short', day: 'numeric'
-});
-
-const formatDate = (dateString) => {
-  if (!dateString) return '—';
-  return dateFormatter.format(new Date(dateString));
-};
 
 export const CustomersPage = () => {
   const navigate = useNavigate();
@@ -303,14 +294,13 @@ export const CustomersPage = () => {
                     <TableCell><Skeleton width="40%" /></TableCell>
                     <TableCell><Skeleton width="40%" /></TableCell>
                     <TableCell><Skeleton width="80%" /></TableCell>
-                    <TableCell><Skeleton width="50%" /></TableCell>
                     <TableCell align="right"><Skeleton width="30%" sx={{ ml: 'auto' }} /></TableCell>
                     <TableCell align="center"><Skeleton width="40%" sx={{ mx: 'auto' }} /></TableCell>
                   </TableRow>
                 ))
               ) : paginatedCustomers.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} align="center" sx={{ py: 8 }}>
+                  <TableCell colSpan={6} align="center" sx={{ py: 8 }}>
                     <Box sx={{ textAlign: 'center' }}>
                       <PeopleIcon sx={{ fontSize: 48, color: 'text.secondary', opacity: 0.4, mb: 1 }} />
                       <Typography variant="h6" color="text.secondary" sx={{ fontWeight: 700 }}>
@@ -342,9 +332,6 @@ export const CustomersPage = () => {
                     </TableCell>
                     <TableCell>
                       <Typography variant="body2"><HighlightText text={customer.identification_name || '—'} highlight={searchQuery} /></Typography>
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="body2">{formatDate(customer.created_at)}</Typography>
                     </TableCell>
                     <TableCell align="right">
                       <Typography 

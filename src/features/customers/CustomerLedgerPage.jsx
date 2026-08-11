@@ -26,8 +26,11 @@ import PrintIcon from '@mui/icons-material/Print';
 import { getCustomerById } from './api';
 import { getInvoicesByCustomer } from '../salesInvoices/api';
 import { getReceiptsByCustomer } from '../receipts/api';
+import { getQuotationsByCustomer } from '../quotations/api';
 import InvoiceDetailsDialog from '../salesInvoices/components/InvoiceDetailsDialog';
 import ReceiptDialog from '../receipts/components/ReceiptDialog';
+import QuotationDetailsDialog from '../quotations/components/QuotationDetailsDialog';
+import { formatDate } from '../../lib/formatDate';
 
 const formatCurrency = (amount) => {
   return new Intl.NumberFormat('en-IN', {
@@ -36,19 +39,13 @@ const formatCurrency = (amount) => {
   }).format(amount || 0);
 };
 
-const formatDate = (dateStr) => {
-  if (!dateStr) return '—';
-  return new Intl.DateTimeFormat('en-IN', {
-    day: '2-digit', month: 'short', year: 'numeric'
-  }).format(new Date(dateStr));
-};
-
 export const CustomerLedgerPage = () => {
   const { customerId } = useParams();
   const navigate = useNavigate();
 
   const [customer, setCustomer] = useState(null);
   const [ledgerEntries, setLedgerEntries] = useState([]);
+  const [customerQuotations, setCustomerQuotations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -59,16 +56,21 @@ export const CustomerLedgerPage = () => {
   const [selectedReceipt, setSelectedReceipt] = useState(null);
   const [receiptDialogOpen, setReceiptDialogOpen] = useState(false);
 
+  const [selectedQuotationId, setSelectedQuotationId] = useState(null);
+  const [quotationDetailsOpen, setQuotationDetailsOpen] = useState(false);
+
   const fetchLedgerData = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const [custData, invData, rcptData] = await Promise.all([
+      const [custData, invData, rcptData, qtnData] = await Promise.all([
         getCustomerById(customerId),
         getInvoicesByCustomer(customerId),
-        getReceiptsByCustomer(customerId)
+        getReceiptsByCustomer(customerId),
+        getQuotationsByCustomer(customerId),
       ]);
       setCustomer(custData);
+      setCustomerQuotations(qtnData || []);
 
       const entries = [];
 
@@ -215,6 +217,11 @@ export const CustomerLedgerPage = () => {
                 {customer.identification_name}
               </Typography>
             )}
+            {customer.created_at && (
+              <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.5, fontWeight: 600 }}>
+                Created on {formatDate(customer.created_at)}
+              </Typography>
+            )}
             <Typography variant="body2" sx={{ mt: 1 }}>
               <strong>Phone:</strong> {customer.phone || '—'}
             </Typography>
@@ -306,6 +313,88 @@ export const CustomerLedgerPage = () => {
         </Table>
       </TableContainer>
 
+      {/* Customer Quotations Section (Display-Only Context) */}
+      <Box sx={{ mt: 4, mb: 2 }}>
+        <Typography variant="h6" fontWeight={800} color="primary.main" gutterBottom>
+          Customer Quotations
+        </Typography>
+        <Alert severity="info" sx={{ mb: 2 }}>
+          Quotations are estimates and do not affect customer balance or ledger running totals.
+        </Alert>
+
+        <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 2 }}>
+          <Table size="small">
+            <TableHead sx={{ bgcolor: 'rgba(0, 0, 0, 0.03)' }}>
+              <TableRow>
+                <TableCell sx={{ fontWeight: 700 }}>Quotation No</TableCell>
+                <TableCell sx={{ fontWeight: 700 }}>Date</TableCell>
+                <TableCell sx={{ fontWeight: 700 }}>Type</TableCell>
+                <TableCell sx={{ fontWeight: 700 }} align="center">Status</TableCell>
+                <TableCell sx={{ fontWeight: 700 }} align="right">Amount</TableCell>
+                <TableCell sx={{ fontWeight: 700 }} align="center">View</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {customerQuotations.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={6} align="center" sx={{ py: 3, color: 'text.secondary' }}>
+                    No quotations on record for this customer.
+                  </TableCell>
+                </TableRow>
+              ) : (
+                customerQuotations.map((qtn) => (
+                  <TableRow key={qtn.quotation_id} hover>
+                    <TableCell sx={{ fontWeight: 700, color: 'primary.main' }}>
+                      {qtn.quotation_no}
+                    </TableCell>
+                    <TableCell>{formatDate(qtn.quotation_date)}</TableCell>
+                    <TableCell>
+                      <Chip
+                        label={qtn.invoice_type === 'GST' ? 'GST' : 'Non-GST'}
+                        size="small"
+                        variant="outlined"
+                        color={qtn.invoice_type === 'GST' ? 'primary' : 'default'}
+                      />
+                    </TableCell>
+                    <TableCell align="center">
+                      <Chip
+                        label={qtn.status?.toUpperCase() || 'DRAFT'}
+                        size="small"
+                        color={
+                          qtn.status === 'converted'
+                            ? 'success'
+                            : qtn.status === 'sent'
+                            ? 'info'
+                            : 'warning'
+                        }
+                        sx={{ fontWeight: 600 }}
+                      />
+                    </TableCell>
+                    <TableCell align="right" sx={{ fontWeight: 600 }}>
+                      {formatCurrency(qtn.total_amount)}
+                    </TableCell>
+                    <TableCell align="center">
+                      <Tooltip title="View Quotation">
+                        <IconButton
+                          color="info"
+                          size="small"
+                          onClick={() => {
+                            setSelectedQuotationId(qtn.quotation_id);
+                            setQuotationDetailsOpen(true);
+                          }}
+                        >
+                          <VisibilityIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </TableContainer>
+      </Box>
+
       {/* Invoice Details Dialog Viewer */}
       <InvoiceDetailsDialog
         open={invoiceDetailsOpen}
@@ -326,6 +415,13 @@ export const CustomerLedgerPage = () => {
            fetchLedgerData();
         }}
         editReceipt={selectedReceipt}
+      />
+
+      {/* Quotation Viewer */}
+      <QuotationDetailsDialog
+        open={quotationDetailsOpen}
+        onClose={() => setQuotationDetailsOpen(false)}
+        quotationId={selectedQuotationId}
       />
     </Box>
   );

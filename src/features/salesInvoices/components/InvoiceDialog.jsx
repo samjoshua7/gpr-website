@@ -40,13 +40,38 @@ import {
   getCustomerOutstandingBalance,
 } from '../api';
 
+import {
+  createQuotation,
+  updateQuotation,
+  getNextQuotationNumber,
+} from '../../quotations/api';
+
 import { getCustomers } from '../../customers/api';
 import { getInventoryItems } from '../../inventory/api';
 import { reverseFromLineTotal, forwardLineTotal } from '../../../lib/invoiceLineMath';
 
 const GSTIN_REGEX = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/;
 
-export const InvoiceDialog = ({ open, onClose, onSaveSuccess, preselectedJob = null, editInvoice = null }) => {
+export const InvoiceDialog = ({
+  open,
+  onClose,
+  onSaveSuccess,
+  preselectedJob = null,
+  editInvoice = null,
+  editQuotation = null,
+  isQuotation: defaultIsQuotation = false,
+}) => {
+  const activeEditRecord = editInvoice || editQuotation;
+  const isSavedRecord = !!(activeEditRecord && (activeEditRecord.invoice_id || activeEditRecord.quotation_id));
+
+  // Determine initial isQuotation state
+  const initialIsQuotation = !!(editQuotation || (activeEditRecord && activeEditRecord.quotation_id) || defaultIsQuotation);
+  const [isQuotation, setIsQuotation] = useState(initialIsQuotation);
+
+  // Checkbox gating for switching between Invoice and Quotation:
+  // Can toggle when creating a new record (!isSavedRecord) or editing a still-draft quotation
+  const canToggleQuotation = !isSavedRecord || (!!editQuotation && editQuotation.status === 'draft');
+
   // Form fields
   const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [customerSearchQuery, setCustomerSearchQuery] = useState('');
@@ -136,6 +161,7 @@ export const InvoiceDialog = ({ open, onClose, onSaveSuccess, preselectedJob = n
 
     if (open) {
       initData();
+      setIsQuotation(initialIsQuotation);
       setSelectedCustomer(null);
       setOutstandingBalance(0.00);
       setAddress('');
@@ -198,47 +224,53 @@ export const InvoiceDialog = ({ open, onClose, onSaveSuccess, preselectedJob = n
     }
   }, [address, shippingSameAsBilling]);
 
-  // Load next invoice sequence number automatically if creating new
+  // Load next document sequence number automatically if creating new or edit
   useEffect(() => {
-    const fetchInvoiceNo = async () => {
+    const fetchDocumentNo = async () => {
       if (!open) return;
       
-      if (editInvoice) {
-        // Edit or Clone mode - populate with existing invoice data
-        if (editInvoice.invoice_id) {
-          setInvoiceNo(editInvoice.invoice_no);
-          setInvoiceDate(editInvoice.invoice_date);
+      if (activeEditRecord) {
+        // Edit or Clone mode - populate with existing record data
+        const recordId = activeEditRecord.invoice_id || activeEditRecord.quotation_id;
+        const recordNo = activeEditRecord.invoice_no || activeEditRecord.quotation_no;
+        const recordDate = activeEditRecord.invoice_date || activeEditRecord.quotation_date;
+
+        if (recordId) {
+          setInvoiceNo(recordNo);
+          setInvoiceDate(recordDate);
         } else {
           try {
-            const nextNo = await getNextInvoiceNumber(editInvoice.invoice_type || 'NON_GST');
+            const nextNo = isQuotation
+              ? await getNextQuotationNumber(activeEditRecord.invoice_type || 'NON_GST')
+              : await getNextInvoiceNumber(activeEditRecord.invoice_type || 'NON_GST');
             setInvoiceNo(nextNo);
           } catch (err) {
-            console.error('Failed to generate invoice sequence:', err);
+            console.error('Failed to generate sequence number:', err);
             setInvoiceNo('ERR-GEN');
           }
           setInvoiceDate(new Date().toISOString().split('T')[0]);
         }
-        setInvoiceType(editInvoice.invoice_type || 'NON_GST');
-        setCustomerType(editInvoice.customer_type || 'B2C');
-        setIsIntraState(editInvoice.is_interstate === false);
-        setNotes(editInvoice.notes || '');
-        setDeliveryDetails(editInvoice.delivery_details || '');
-        setAddress(editInvoice.billing_address || '');
-        setShippingAddress(editInvoice.shipping_address || '');
-        setCustomerGstin(editInvoice.customer_gstin || '');
-        setDiscountAmount((editInvoice.discount_amount || 0).toString());
+        setInvoiceType(activeEditRecord.invoice_type || 'NON_GST');
+        setCustomerType(activeEditRecord.customer_type || 'B2C');
+        setIsIntraState(activeEditRecord.is_interstate === false);
+        setNotes(activeEditRecord.notes || '');
+        setDeliveryDetails(activeEditRecord.delivery_details || '');
+        setAddress(activeEditRecord.billing_address || '');
+        setShippingAddress(activeEditRecord.shipping_address || '');
+        setCustomerGstin(activeEditRecord.customer_gstin || '');
+        setDiscountAmount((activeEditRecord.discount_amount || 0).toString());
         
         // Wait for customers to load then select
-        if (editInvoice.customer_id && customers.length > 0) {
-          const matched = customers.find(c => c.customer_id === editInvoice.customer_id);
+        if (activeEditRecord.customer_id && customers.length > 0) {
+          const matched = customers.find(c => c.customer_id === activeEditRecord.customer_id);
           if (matched) {
              setSelectedCustomer(matched);
           }
         }
         
         // Load existing line items
-        if (editInvoice.items && editInvoice.items.length > 0) {
-          setLineItems(editInvoice.items.map(i => ({
+        if (activeEditRecord.items && activeEditRecord.items.length > 0) {
+          setLineItems(activeEditRecord.items.map(i => ({
             item_id: i.item_id,
             product_name: i.product_name || i.description || '',
             description: i.description || '',
@@ -255,16 +287,18 @@ export const InvoiceDialog = ({ open, onClose, onSaveSuccess, preselectedJob = n
         }
       } else {
         try {
-          const nextNo = await getNextInvoiceNumber(invoiceType);
+          const nextNo = isQuotation
+            ? await getNextQuotationNumber(invoiceType)
+            : await getNextInvoiceNumber(invoiceType);
           setInvoiceNo(nextNo);
         } catch (err) {
-          console.error('Failed to generate invoice sequence:', err);
+          console.error('Failed to generate sequence number:', err);
           setInvoiceNo('ERR-GEN');
         }
       }
     };
-    fetchInvoiceNo();
-  }, [invoiceType, open, editInvoice, customers.length]);
+    fetchDocumentNo();
+  }, [invoiceType, isQuotation, open, activeEditRecord, customers.length]);
 
   // Focus add product button when customer is selected
   useEffect(() => {
@@ -593,28 +627,6 @@ export const InvoiceDialog = ({ open, onClose, onSaveSuccess, preselectedJob = n
     setLoading(true);
     setApiError(null);
 
-    const parentPayload = {
-      customer_id: selectedCustomer.customer_id,
-      job_id: preselectedJob?.job_id || null,
-      invoice_no: invoiceNo,
-      invoice_date: invoiceDate,
-      invoice_type: invoiceType,
-      customer_type: isGstInvoice ? customerType : null,
-      is_interstate: !isIntraState,
-      customer_name: selectedCustomer.name,
-      customer_gstin: (isGstInvoice && customerType === 'B2B') ? customerGstin.trim().toUpperCase() : null,
-      billing_address: address.trim() || null,
-      shipping_address: shippingSameAsBilling ? (address.trim() || null) : (shippingAddress.trim() || null),
-      total_amount: totals.grandTotal,
-      discount_amount: totals.totalDiscount,
-      amount_paid: 0.00,
-      status: 'unpaid',
-      tax_amount: totals.totalTax,
-      gst_amount: totals.totalTax,
-      notes: notes.trim() || null,
-      delivery_details: deliveryDetails.trim() || null,
-    };
-
     const formattedLineItems = lineItems.map((item) => ({
       ...item,
       product_name: item.product_name || item.description,
@@ -622,16 +634,66 @@ export const InvoiceDialog = ({ open, onClose, onSaveSuccess, preselectedJob = n
     }));
 
     try {
-      if (editInvoice && editInvoice.invoice_id) {
-        await updateSalesInvoice(editInvoice.invoice_id, parentPayload, formattedLineItems);
+      if (isQuotation) {
+        const quotationPayload = {
+          customer_id: selectedCustomer.customer_id,
+          quotation_no: invoiceNo,
+          quotation_date: invoiceDate,
+          invoice_type: invoiceType,
+          customer_type: isGstInvoice ? customerType : null,
+          is_interstate: !isIntraState,
+          customer_name: selectedCustomer.name,
+          customer_gstin: (isGstInvoice && customerType === 'B2B') ? customerGstin.trim().toUpperCase() : null,
+          billing_address: address.trim() || null,
+          shipping_address: shippingSameAsBilling ? (address.trim() || null) : (shippingAddress.trim() || null),
+          total_amount: totals.grandTotal,
+          tax_amount: totals.totalTax,
+          gst_amount: totals.totalTax,
+          discount_amount: totals.totalDiscount,
+          notes: notes.trim() || null,
+          delivery_details: deliveryDetails.trim() || null,
+          status: activeEditRecord?.status || 'draft',
+        };
+
+        if (activeEditRecord && activeEditRecord.quotation_id) {
+          await updateQuotation(activeEditRecord.quotation_id, quotationPayload, formattedLineItems);
+        } else {
+          await createQuotation(quotationPayload, formattedLineItems);
+        }
       } else {
-        await createSalesInvoice(parentPayload, formattedLineItems);
+        const parentPayload = {
+          customer_id: selectedCustomer.customer_id,
+          job_id: preselectedJob?.job_id || null,
+          invoice_no: invoiceNo,
+          invoice_date: invoiceDate,
+          invoice_type: invoiceType,
+          customer_type: isGstInvoice ? customerType : null,
+          is_interstate: !isIntraState,
+          customer_name: selectedCustomer.name,
+          customer_gstin: (isGstInvoice && customerType === 'B2B') ? customerGstin.trim().toUpperCase() : null,
+          billing_address: address.trim() || null,
+          shipping_address: shippingSameAsBilling ? (address.trim() || null) : (shippingAddress.trim() || null),
+          total_amount: totals.grandTotal,
+          discount_amount: totals.totalDiscount,
+          amount_paid: activeEditRecord?.amount_paid || 0.00,
+          status: activeEditRecord?.status || 'unpaid',
+          tax_amount: totals.totalTax,
+          gst_amount: totals.totalTax,
+          notes: notes.trim() || null,
+          delivery_details: deliveryDetails.trim() || null,
+        };
+
+        if (activeEditRecord && activeEditRecord.invoice_id) {
+          await updateSalesInvoice(activeEditRecord.invoice_id, parentPayload, formattedLineItems);
+        } else {
+          await createSalesInvoice(parentPayload, formattedLineItems);
+        }
       }
       onSaveSuccess();
       onClose();
     } catch (err) {
       console.error(err);
-      setApiError(err.message || 'Failed to create sales invoice.');
+      setApiError(err.message || `Failed to save ${isQuotation ? 'quotation' : 'sales invoice'}.`);
     } finally {
       setLoading(false);
     }
@@ -646,16 +708,42 @@ export const InvoiceDialog = ({ open, onClose, onSaveSuccess, preselectedJob = n
 
   const isCustomerSelected = !!selectedCustomer;
 
+  const dialogTitleText = isQuotation
+    ? (activeEditRecord && activeEditRecord.quotation_id ? 'Edit Quotation' : 'Create Quotation')
+    : preselectedJob
+    ? `Create Invoice for Job #JC-${String(preselectedJob.job_number || 0).padStart(4, '0')}`
+    : (activeEditRecord && activeEditRecord.invoice_id ? 'Edit Sales Invoice' : 'Create Sales Invoice');
+
   return (
     <Dialog open={open} onClose={onClose} maxWidth="lg" fullWidth PaperProps={{ sx: { width: { xs: '100%', lg: '95%' } } }}>
-      {/* Step 7a: Fix DialogTitle invalid h2 > h5 HTML nesting by specifying component="span" */}
-      <DialogTitle sx={{ fontWeight: 800, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <Typography variant="h5" component="span" sx={{ fontWeight: 800 }}>
-          {preselectedJob ? `Create Invoice for Job #JC-${String(preselectedJob.job_number || 0).padStart(4, '0')}` : 'Create Sales Invoice'}
-        </Typography>
+      <DialogTitle sx={{ fontWeight: 800, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 1 }}>
+        <Box display="flex" alignItems="center" gap={2}>
+          <Typography variant="h5" component="span" sx={{ fontWeight: 800 }}>
+            {dialogTitleText}
+          </Typography>
+
+          {canToggleQuotation && (
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={isQuotation}
+                  onChange={(e) => setIsQuotation(e.target.checked)}
+                  color="secondary"
+                  size="small"
+                />
+              }
+              label={
+                <Typography variant="subtitle2" sx={{ fontWeight: 700, color: 'secondary.main' }}>
+                  This is a Quotation
+                </Typography>
+              }
+            />
+          )}
+        </Box>
+
         <Chip
-          label={isGstInvoice ? 'GST TAX INVOICE' : 'RETAIL BILL'}
-          color={isGstInvoice ? 'primary' : 'default'}
+          label={isQuotation ? (isGstInvoice ? 'GST QUOTATION' : 'RETAIL QUOTATION') : (isGstInvoice ? 'GST TAX INVOICE' : 'RETAIL BILL')}
+          color={isQuotation ? 'secondary' : (isGstInvoice ? 'primary' : 'default')}
           sx={{ fontWeight: 700 }}
         />
       </DialogTitle>
@@ -856,7 +944,7 @@ export const InvoiceDialog = ({ open, onClose, onSaveSuccess, preselectedJob = n
                       <TextField
                         fullWidth
                         size="small"
-                        label="Generated Invoice Number"
+                        label={isQuotation ? "Generated Quotation Number" : "Generated Invoice Number"}
                         value={invoiceNo}
                         InputProps={{ readOnly: true }}
                         sx={{ bgcolor: 'action.hover' }}
@@ -866,7 +954,7 @@ export const InvoiceDialog = ({ open, onClose, onSaveSuccess, preselectedJob = n
                       <TextField
                         fullWidth
                         size="small"
-                        label="Invoice Date"
+                        label={isQuotation ? "Quotation Date" : "Invoice Date"}
                         type="date"
                         InputLabelProps={{ shrink: true }}
                         value={invoiceDate}
@@ -877,7 +965,7 @@ export const InvoiceDialog = ({ open, onClose, onSaveSuccess, preselectedJob = n
                     <Grid item xs={12}>
                       <TextField
                         fullWidth
-                        label="Invoice Notes"
+                        label={isQuotation ? "Quotation Notes" : "Invoice Notes"}
                         size="small"
                         multiline
                         rows={2}
@@ -1203,8 +1291,11 @@ export const InvoiceDialog = ({ open, onClose, onSaveSuccess, preselectedJob = n
             disabled={loading || !isCustomerSelected || Object.values(lineTotalErrors).some(Boolean)}
             startIcon={loading ? <CircularProgress size={20} color="inherit" /> : null}
             sx={{ px: 3, fontWeight: 700 }}
+            color={isQuotation ? 'secondary' : 'primary'}
           >
-            {editInvoice && editInvoice.invoice_id ? 'Update Invoice' : 'Create & Issue Invoice'}
+            {isQuotation
+              ? (activeEditRecord && activeEditRecord.quotation_id ? 'Update Quotation' : 'Create Quotation')
+              : (activeEditRecord && activeEditRecord.invoice_id ? 'Update Invoice' : 'Create & Issue Invoice')}
           </Button>
         </DialogActions>
       </Box>

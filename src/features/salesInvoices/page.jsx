@@ -46,6 +46,7 @@ import { SearchInput } from '../../components/ui/SearchInput';
 import { HighlightText } from '../../components/ui/HighlightText';
 import { TablePagination, TableSortLabel, Stack } from '@mui/material';
 import { InvoiceProgressBar } from '../../components/ui/InvoiceProgressBar';
+import { formatDate } from '../../lib/formatDate';
 
 const STATUS_MAP = {
   unpaid: { label: 'Unpaid', color: 'error' },
@@ -55,14 +56,11 @@ const STATUS_MAP = {
 };
 
 const headCells = [
-  { id: 'invoice_no', label: 'Invoice No', align: 'left' },
-  { id: 'invoice_type', label: 'Type', align: 'left' },
-  { id: 'customer_name', label: 'Customer', align: 'left' },
   { id: 'invoice_date', label: 'Date', align: 'left' },
-  { id: 'progress', label: 'Task Progress', align: 'center', disableSort: true },
+  { id: 'invoice_no', label: 'Invoice No', align: 'left' },
+  { id: 'customer_name', label: 'Customer Name', align: 'left' },
   { id: 'total_amount', label: 'Total Amount', align: 'right' },
-  { id: 'amount_paid', label: 'Amount Paid', align: 'right' },
-  { id: 'status', label: 'Status', align: 'center' },
+  { id: 'amount_paid', label: 'Amount Paid / Status', align: 'center' },
   { id: 'actions', label: 'Actions', align: 'center', disableSort: true }
 ];
 
@@ -72,15 +70,6 @@ const currencyFormatter = new Intl.NumberFormat('en-IN', {
 });
 
 const formatCurrency = (amount) => currencyFormatter.format(amount || 0);
-
-const dateFormatter = new Intl.DateTimeFormat('en-IN', {
-  day: '2-digit', month: 'short', year: 'numeric'
-});
-
-const formatDate = (dateStr) => {
-  if (!dateStr) return '—';
-  return dateFormatter.format(new Date(dateStr));
-};
 
 export const SalesInvoicesPage = () => {
   const location = useLocation();
@@ -447,19 +436,17 @@ export const SalesInvoicesPage = () => {
             {loading && invoices.length === 0 ? (
               Array.from(new Array(5)).map((_, index) => (
                 <TableRow key={index}>
-                  <TableCell><Skeleton width="40%" /></TableCell>
-                  <TableCell><Skeleton width="40%" /></TableCell>
-                  <TableCell><Skeleton width="70%" /></TableCell>
                   <TableCell><Skeleton width="50%" /></TableCell>
-                  <TableCell align="right"><Skeleton width="30%" sx={{ ml: 'auto' }} /></TableCell>
-                  <TableCell align="right"><Skeleton width="30%" sx={{ ml: 'auto' }} /></TableCell>
-                  <TableCell align="center"><Skeleton width="40%" sx={{ mx: 'auto' }} /></TableCell>
+                  <TableCell><Skeleton width="60%" /></TableCell>
+                  <TableCell><Skeleton width="70%" /></TableCell>
+                  <TableCell align="right"><Skeleton width="40%" sx={{ ml: 'auto' }} /></TableCell>
+                  <TableCell align="center"><Skeleton width="60%" sx={{ mx: 'auto' }} /></TableCell>
                   <TableCell align="center"><Skeleton width="60%" sx={{ mx: 'auto' }} /></TableCell>
                 </TableRow>
               ))
             ) : paginatedInvoices.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={9} align="center" sx={{ py: 6 }}>
+                <TableCell colSpan={6} align="center" sx={{ py: 6 }}>
                   <Typography variant="body1" color="text.secondary">
                     No invoices found. Click "Create Invoice" to record sales billing.
                   </Typography>
@@ -468,32 +455,41 @@ export const SalesInvoicesPage = () => {
             ) : (
               paginatedInvoices.map((inv) => (
                 <TableRow key={inv.invoice_id} hover>
-                  <TableCell sx={{ fontWeight: 700, color: 'primary.main' }}>
-                    <HighlightText text={inv.invoice_no} highlight={searchQuery} />
-                  </TableCell>
-                  <TableCell>
-                    <Chip label={inv.invoice_type === 'GST' ? 'GST' : 'Non-GST'} size="small" variant="outlined" color={inv.invoice_type === 'GST' ? 'primary' : 'default'} />
+                  <TableCell>{formatDate(inv.invoice_date)}</TableCell>
+                  <TableCell sx={{ minWidth: 160 }}>
+                    <Box display="flex" alignItems="center" gap={1} mb={0.5}>
+                      <Typography variant="body2" sx={{ fontWeight: 700, color: 'primary.main' }}>
+                        <HighlightText text={inv.invoice_no} highlight={searchQuery} />
+                      </Typography>
+                      <Chip
+                        label={inv.invoice_type === 'GST' ? 'GST' : 'Non-GST'}
+                        size="small"
+                        variant="outlined"
+                        color={inv.invoice_type === 'GST' ? 'primary' : 'default'}
+                        sx={{ height: 18, fontSize: '0.65rem' }}
+                      />
+                    </Box>
+                    <InvoiceProgressBar
+                      taskStatuses={taskProgressMap[inv.invoice_id] || []}
+                      workflow={workflow}
+                      height={8}
+                    />
                   </TableCell>
                   <TableCell sx={{ fontWeight: 600 }}>
                     <HighlightText text={inv.customers?.name || '—'} highlight={searchQuery} />
                   </TableCell>
-                  <TableCell>{formatDate(inv.invoice_date)}</TableCell>
-                  <TableCell align="center" sx={{ minWidth: 140 }}>
-                    <InvoiceProgressBar
-                      taskStatuses={taskProgressMap[inv.invoice_id] || []}
-                      workflow={workflow}
-                    />
-                  </TableCell>
-                  <TableCell align="right" sx={{ fontWeight: 600 }}>{formatCurrency(inv.total_amount)}</TableCell>
-                  <TableCell align="right" sx={{ color: 'success.main', fontWeight: 600 }}>
-                    {formatCurrency(inv.amount_paid)}
+                  <TableCell align="right" sx={{ fontWeight: 600 }}>
+                    {formatCurrency(inv.total_amount)}
                   </TableCell>
                   <TableCell align="center">
+                    <Typography variant="body2" sx={{ fontWeight: 700, color: 'success.main', display: 'block' }}>
+                      {formatCurrency(inv.amount_paid)} paid
+                    </Typography>
                     <Chip
                       label={STATUS_MAP[inv.status]?.label || inv.status}
                       color={STATUS_MAP[inv.status]?.color || 'default'}
                       size="small"
-                      sx={{ fontWeight: 600 }}
+                      sx={{ fontWeight: 600, height: 20, fontSize: '0.7rem', mt: 0.5 }}
                     />
                   </TableCell>
                   <TableCell align="center">

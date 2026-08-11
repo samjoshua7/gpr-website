@@ -13,6 +13,7 @@ import {
   Divider,
 } from '@mui/material';
 import { amountInWords } from '../../../lib/amountInWords';
+import { formatDate } from '../../../lib/formatDate';
 
 const PAPER_CONFIG = {
   A4: { widthMm: 210, heightMm: 297, baseFontPx: 13, tableFontPx: 12.5, padding: 4, maxWidth: '850px' },
@@ -178,7 +179,7 @@ export const InvoiceDocument = ({ invoice, companySettings, paperSize = 'A4' }) 
             <Box display="flex" justifyContent="space-between" mb={0.5}>
               <Typography variant="caption" color="text.secondary" sx={{ fontSize: `${config.baseFontPx - 2}px` }}>Date:</Typography>
               <Typography variant="body2" fontWeight={700} sx={{ fontSize: `${config.baseFontPx - 1}px` }}>
-                {invoice.invoice_date ? new Date(invoice.invoice_date).toLocaleDateString('en-IN') : 'N/A'}
+                {formatDate(invoice.invoice_date)}
               </Typography>
             </Box>
             {isGst && (

@@ -1,5 +1,7 @@
 import React from 'react';
 
+const escapeRegExp = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
 export const HighlightText = ({ text, highlight }) => {
   if (!highlight || !text) {
     return <span>{text}</span>;
@@ -8,8 +10,9 @@ export const HighlightText = ({ text, highlight }) => {
   // Convert everything to string safely
   const strText = String(text);
   const strHighlight = String(highlight);
+  const escaped = escapeRegExp(strHighlight);
 
-  const parts = strText.split(new RegExp(`(${strHighlight})`, 'gi'));
+  const parts = strText.split(new RegExp(`(${escaped})`, 'gi'));
 
   return (
     <span>

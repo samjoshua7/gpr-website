@@ -58,6 +58,20 @@ export const getQuotations = async (searchQuery = '', statusFilter = '', forceRe
   return data;
 };
 
+export const getQuotationsByCustomer = async (customerId) => {
+  if (!customerId) return [];
+  const { data, error } = await supabase
+    .from('quotations')
+    .select('*')
+    .eq('customer_id', customerId)
+    .order('quotation_date', { ascending: false });
+
+  if (error) {
+    throw new Error(error.message);
+  }
+  return data || [];
+};
+
 export const getQuotationById = async (id) => {
   const { data: quotation, error: quotationError } = await supabase
     .from('quotations')
