@@ -108,7 +108,7 @@ export const AppShell = () => {
         </Box>
         <Box>
           <Typography sx={{ fontWeight: 700, fontSize: '0.875rem', letterSpacing: '-0.01em', lineHeight: 1.2, color: '#ffffff' }}>
-            G.P.R. ERP
+            GPR Printers
           </Typography>
           <Typography sx={{ color: 'rgba(255, 255, 255, 0.55)', fontSize: '0.625rem' }}>
             Press Management
@@ -140,15 +140,15 @@ export const AppShell = () => {
                   },
                   '&::before': isActive
                     ? {
-                        content: '""',
-                        position: 'absolute',
-                        left: 0,
-                        top: '15%',
-                        bottom: '15%',
-                        width: 3.5,
-                        borderRadius: '0 4px 4px 0',
-                        bgcolor: '#0284c7',
-                      }
+                      content: '""',
+                      position: 'absolute',
+                      left: 0,
+                      top: '15%',
+                      bottom: '15%',
+                      width: 3.5,
+                      borderRadius: '0 4px 4px 0',
+                      bgcolor: '#0284c7',
+                    }
                     : undefined,
                 }}
               >
