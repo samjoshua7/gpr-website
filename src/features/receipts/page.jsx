@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import {
   Box,
   Typography,
@@ -61,6 +62,9 @@ const currencyFormatter = new Intl.NumberFormat('en-IN', {
 const formatCurrency = (amount) => currencyFormatter.format(amount || 0);
 
 export const ReceiptsPage = () => {
+  const location = useLocation();
+  const navigate = useNavigate();
+
   const [receipts, setReceipts] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
@@ -101,6 +105,13 @@ export const ReceiptsPage = () => {
   useEffect(() => {
     fetchReceipts();
   }, [fetchReceipts]);
+
+  useEffect(() => {
+    if (location.state?.preselectedCustomer) {
+      setEditReceipt(null);
+      setCreateOpen(true);
+    }
+  }, [location.state]);
 
   const processedReceipts = React.useMemo(() => {
     let result = [...receipts];
@@ -344,11 +355,15 @@ export const ReceiptsPage = () => {
       <ReceiptDialog
         open={createOpen}
         onClose={() => {
+          if (location.state?.preselectedCustomer) {
+            navigate(location.pathname, { replace: true, state: {} });
+          }
           setCreateOpen(false);
           setEditReceipt(null);
         }}
         onSaveSuccess={handleSaveSuccess}
         editReceipt={editReceipt}
+        preselectedCustomer={location.state?.preselectedCustomer}
       />
 
       {/* View receipt details modal */}

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import {
   Box,
   Typography,
@@ -63,6 +64,9 @@ const currencyFormatter = new Intl.NumberFormat('en-IN', {
 const formatCurrency = (amount) => currencyFormatter.format(amount || 0);
 
 export const QuotationsPage = () => {
+  const location = useLocation();
+  const navigate = useNavigate();
+
   const [quotations, setQuotations] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -102,6 +106,13 @@ export const QuotationsPage = () => {
   useEffect(() => {
     fetchQuotationsData();
   }, [fetchQuotationsData]);
+
+  useEffect(() => {
+    if (location.state?.preselectedCustomer) {
+      setEditQuotation(null);
+      setDialogOpen(true);
+    }
+  }, [location.state]);
 
   const handleRequestSort = (property) => {
     const isAsc = orderBy === property && order === 'asc';
@@ -345,9 +356,15 @@ export const QuotationsPage = () => {
       {/* Dialogs */}
       <InvoiceDialog
         open={dialogOpen}
-        onClose={() => setDialogOpen(false)}
+        onClose={() => {
+          if (location.state?.preselectedCustomer) {
+            navigate(location.pathname, { replace: true, state: {} });
+          }
+          setDialogOpen(false);
+        }}
         onSaveSuccess={fetchQuotationsData}
         editQuotation={editQuotation}
+        preselectedCustomer={location.state?.preselectedCustomer}
         isQuotation={true}
       />
 
