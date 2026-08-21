@@ -22,6 +22,9 @@ import VisibilityIcon from '@mui/icons-material/Visibility';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import PrintIcon from '@mui/icons-material/Print';
+import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
+import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
+import RequestQuoteIcon from '@mui/icons-material/RequestQuote';
 
 import { getCustomerById } from './api';
 import { getInvoicesByCustomer } from '../salesInvoices/api';
@@ -186,12 +189,16 @@ export const CustomerLedgerPage = () => {
     return <Typography>Customer not found.</Typography>;
   }
 
+  const currentOutstandingBalance = ledgerEntries.length > 0
+    ? ledgerEntries[ledgerEntries.length - 1].runningBalance
+    : parseFloat(customer?.opening_balance || 0);
+
   return (
     <Box id="ledger-print-container">
       <style>{printStyles}</style>
       
       {/* Action Bar (Not Printed) */}
-      <Box className="no-print" display="flex" justifyContent="space-between" alignItems="center" mb={3}>
+      <Box className="no-print" display="flex" justifyContent="space-between" alignItems="center" flexWrap="wrap" gap={2} mb={3}>
         <Box display="flex" alignItems="center" gap={2}>
           <IconButton onClick={() => navigate('/dashboard/customers')}>
             <ArrowBackIcon />
@@ -200,9 +207,41 @@ export const CustomerLedgerPage = () => {
             Customer Ledger
           </Typography>
         </Box>
-        <Button variant="contained" startIcon={<PrintIcon />} onClick={handlePrintLedger}>
-          Print Statement
-        </Button>
+        <Box display="flex" alignItems="center" flexWrap="wrap" gap={1.5}>
+          <Button
+            variant="contained"
+            color="primary"
+            size="small"
+            startIcon={<AddCircleOutlineIcon />}
+            onClick={() => navigate('/dashboard/invoices', { state: { preselectedCustomer: customer } })}
+            sx={{ fontWeight: 700 }}
+          >
+            New Invoice
+          </Button>
+          <Button
+            variant="outlined"
+            color="primary"
+            size="small"
+            startIcon={<ReceiptLongIcon />}
+            onClick={() => navigate('/dashboard/receipts', { state: { preselectedCustomer: customer } })}
+            sx={{ fontWeight: 700 }}
+          >
+            New Receipt
+          </Button>
+          <Button
+            variant="outlined"
+            color="secondary"
+            size="small"
+            startIcon={<RequestQuoteIcon />}
+            onClick={() => navigate('/dashboard/quotations', { state: { preselectedCustomer: customer } })}
+            sx={{ fontWeight: 700 }}
+          >
+            New Quotation
+          </Button>
+          <Button variant="outlined" color="inherit" size="small" startIcon={<PrintIcon />} onClick={handlePrintLedger}>
+            Print Statement
+          </Button>
+        </Box>
       </Box>
 
       {/* Customer Info Section */}
@@ -245,8 +284,8 @@ export const CustomerLedgerPage = () => {
               <Typography variant="caption" color="text.secondary" display="block">
                 CURRENT OUTSTANDING
               </Typography>
-              <Typography variant="h5" fontWeight={800} color={customer.outstanding_balance > 0 ? 'error.main' : 'success.main'}>
-                {formatCurrency(customer.outstanding_balance)}
+              <Typography variant="h5" fontWeight={800} color={currentOutstandingBalance > 0 ? 'error.main' : 'success.main'}>
+                {formatCurrency(currentOutstandingBalance)}
               </Typography>
             </Box>
           </Grid>

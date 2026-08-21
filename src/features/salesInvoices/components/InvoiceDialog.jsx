@@ -57,6 +57,7 @@ export const InvoiceDialog = ({
   onClose,
   onSaveSuccess,
   preselectedJob = null,
+  preselectedCustomer = null,
   editInvoice = null,
   editQuotation = null,
   isQuotation: defaultIsQuotation = false,
@@ -150,6 +151,10 @@ export const InvoiceDialog = ({
           if (matched) {
              handleCustomerChange(null, matched);
           }
+        } else if (preselectedCustomer) {
+          const custId = preselectedCustomer.customer_id || preselectedCustomer.id;
+          const matched = customerList.find(c => c.customer_id === custId) || preselectedCustomer;
+          handleCustomerChange(null, matched);
         }
       } catch (err) {
         console.error('Failed to initialize dialog data:', err);
@@ -215,7 +220,7 @@ export const InvoiceDialog = ({
         ]);
       }
     }
-  }, [open, preselectedJob]);
+  }, [open, preselectedJob, preselectedCustomer]);
 
   // Sync shipping address when billing address or toggle changes
   useEffect(() => {
@@ -372,8 +377,8 @@ export const InvoiceDialog = ({
       unit: product.unit || 'sheet',
       unit_price: product.unit_price?.toString() || '0.00',
       tax_rate_id: product.tax_rate_id || '',
-      gst_rate: product.gst_rate || 18,
-      hsn_code: product.hsn_code || '4911',
+      gst_rate: product.gst_rate ?? product.tax_rates?.percentage ?? 0,
+      hsn_code: product.hsn_code || product.tax_rates?.hsn_code || '',
     };
 
     recalculateRow(newItems, index);
@@ -517,30 +522,20 @@ export const InvoiceDialog = ({
 
   // Invoice Totals calculation
   const getTotals = () => {
-    let subtotal = 0;
-    lineItems.forEach((line) => {
-      const qty = parseFloat(line.quantity) || 0;
-      const rate = parseFloat(line.unit_price) || 0;
-      subtotal += qty * rate;
-    });
-
-    const overallDiscount = parseFloat(discountAmount) || 0;
-    const taxableValue = Math.max(0, subtotal - overallDiscount);
-
+    let grossTotal = 0;
+    let totalTax = 0;
     let cgst = 0;
     let sgst = 0;
     let igst = 0;
-    let totalTax = 0;
 
     lineItems.forEach((line) => {
-      const qty = parseFloat(line.quantity) || 0;
-      const rate = parseFloat(line.unit_price) || 0;
-      const lineSubtotal = qty * rate;
-      const lineTaxable = subtotal > 0 ? (lineSubtotal / subtotal) * taxableValue : 0;
+      const lineAmount = parseFloat(line.amount) || 0;
+      grossTotal += lineAmount;
 
       if (isGstInvoice) {
         const gstRate = parseFloat(line.gst_rate) || 0;
-        const lineTax = (lineTaxable * gstRate) / 100;
+        const base = gstRate > 0 ? lineAmount / (1 + gstRate / 100) : lineAmount;
+        const lineTax = Math.round((lineAmount - base) * 100) / 100;
         line.tax_amount = lineTax;
         totalTax += lineTax;
 
@@ -554,6 +549,10 @@ export const InvoiceDialog = ({
         line.tax_amount = 0;
       }
     });
+
+    const overallDiscount = parseFloat(discountAmount) || 0;
+    const subtotal = isGstInvoice ? grossTotal - totalTax : grossTotal;
+    const taxableValue = Math.max(0, subtotal - overallDiscount);
 
     const totalBeforeRound = taxableValue + totalTax;
     const grandTotal = Math.round(totalBeforeRound);
@@ -1063,6 +1062,11 @@ export const InvoiceDialog = ({
                                 size="small"
                                 placeholder="Product name..."
                                 error={!!lineErr.product_name}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') {
+                                    e.stopPropagation();
+                                  }
+                                }}
                               />
                             )}
                           />
@@ -1073,9 +1077,17 @@ export const InvoiceDialog = ({
                           <TextField
                             size="small"
                             fullWidth
+                            multiline
+                            minRows={2}
+                            maxRows={5}
                             placeholder="e.g. 1/8 2+2 Bond Paper"
                             value={line.description}
                             onChange={(e) => handleLineChange(index, 'description', e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                e.stopPropagation();
+                              }
+                            }}
                             disabled={loading || !isCustomerSelected}
                           />
                         </TableCell>

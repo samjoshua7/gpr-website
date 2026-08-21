@@ -21,7 +21,7 @@ import {
 import { createReceipt, updateReceipt, getCustomerOutstandingInvoices } from '../api';
 import { getCustomers } from '../../customers/api';
 
-export const ReceiptDialog = ({ open, onClose, onSaveSuccess, editReceipt = null }) => {
+export const ReceiptDialog = ({ open, onClose, onSaveSuccess, editReceipt = null, preselectedCustomer = null }) => {
   const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [customers, setCustomers] = useState([]);
   const [customersLoading, setCustomersLoading] = useState(false);
@@ -48,6 +48,10 @@ export const ReceiptDialog = ({ open, onClose, onSaveSuccess, editReceipt = null
         if (editReceipt && editReceipt.customer_id) {
           const matched = data.find((c) => c.customer_id === editReceipt.customer_id);
           if (matched) setSelectedCustomer(matched);
+        } else if (preselectedCustomer) {
+          const custId = preselectedCustomer.customer_id || preselectedCustomer.id;
+          const matched = data.find((c) => c.customer_id === custId) || preselectedCustomer;
+          setSelectedCustomer(matched);
         }
       } catch (err) {
         console.error('Failed to load customers:', err);
@@ -64,7 +68,9 @@ export const ReceiptDialog = ({ open, onClose, onSaveSuccess, editReceipt = null
         setReceiptDate(editReceipt.receipt_date || new Date().toISOString().split('T')[0]);
         setMode(editReceipt.mode || 'cash');
       } else {
-        setSelectedCustomer(null);
+        if (!preselectedCustomer) {
+          setSelectedCustomer(null);
+        }
         setInvoices([]);
         setSelectedInvoice('');
         setAmount('');
@@ -74,7 +80,7 @@ export const ReceiptDialog = ({ open, onClose, onSaveSuccess, editReceipt = null
       setErrors({});
       setApiError(null);
     }
-  }, [open, editReceipt]);
+  }, [open, editReceipt, preselectedCustomer]);
 
   // Load outstanding invoices when customer changes
   useEffect(() => {

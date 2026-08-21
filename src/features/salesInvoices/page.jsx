@@ -235,10 +235,13 @@ export const SalesInvoicesPage = () => {
     setPage(0);
   };
 
-  // Handle incoming kickoff job card from navigation state
+  // Handle incoming kickoff job card or preselected customer from navigation state
   useEffect(() => {
     if (location.state?.kickoffJob) {
       setKickoffJob(location.state.kickoffJob);
+      setCreateOpen(true);
+    } else if (location.state?.preselectedCustomer) {
+      setInvoiceToEdit(null);
       setCreateOpen(true);
     }
   }, [location.state]);
@@ -270,6 +273,9 @@ export const SalesInvoicesPage = () => {
       setKickoffJob(null);
       // Revert/Navigate back to Job Cards with a cancel flag
       navigate('/dashboard/jobs', { replace: true, state: { cancelKickoff: true, jobId: kickoffJob.job_id } });
+    }
+    if (location.state?.preselectedCustomer) {
+      navigate(location.pathname, { replace: true, state: {} });
     }
     setInvoiceToEdit(null);
     setCreateOpen(false);
@@ -547,6 +553,7 @@ export const SalesInvoicesPage = () => {
         onClose={handleCloseCreate}
         onSaveSuccess={handleSaveSuccess}
         preselectedJob={kickoffJob}
+        preselectedCustomer={location.state?.preselectedCustomer}
         editInvoice={invoiceToEdit}
       />
 
