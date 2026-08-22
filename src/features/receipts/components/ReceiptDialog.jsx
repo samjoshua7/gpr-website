@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Dialog,
   DialogTitle,
@@ -15,20 +15,56 @@ import {
   Select,
   Grid,
   Autocomplete,
-  FormHelperText,
+  Typography,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Paper,
+  Checkbox,
+  Chip,
+  Tooltip,
+  Divider,
 } from '@mui/material';
 
-import { createReceipt, updateReceipt, getCustomerOutstandingInvoices } from '../api';
+import {
+  createReceipt,
+  updateReceipt,
+  createReceiptWithAllocations,
+  getCustomerOutstandingInvoices,
+} from '../api';
 import { getCustomers } from '../../customers/api';
+import { useGprError } from '../../../app/providers/ErrorProvider';
+import { formatDate } from '../../../lib/formatDate';
 
-export const ReceiptDialog = ({ open, onClose, onSaveSuccess, editReceipt = null, preselectedCustomer = null }) => {
+const formatCurrency = (amount) => {
+  return new Intl.NumberFormat('en-IN', {
+    style: 'currency',
+    currency: 'INR',
+  }).format(amount || 0);
+};
+
+export const ReceiptDialog = ({
+  open,
+  onClose,
+  onSaveSuccess,
+  editReceipt = null,
+  preselectedCustomer = null,
+}) => {
+  const { showError: showGprError } = useGprError();
+
   const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [customers, setCustomers] = useState([]);
   const [customersLoading, setCustomersLoading] = useState(false);
 
   const [invoices, setInvoices] = useState([]);
   const [invoicesLoading, setInvoicesLoading] = useState(false);
-  const [selectedInvoice, setSelectedInvoice] = useState('');
+
+  // Checkbox selection of targeted invoices (empty array means Auto-FIFO across all invoices)
+  const [selectedInvoiceIds, setSelectedInvoiceIds] = useState([]);
+  const [manualAllocations, setManualAllocations] = useState({});
 
   const [amount, setAmount] = useState('');
   const [receiptDate, setReceiptDate] = useState(new Date().toISOString().split('T')[0]);
@@ -38,7 +74,7 @@ export const ReceiptDialog = ({ open, onClose, onSaveSuccess, editReceipt = null
   const [loading, setLoading] = useState(false);
   const [apiError, setApiError] = useState(null);
 
-  // Initial load
+  // Initial load & preselection
   useEffect(() => {
     const fetchCustomers = async () => {
       setCustomersLoading(true);
@@ -63,16 +99,21 @@ export const ReceiptDialog = ({ open, onClose, onSaveSuccess, editReceipt = null
     if (open) {
       fetchCustomers();
       if (editReceipt) {
-        setSelectedInvoice(editReceipt.invoice_id || '');
         setAmount((editReceipt.amount || 0).toString());
         setReceiptDate(editReceipt.receipt_date || new Date().toISOString().split('T')[0]);
         setMode(editReceipt.mode || 'cash');
+        if (editReceipt.invoice_id) {
+          setSelectedInvoiceIds([editReceipt.invoice_id]);
+        } else {
+          setSelectedInvoiceIds([]);
+        }
       } else {
         if (!preselectedCustomer) {
           setSelectedCustomer(null);
         }
         setInvoices([]);
-        setSelectedInvoice('');
+        setSelectedInvoiceIds([]);
+        setManualAllocations({});
         setAmount('');
         setReceiptDate(new Date().toISOString().split('T')[0]);
         setMode('cash');
@@ -87,13 +128,15 @@ export const ReceiptDialog = ({ open, onClose, onSaveSuccess, editReceipt = null
     const loadInvoices = async () => {
       if (!selectedCustomer) {
         setInvoices([]);
-        setSelectedInvoice('');
+        setSelectedInvoiceIds([]);
+        setManualAllocations({});
         return;
       }
       setInvoicesLoading(true);
       try {
         const list = await getCustomerOutstandingInvoices(selectedCustomer.customer_id);
         setInvoices(list);
+        setManualAllocations({});
       } catch (err) {
         console.error('Failed to load customer outstanding invoices:', err);
       } finally {
@@ -103,25 +146,81 @@ export const ReceiptDialog = ({ open, onClose, onSaveSuccess, editReceipt = null
     loadInvoices();
   }, [selectedCustomer]);
 
-  // Handle invoice selection changes (auto-fill outstanding balance)
-  const handleInvoiceChange = (e) => {
-    const invId = e.target.value;
-    setSelectedInvoice(invId);
-    if (!invId) {
-      setAmount('');
-      return;
+  // Total balance due across all outstanding invoices
+  const totalInvoicesDue = useMemo(() => {
+    return invoices.reduce((sum, inv) => sum + (parseFloat(inv.total_amount) - parseFloat(inv.amount_paid || 0)), 0);
+  }, [invoices]);
+
+  // Auto FIFO & Selective Allocation Calculation
+  const computedAllocations = useMemo(() => {
+    const totalReceiptAmount = parseFloat(amount) || 0;
+    if (totalReceiptAmount <= 0 || invoices.length === 0) {
+      return {
+        allocationsMap: {},
+        totalAllocated: 0,
+        advanceAmount: totalReceiptAmount,
+      };
     }
-    const matched = invoices.find((i) => i.invoice_id === invId);
-    if (matched) {
-      const remaining = matched.total_amount - matched.amount_paid;
-      setAmount(remaining.toFixed(2));
+
+    // Determine target invoices: either user-checked subset, or all invoices (Auto-FIFO)
+    const targetInvoices = selectedInvoiceIds.length > 0
+      ? invoices.filter((inv) => selectedInvoiceIds.includes(inv.invoice_id))
+      : invoices;
+
+    let remainingMoney = totalReceiptAmount;
+    const allocationsMap = {};
+    let totalAllocated = 0;
+
+    targetInvoices.forEach((inv) => {
+      const balanceDue = Math.max(0, parseFloat(inv.total_amount) - parseFloat(inv.amount_paid || 0));
+      
+      // If user provided a manual allocation for this row
+      if (manualAllocations[inv.invoice_id] !== undefined) {
+        const manualVal = Math.min(balanceDue, Math.max(0, parseFloat(manualAllocations[inv.invoice_id]) || 0));
+        allocationsMap[inv.invoice_id] = manualVal;
+        totalAllocated += manualVal;
+      } else {
+        // Auto FIFO deduction
+        const alloc = Math.min(remainingMoney, balanceDue);
+        allocationsMap[inv.invoice_id] = alloc;
+        remainingMoney = Math.max(0, remainingMoney - alloc);
+        totalAllocated += alloc;
+      }
+    });
+
+    const advanceAmount = Math.max(0, totalReceiptAmount - totalAllocated);
+
+    return {
+      allocationsMap,
+      totalAllocated,
+      advanceAmount,
+    };
+  }, [amount, invoices, selectedInvoiceIds, manualAllocations]);
+
+  // Handle row checkbox toggle
+  const handleToggleInvoice = (invoiceId) => {
+    setSelectedInvoiceIds((prev) => {
+      if (prev.includes(invoiceId)) {
+        return prev.filter((id) => id !== invoiceId);
+      } else {
+        return [...prev, invoiceId];
+      }
+    });
+  };
+
+  // Handle Select All / Clear Selection
+  const handleToggleSelectAll = () => {
+    if (selectedInvoiceIds.length === invoices.length) {
+      setSelectedInvoiceIds([]); // Revert to Auto-FIFO mode
+    } else {
+      setSelectedInvoiceIds(invoices.map((i) => i.invoice_id));
     }
   };
 
   const validate = () => {
     const tempErrors = {};
     if (!selectedCustomer) tempErrors.customerId = 'Customer is required';
-    
+
     const amtNum = parseFloat(amount);
     if (isNaN(amtNum) || amtNum <= 0) {
       tempErrors.amount = 'Amount must be greater than 0';
@@ -144,35 +243,66 @@ export const ReceiptDialog = ({ open, onClose, onSaveSuccess, editReceipt = null
     setLoading(true);
     setApiError(null);
 
-    const payload = {
-      customer_id: selectedCustomer.customer_id,
-      invoice_id: selectedInvoice || null,
-      amount: parseFloat(amount),
-      receipt_date: receiptDate,
-      mode,
-    };
+    const totalAmt = parseFloat(amount);
 
     try {
       if (editReceipt && editReceipt.receipt_id) {
+        // Single receipt record update
+        const payload = {
+          customer_id: selectedCustomer.customer_id,
+          invoice_id: selectedInvoiceIds[0] || null,
+          amount: totalAmt,
+          receipt_date: receiptDate,
+          mode,
+        };
         await updateReceipt(editReceipt.receipt_id, payload);
       } else {
-        await createReceipt(payload);
+        // Multi-invoice or advance allocation creation
+        const allocationsList = Object.entries(computedAllocations.allocationsMap)
+          .filter(([_, amt]) => amt > 0)
+          .map(([invId, amt]) => ({
+            invoice_id: invId,
+            amount: amt,
+          }));
+
+        await createReceiptWithAllocations({
+          customer_id: selectedCustomer.customer_id,
+          receipt_date: receiptDate,
+          mode,
+          allocations: allocationsList,
+          advanceAmount: computedAllocations.advanceAmount,
+        });
       }
+
       onSaveSuccess();
       onClose();
     } catch (err) {
       console.error(err);
       setApiError(err.message || 'Failed to record payment receipt.');
+      showGprError(err, {
+        title: 'Failed to record payment receipt',
+        actionContext: `Recording ${formatCurrency(totalAmt)} payment for customer ${selectedCustomer?.name}`,
+        payload: {
+          customer_id: selectedCustomer?.customer_id,
+          customer_name: selectedCustomer?.name,
+          total_amount: totalAmt,
+          mode,
+          receipt_date: receiptDate,
+          allocated_invoices_count: Object.keys(computedAllocations.allocationsMap).length,
+          advance_amount: computedAllocations.advanceAmount,
+        },
+      });
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
+    <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
       <DialogTitle sx={{ fontWeight: 800 }}>
         {editReceipt && editReceipt.receipt_id ? 'Edit Payment Receipt' : 'Record Payment Receipt'}
       </DialogTitle>
+
       <Box component="form" onSubmit={handleSubmit} noValidate>
         <DialogContent dividers>
           {apiError && (
@@ -181,13 +311,18 @@ export const ReceiptDialog = ({ open, onClose, onSaveSuccess, editReceipt = null
             </Alert>
           )}
 
-          <Grid container spacing={3}>
+          <Grid container spacing={2.5}>
             {/* Customer Search */}
-            <Grid item xs={12}>
+            <Grid item xs={12} sm={7}>
               <Autocomplete
                 id="receipt-customer-autocomplete"
                 options={customers}
-                getOptionLabel={(option) => `${option.name} (${option.phone || 'No Phone'})`}
+                getOptionLabel={(option) => {
+                  if (typeof option === 'string') return option;
+                  if (!option) return '';
+                  return `${option.name || ''} ${option.phone ? `(${option.phone})` : ''}`.trim();
+                }}
+                isOptionEqualToValue={(option, value) => option?.customer_id === value?.customer_id}
                 loading={customersLoading}
                 value={selectedCustomer}
                 onChange={(event, val) => setSelectedCustomer(val)}
@@ -212,32 +347,8 @@ export const ReceiptDialog = ({ open, onClose, onSaveSuccess, editReceipt = null
               />
             </Grid>
 
-            {/* Linked Invoice */}
-            <Grid item xs={12}>
-              <FormControl fullWidth disabled={!selectedCustomer || invoicesLoading}>
-                <InputLabel id="receipt-invoice-label">Link to Outstanding Invoice</InputLabel>
-                <Select
-                  labelId="receipt-invoice-label"
-                  id="receipt-invoice"
-                  value={selectedInvoice}
-                  label="Link to Outstanding Invoice"
-                  onChange={handleInvoiceChange}
-                >
-                  <MenuItem value="">
-                    <em>None (Record as Advance / Account payment)</em>
-                  </MenuItem>
-                  {invoices.map((inv) => (
-                    <MenuItem key={inv.invoice_id} value={inv.invoice_id}>
-                      Invoice #{inv.invoice_no} (Unpaid: ₹{(inv.total_amount - inv.amount_paid).toFixed(2)})
-                    </MenuItem>
-                  ))}
-                </Select>
-                {invoicesLoading && <FormHelperText>Loading invoices...</FormHelperText>}
-              </FormControl>
-            </Grid>
-
-            {/* Amount */}
-            <Grid item xs={12}>
+            {/* Receipt Amount */}
+            <Grid item xs={12} sm={5}>
               <TextField
                 fullWidth
                 label="Receipt Amount (₹) *"
@@ -265,8 +376,9 @@ export const ReceiptDialog = ({ open, onClose, onSaveSuccess, editReceipt = null
                   disabled={loading}
                 >
                   <MenuItem value="cash">Cash</MenuItem>
-                  <MenuItem value="upi">UPI (GPay / PhonePe)</MenuItem>
-                  <MenuItem value="bank">Bank Transfer (NEFT / IMPS)</MenuItem>
+                  <MenuItem value="upi">UPI (GPay / PhonePe / QR)</MenuItem>
+                  <MenuItem value="bank">Bank Transfer (NEFT / IMPS / RTGS)</MenuItem>
+                  <MenuItem value="cheque">Cheque</MenuItem>
                 </Select>
               </FormControl>
             </Grid>
@@ -285,6 +397,154 @@ export const ReceiptDialog = ({ open, onClose, onSaveSuccess, editReceipt = null
                 disabled={loading}
               />
             </Grid>
+
+            {/* Invoices Payment Allocation Table */}
+            <Grid item xs={12}>
+              <Box mt={1}>
+                <Box display="flex" justifyContent="space-between" alignItems="center" mb={1} flexWrap="wrap" gap={1}>
+                  <Box>
+                    <Typography variant="subtitle2" fontWeight={800} color="primary.main">
+                      Invoice Payment Allocation
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      {selectedInvoiceIds.length > 0
+                        ? `Targeting ${selectedInvoiceIds.length} selected invoice(s)`
+                        : 'Auto FIFO Mode: Automatically deducts oldest unpaid invoices first'}
+                    </Typography>
+                  </Box>
+
+                  {invoices.length > 0 && (
+                    <Box display="flex" alignItems="center" gap={1}>
+                      <Button size="small" variant="text" onClick={handleToggleSelectAll}>
+                        {selectedInvoiceIds.length === invoices.length ? 'Clear Selection (Auto FIFO)' : 'Select All Invoices'}
+                      </Button>
+                    </Box>
+                  )}
+                </Box>
+
+                {invoicesLoading ? (
+                  <Box display="flex" justifyContent="center" py={3}>
+                    <CircularProgress size={24} />
+                  </Box>
+                ) : !selectedCustomer ? (
+                  <Alert severity="info" sx={{ py: 1 }}>
+                    Select a customer above to view and allocate payments to their unpaid invoices.
+                  </Alert>
+                ) : invoices.length === 0 ? (
+                  <Alert severity="success" sx={{ py: 1 }}>
+                    No unpaid invoices found for this customer. Total receipt amount ({formatCurrency(amount || 0)}) will be recorded as Advance Credit on account.
+                  </Alert>
+                ) : (
+                  <TableContainer component={Paper} variant="outlined" sx={{ maxHeight: 260, borderRadius: 1.5 }}>
+                    <Table size="small" stickyHeader>
+                      <TableHead sx={{ bgcolor: 'grey.100' }}>
+                        <TableRow>
+                          <TableCell padding="checkbox">
+                            <Checkbox
+                              size="small"
+                              indeterminate={selectedInvoiceIds.length > 0 && selectedInvoiceIds.length < invoices.length}
+                              checked={invoices.length > 0 && selectedInvoiceIds.length === invoices.length}
+                              onChange={handleToggleSelectAll}
+                            />
+                          </TableCell>
+                          <TableCell><strong>Date</strong></TableCell>
+                          <TableCell><strong>Invoice No</strong></TableCell>
+                          <TableCell align="right"><strong>Total (₹)</strong></TableCell>
+                          <TableCell align="right"><strong>Balance Due (₹)</strong></TableCell>
+                          <TableCell align="right"><strong>This Receipt (₹)</strong></TableCell>
+                          <TableCell align="center"><strong>Status After</strong></TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {invoices.map((inv) => {
+                          const isChecked = selectedInvoiceIds.length === 0 || selectedInvoiceIds.includes(inv.invoice_id);
+                          const balanceDue = Math.max(0, parseFloat(inv.total_amount) - parseFloat(inv.amount_paid || 0));
+                          const alloc = computedAllocations.allocationsMap[inv.invoice_id] || 0;
+                          const newPaidTotal = parseFloat(inv.amount_paid || 0) + alloc;
+                          const isFullyPaid = newPaidTotal >= parseFloat(inv.total_amount);
+
+                          return (
+                            <TableRow
+                              key={inv.invoice_id}
+                              hover
+                              selected={selectedInvoiceIds.includes(inv.invoice_id)}
+                              sx={{
+                                bgcolor: alloc > 0 ? 'rgba(74, 222, 128, 0.08)' : 'inherit',
+                              }}
+                            >
+                              <TableCell padding="checkbox">
+                                <Checkbox
+                                  size="small"
+                                  checked={selectedInvoiceIds.includes(inv.invoice_id)}
+                                  onChange={() => handleToggleInvoice(inv.invoice_id)}
+                                />
+                              </TableCell>
+                              <TableCell>{formatDate(inv.invoice_date)}</TableCell>
+                              <TableCell sx={{ fontWeight: 700 }}>
+                                #{inv.invoice_no}
+                              </TableCell>
+                              <TableCell align="right">{formatCurrency(inv.total_amount)}</TableCell>
+                              <TableCell align="right" sx={{ fontWeight: 700, color: 'error.main' }}>
+                                {formatCurrency(balanceDue)}
+                              </TableCell>
+                              <TableCell align="right" sx={{ fontWeight: 700, color: alloc > 0 ? 'success.main' : 'text.disabled' }}>
+                                {alloc > 0 ? formatCurrency(alloc) : '—'}
+                              </TableCell>
+                              <TableCell align="center">
+                                {alloc > 0 ? (
+                                  <Chip
+                                    label={isFullyPaid ? 'PAID' : 'PARTIAL'}
+                                    size="small"
+                                    color={isFullyPaid ? 'success' : 'warning'}
+                                    sx={{ height: 20, fontSize: '0.65rem', fontWeight: 700 }}
+                                  />
+                                ) : (
+                                  <Chip
+                                    label={inv.status.toUpperCase()}
+                                    size="small"
+                                    variant="outlined"
+                                    sx={{ height: 20, fontSize: '0.65rem' }}
+                                  />
+                                )}
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+                )}
+
+                {/* Live Allocation Summary Footnote */}
+                {selectedCustomer && (
+                  <Paper variant="outlined" sx={{ mt: 1.5, p: 1.5, bgcolor: '#f8fafc', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 1 }}>
+                    <Box display="flex" gap={2} alignItems="center" flexWrap="wrap">
+                      <Typography variant="caption" color="text.secondary">
+                        Total Invoices Due: <strong>{formatCurrency(totalInvoicesDue)}</strong>
+                      </Typography>
+                      <Divider orientation="vertical" flexItem />
+                      <Typography variant="caption" color="success.main" fontWeight={700}>
+                        Allocated to Invoices: {formatCurrency(computedAllocations.totalAllocated)}
+                      </Typography>
+                      {computedAllocations.advanceAmount > 0 && (
+                        <>
+                          <Divider orientation="vertical" flexItem />
+                          <Typography variant="caption" color="primary.main" fontWeight={700}>
+                            Advance / Account Credit: {formatCurrency(computedAllocations.advanceAmount)}
+                          </Typography>
+                        </>
+                      )}
+                    </Box>
+
+                    {selectedInvoiceIds.length > 0 && parseFloat(amount || 0) > computedAllocations.totalAllocated && (
+                      <Typography variant="caption" color="warning.dark" fontWeight={600}>
+                        * Excess {formatCurrency(computedAllocations.advanceAmount)} saved as advance credit
+                      </Typography>
+                    )}
+                  </Paper>
+                )}
+              </Box>
+            </Grid>
           </Grid>
         </DialogContent>
 
@@ -295,10 +555,10 @@ export const ReceiptDialog = ({ open, onClose, onSaveSuccess, editReceipt = null
           <Button
             type="submit"
             variant="contained"
-            disabled={loading}
+            disabled={loading || !selectedCustomer || !(parseFloat(amount) > 0)}
             startIcon={loading ? <CircularProgress size={20} color="inherit" /> : null}
           >
-            Record Payment
+            {loading ? 'Recording...' : 'Record Payment Receipt'}
           </Button>
         </DialogActions>
       </Box>

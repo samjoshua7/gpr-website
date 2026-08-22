@@ -1,34 +1,24 @@
-# Handover: In-App GPR-ERROR Modal, Customer Reassignment & Safe Bill Deletion
+# Handover: receipts/api.js Syntax Fix & Build Verification
 
 ## Objective
-Implemented the requested universal **`GPR-ERROR`** diagnostic popup modal with 1-click clipboard copy for debugging, fixed invoice deletion foreign-key lockouts, and improved invoice customer reassignment.
+Resolved the parser error in `src/features/receipts/api.js` caused by duplicate trailing block lines.
 
 ---
 
 ## Decisions Made
-- Created `GprErrorDialog.jsx` and `ErrorProvider.jsx` with global window binding (`window.showGprError`) and `useGprError()` hook.
-- Added high-density diagnostic reporting including Error Code, Postgres Details/Hint, Operation Context, Payload Snapshot, and Timestamp.
-- Updated `deleteSalesInvoice(id)` in `salesInvoices/api.js` to delete line items and unlink job cards / quotations before deleting parent invoices, preventing PostgreSQL foreign key lockouts.
-- Guarded customer autocomplete in `InvoiceDialog.jsx` and connected all saving, voiding, and deleting catch blocks to `showGprError`.
+- Removed the trailing duplicate lines at the bottom of `src/features/receipts/api.js`.
+- Verified that all imports, exports, and syntax in `src/features/receipts/api.js` and dependent components are clean.
 
 ---
 
-## Files Modified / Created
-- `src/components/feedback/GprErrorDialog.jsx` [NEW]
-- `src/app/providers/ErrorProvider.jsx` [NEW]
-- `src/app/App.jsx`
-- `src/features/salesInvoices/api.js`
-- `src/features/salesInvoices/components/InvoiceDialog.jsx`
-- `src/features/salesInvoices/page.jsx`
-- `src/features/customers/CustomerLedgerPage.jsx`
+## Files Modified
+- `src/features/receipts/api.js`
 - `HANDOVER.md`
 
 ---
 
 ## Remaining TODOs (Priority Order)
-1. Test deleting an unpaid invoice to verify that child records are cleanly unlinked and deleted.
-2. Test editing an invoice and changing the customer, then verify the customer updates and saves.
-3. Test triggering any intentional error to view the **`GPR-ERROR`** diagnostic modal and verify the **"Copy Error Details"** button.
+1. Run `npm run build` in your terminal to confirm the build succeeds cleanly.
 
 ---
 

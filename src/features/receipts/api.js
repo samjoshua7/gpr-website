@@ -1,5 +1,7 @@
 import { supabase } from '../../lib/supabaseClient';
 import { invalidateCustomersCache } from '../customers/api';
+import { invalidateSalesInvoicesCache } from '../salesInvoices/api';
+import { invalidateStatementDataCache } from '../statements/api';
 
 let cachedReceipts = null;
 let lastFetchTimeReceipts = null;
@@ -110,6 +112,69 @@ export const createReceipt = async (receiptData) => {
 
   invalidateReceiptsCache();
   invalidateCustomersCache();
+  invalidateSalesInvoicesCache();
+  invalidateStatementDataCache();
+  return data;
+};
+
+/**
+ * Creates receipt entries with multi-invoice allocation and advance payment support.
+ * For each allocated invoice, a receipt row with that invoice_id is inserted.
+ * If there is unallocated excess, an unlinked advance receipt is inserted.
+ */
+export const createReceiptWithAllocations = async ({
+  customer_id,
+  receipt_date,
+  mode,
+  allocations = [],
+  advanceAmount = 0,
+}) => {
+  const recordsToInsert = [];
+
+  // Add allocated invoice records
+  allocations.forEach((alloc) => {
+    const amt = parseFloat(alloc.amount || 0);
+    if (amt > 0 && alloc.invoice_id) {
+      recordsToInsert.push({
+        customer_id,
+        invoice_id: alloc.invoice_id,
+        amount: amt,
+        receipt_date,
+        mode,
+      });
+    }
+  });
+
+  // Add advance / unallocated portion if any
+  const advAmt = parseFloat(advanceAmount || 0);
+  if (advAmt > 0) {
+    recordsToInsert.push({
+      customer_id,
+      invoice_id: null,
+      amount: advAmt,
+      receipt_date,
+      mode,
+    });
+  }
+
+  if (recordsToInsert.length === 0) {
+    throw new Error('Receipt total amount must be greater than 0.');
+  }
+
+  const { data, error } = await supabase
+    .from('receipts')
+    .insert(recordsToInsert)
+    .select();
+
+  if (error) {
+    throw error;
+  }
+
+  invalidateReceiptsCache();
+  invalidateCustomersCache();
+  invalidateSalesInvoicesCache();
+  invalidateStatementDataCache();
+
   return data;
 };
 
@@ -133,6 +198,8 @@ export const updateReceipt = async (receiptId, receiptData) => {
 
   invalidateReceiptsCache();
   invalidateCustomersCache();
+  invalidateSalesInvoicesCache();
+  invalidateStatementDataCache();
   return data;
 };
 
@@ -148,24 +215,27 @@ export const deleteReceipt = async (receiptId) => {
 
   invalidateReceiptsCache();
   invalidateCustomersCache();
+  invalidateSalesInvoicesCache();
+  invalidateStatementDataCache();
   return true;
 };
 
 /**
- * Loads unpaid / partially paid invoices for a customer
+ * Loads unpaid / partially paid invoices for a customer in chronological order (FIFO)
  */
 export const getCustomerOutstandingInvoices = async (customerId) => {
   if (!customerId) return [];
   
   const { data, error } = await supabase
     .from('sales_invoices')
-    .select('invoice_id, invoice_no, total_amount, amount_paid')
+    .select('invoice_id, invoice_no, invoice_date, total_amount, amount_paid, status, created_at')
     .eq('customer_id', customerId)
     .in('status', ['unpaid', 'partial'])
-    .order('invoice_date', { ascending: true });
+    .order('invoice_date', { ascending: true })
+    .order('created_at', { ascending: true });
 
   if (error) {
-    throw new Error(error.message);
+    throw error;
   }
 
   return data || [];

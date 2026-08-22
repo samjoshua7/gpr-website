@@ -28,6 +28,7 @@ const MODE_MAP = {
   cash: { label: 'Cash', color: 'success' },
   upi: { label: 'UPI / Digital', color: 'primary' },
   bank: { label: 'Bank Transfer', color: 'info' },
+  cheque: { label: 'Cheque', color: 'secondary' },
 };
 
 export const ReceiptDetailsDialog = ({ open, onClose, receiptId, onEdit, onClone, onDeleteSuccess }) => {
