@@ -170,6 +170,7 @@ export const updateQuotation = async (quotationId, quotationData, lineItems) => 
     .from('quotations')
     .update({
       customer_id: quotationData.customer_id,
+      quotation_no: quotationData.quotation_no,
       quotation_date: quotationData.quotation_date,
       invoice_type: quotationData.invoice_type || 'NON_GST',
       customer_type: quotationData.invoice_type === 'GST' ? quotationData.customer_type || 'B2C' : null,

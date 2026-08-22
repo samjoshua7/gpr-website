@@ -1,5 +1,6 @@
 import { supabase } from '../../lib/supabaseClient';
 import { advanceJobProductionTaskOnInvoice } from '../jobCards/api';
+import { invalidateCustomersCache } from '../customers/api';
 
 let cachedSalesInvoices = null;
 let lastFetchTimeSalesInvoices = null;
@@ -76,7 +77,8 @@ export const getSalesInvoices = async (searchQuery = '', statusFilter = '', forc
         name
       )
     `)
-    .order('invoice_date', { ascending: false });
+    .order('invoice_date', { ascending: false })
+    .order('created_at', { ascending: false });
 
   if (statusFilter && statusFilter !== 'all') {
     query = query.eq('status', statusFilter);
@@ -224,6 +226,7 @@ export const createSalesInvoice = async (invoiceData, lineItems) => {
   }
 
   invalidateSalesInvoicesCache();
+  invalidateCustomersCache();
   return invoice;
 };
 
@@ -234,6 +237,7 @@ export const updateSalesInvoice = async (invoiceId, invoiceData, lineItems) => {
     .update({
       customer_id: invoiceData.customer_id,
       job_id: invoiceData.job_id || null,
+      invoice_no: invoiceData.invoice_no,
       invoice_date: invoiceData.invoice_date,
       invoice_type: invoiceData.invoice_type || 'NON_GST',
       customer_type: invoiceData.invoice_type === 'GST' ? (invoiceData.customer_type || 'B2C') : null,
@@ -291,6 +295,7 @@ export const updateSalesInvoice = async (invoiceId, invoiceData, lineItems) => {
   }
 
   invalidateSalesInvoicesCache();
+  invalidateCustomersCache();
   return invoice;
 };
 
@@ -307,6 +312,7 @@ export const voidSalesInvoice = async (id) => {
   }
 
   invalidateSalesInvoicesCache();
+  invalidateCustomersCache();
   return data;
 };
 
@@ -321,6 +327,7 @@ export const deleteSalesInvoice = async (id) => {
   }
 
   invalidateSalesInvoicesCache();
+  invalidateCustomersCache();
   return true;
 };
 

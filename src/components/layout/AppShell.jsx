@@ -95,7 +95,7 @@ export const AppShell = () => {
           sx={{
             width: 28,
             height: 28,
-            borderRadius: '6px',
+            borderRadius: 0,
             bgcolor: 'primary.main',
             display: 'flex',
             alignItems: 'center',
@@ -111,7 +111,7 @@ export const AppShell = () => {
             GPR Printers
           </Typography>
           <Typography sx={{ color: 'rgba(255, 255, 255, 0.55)', fontSize: '0.625rem' }}>
-            Press Management
+            Since 1997 in Tirunelveli
           </Typography>
         </Box>
       </Box>
@@ -127,15 +127,15 @@ export const AppShell = () => {
                 to={item.path}
                 onClick={isMobile ? handleDrawerToggle : undefined}
                 sx={{
-                  borderRadius: 1,
+                  borderRadius: 0,
                   py: 0.6,
                   px: 1.5,
                   minHeight: 34,
                   bgcolor: isActive ? 'rgba(2, 132, 199, 0.18)' : 'transparent',
-                  color: isActive ? '#38bdf8' : 'rgba(226, 232, 240, 0.85)',
+                  color: isActive ? '#38bdf8' : '#ffffff',
                   position: 'relative',
                   '&:hover': {
-                    bgcolor: isActive ? 'rgba(2, 132, 199, 0.22)' : 'rgba(255, 255, 255, 0.06)',
+                    bgcolor: isActive ? 'rgba(2, 132, 199, 0.22)' : 'rgba(255, 255, 255, 0.08)',
                     color: isActive ? '#38bdf8' : '#ffffff',
                   },
                   '&::before': isActive
@@ -146,7 +146,7 @@ export const AppShell = () => {
                       top: '15%',
                       bottom: '15%',
                       width: 3.5,
-                      borderRadius: '0 4px 4px 0',
+                      borderRadius: 0,
                       bgcolor: '#0284c7',
                     }
                     : undefined,
@@ -155,7 +155,7 @@ export const AppShell = () => {
                 <ListItemIcon
                   sx={{
                     minWidth: 30,
-                    color: isActive ? '#38bdf8' : 'rgba(226, 232, 240, 0.65)',
+                    color: isActive ? '#38bdf8' : 'rgba(255, 255, 255, 0.75)',
                   }}
                 >
                   {item.icon}
@@ -165,6 +165,7 @@ export const AppShell = () => {
                   primaryTypographyProps={{
                     fontSize: '0.8125rem',
                     fontWeight: isActive ? 700 : 500,
+                    color: isActive ? '#38bdf8' : '#ffffff',
                   }}
                 />
               </ListItemButton>
@@ -175,8 +176,8 @@ export const AppShell = () => {
 
       {/* Sidebar User Footer Info */}
       <Box sx={{ p: 1.5, borderTop: '1px solid rgba(255, 255, 255, 0.08)' }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', p: 0.75, borderRadius: 1, bgcolor: 'rgba(255, 255, 255, 0.04)', mb: 0.75 }}>
-          <Avatar sx={{ bgcolor: 'secondary.main', color: '#ffffff', fontWeight: 700, fontSize: '0.75rem', width: 28, height: 28, mr: 1.25 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', p: 0.75, borderRadius: 0, bgcolor: 'rgba(255, 255, 255, 0.04)', mb: 0.75 }}>
+          <Avatar sx={{ bgcolor: 'secondary.main', color: '#ffffff', fontWeight: 700, fontSize: '0.75rem', width: 28, height: 28, mr: 1.25, borderRadius: 0 }}>
             {profile?.name ? profile.name.charAt(0).toUpperCase() : 'U'}
           </Avatar>
           <Box sx={{ overflow: 'hidden' }}>
@@ -196,6 +197,7 @@ export const AppShell = () => {
           startIcon={<LogoutIcon fontSize="small" />}
           onClick={handleSignOutClick}
           sx={{
+            borderRadius: 0,
             borderColor: 'rgba(255, 255, 255, 0.2)',
             color: 'rgba(255, 255, 255, 0.7)',
             '&:hover': {
@@ -243,7 +245,12 @@ export const AppShell = () => {
           ModalProps={{ keepMounted: true }}
           sx={{
             display: { xs: 'block', md: 'none' },
-            '& .MuiDrawer-paper': { boxSizing: 'border-box', width: DRAWER_WIDTH, borderRight: '1px solid rgba(15, 23, 42, 0.08)' },
+            '& .MuiDrawer-paper': {
+              boxSizing: 'border-box',
+              width: DRAWER_WIDTH,
+              borderRight: '1px solid rgba(15, 23, 42, 0.08)',
+              borderRadius: '0px !important',
+            },
           }}
         >
           {drawerContent}
@@ -253,7 +260,12 @@ export const AppShell = () => {
           variant="permanent"
           sx={{
             display: { xs: 'none', md: 'block' },
-            '& .MuiDrawer-paper': { boxSizing: 'border-box', width: DRAWER_WIDTH, borderRight: '1px solid rgba(15, 23, 42, 0.08)' },
+            '& .MuiDrawer-paper': {
+              boxSizing: 'border-box',
+              width: DRAWER_WIDTH,
+              borderRight: '1px solid rgba(15, 23, 42, 0.08)',
+              borderRadius: '0px !important',
+            },
           }}
           open
         >

@@ -14,6 +14,7 @@ import {
 } from '@mui/material';
 import { amountInWords } from '../../../lib/amountInWords';
 import { formatDate } from '../../../lib/formatDate';
+import { generateQrDataUrl, buildUpiPaymentUri } from '../../../lib/qrCode';
 
 const PAPER_CONFIG = {
   A4: { widthMm: 210, heightMm: 297, baseFontPx: 13, tableFontPx: 12.5, padding: 4, maxWidth: '850px' },
@@ -306,15 +307,74 @@ export const InvoiceDocument = ({ invoice, companySettings, paperSize = 'A4' }) 
         </Grid>
       </Grid>
 
-      {/* Bottom Row: Grand Total + Amount in Words (Left, stacked) & Authorized Signatory (Right) */}
-      <Box display="flex" justifyContent="space-between" alignItems="flex-end" mt={3} pt={1} borderTop="1px solid #e0e0e0">
-        {/* Left Block: Grand Total stacked immediately above Amount in Words */}
-        <Box maxWidth="60%">
-          <Box mb={1}>
+      {/* Bottom Row: UPI QR (Left), Grand Total + Amount in Words (Center), Authorized Signatory (Right) */}
+      <Box display="flex" justifyContent="space-between" alignItems="flex-end" mt={3} pt={1.5} borderTop="1px solid #e0e0e0" gap={2}>
+        {/* Left Block: Dynamic UPI QR Code (if enabled and configured) */}
+        {(() => {
+          if (companySettings?.upi_enabled === false) return null;
+
+          const upiUri = buildUpiPaymentUri({
+            companySettings,
+            amount: grandTotal,
+            invoiceNo: invoice.invoice_no,
+          });
+
+          if (!upiUri) return null;
+
+          const qrDataUrl = generateQrDataUrl(upiUri, paperSize === 'A5' ? 120 : 150);
+          const isBankMode = companySettings?.upi_mode === 'bank_account' && companySettings?.bank_account_no;
+
+          return (
+            <Box display="flex" alignItems="center" gap={1.25} sx={{ p: 1, border: '1px solid #e2e8f0', borderRadius: 1, bgcolor: '#f8fafc', maxWidth: '40%' }}>
+              <Box
+                component="img"
+                src={qrDataUrl}
+                alt="UPI Payment QR"
+                sx={{
+                  width: paperSize === 'A5' ? 80 : 95,
+                  height: paperSize === 'A5' ? 80 : 95,
+                  border: '1px solid #cbd5e1',
+                  bgcolor: '#ffffff',
+                  p: 0.25,
+                  borderRadius: 0.5,
+                  flexShrink: 0,
+                  imageRendering: 'pixelated',
+                }}
+              />
+              <Box sx={{ minWidth: 0 }}>
+                <Typography variant="caption" fontWeight={800} color="primary.main" display="block" sx={{ fontSize: `${config.baseFontPx - 2}px`, lineHeight: 1.1 }}>
+                  SCAN TO PAY
+                </Typography>
+                <Typography variant="caption" color="text.secondary" display="block" sx={{ fontSize: `${config.baseFontPx - 3.5}px`, mt: 0.25 }}>
+                  UPI • GPay • PhonePe • Paytm
+                </Typography>
+                <Divider sx={{ my: 0.5 }} />
+                {isBankMode ? (
+                  <React.Fragment>
+                    <Typography variant="caption" display="block" sx={{ fontSize: `${config.baseFontPx - 3.5}px`, fontWeight: 700, color: 'text.primary', lineHeight: 1.1, noWrap: true }}>
+                      A/C: {companySettings.bank_account_no}
+                    </Typography>
+                    <Typography variant="caption" display="block" sx={{ fontSize: `${config.baseFontPx - 3.5}px`, color: 'text.secondary', lineHeight: 1.1 }}>
+                      IFSC: {companySettings.bank_ifsc}
+                    </Typography>
+                  </React.Fragment>
+                ) : (
+                  <Typography variant="caption" display="block" sx={{ fontSize: `${config.baseFontPx - 3.5}px`, fontWeight: 700, color: 'text.primary', wordBreak: 'break-all', lineHeight: 1.1 }}>
+                    UPI: {companySettings?.upi_id || companySettings?.upi_phone}
+                  </Typography>
+                )}
+              </Box>
+            </Box>
+          );
+        })()}
+
+        {/* Center/Left Block: Grand Total stacked immediately above Amount in Words */}
+        <Box sx={{ flexGrow: 1, maxWidth: '42%' }}>
+          <Box mb={0.75}>
             <Typography variant="caption" color="text.secondary" fontWeight={700} display="block" sx={{ fontSize: `${config.baseFontPx - 2}px` }}>
               GRAND TOTAL:
             </Typography>
-            <Typography variant="h5" fontWeight={900} color="primary.main" sx={{ fontSize: `${config.baseFontPx + 8}px` }}>
+            <Typography variant="h5" fontWeight={900} color="primary.main" sx={{ fontSize: `${config.baseFontPx + 8}px`, lineHeight: 1.1 }}>
               {formatCurrency(grandTotal)}
             </Typography>
           </Box>
@@ -328,7 +388,7 @@ export const InvoiceDocument = ({ invoice, companySettings, paperSize = 'A4' }) 
         </Box>
 
         {/* Right Block: Authorized Signatory */}
-        <Box textAlign="center" minWidth="180px">
+        <Box textAlign="center" minWidth="160px" sx={{ flexShrink: 0 }}>
           {companySettings?.signatory_image_url ? (
             <Box
               component="img"

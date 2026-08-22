@@ -2,6 +2,7 @@ import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { amountInWords } from './amountInWords';
 import { formatDate } from './formatDate';
+import { generateQrDataUrl, buildUpiPaymentUri } from './qrCode';
 
 function loadImageAsBase64(url) {
   if (!url) return Promise.resolve(null);
@@ -340,61 +341,110 @@ export async function generateInvoicePdf(invoice, companySettings, paperSize = '
   doc.line(margin, y, pageWidth - margin, y);
   y += 4;
 
-  // --- Bottom Block: Grand Total + Amount in Words (Left) & Signatory (Right) ---
-  const leftBlockWidth = contentWidth * 0.6;
+  // --- Bottom Block: UPI QR (Left), Grand Total + Amount in Words (Center), Signatory (Right) ---
+  const upiUri =
+    companySettings?.upi_enabled !== false
+      ? buildUpiPaymentUri({
+          companySettings,
+          amount: grandTotal,
+          invoiceNo: invoice.invoice_no,
+        })
+      : null;
+
+  const qrDataUrl = upiUri ? generateQrDataUrl(upiUri, 150) : null;
+  const qrSize = isA5 ? 16 : 20;
+
+  let centerBlockX = margin;
+  let centerBlockWidth = contentWidth * 0.58;
+
+  if (qrDataUrl) {
+    // Draw QR Code
+    doc.addImage(qrDataUrl, 'PNG', margin, y + 2, qrSize, qrSize);
+
+    // Beside QR text info
+    const infoX = margin + qrSize + 2;
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(isA5 ? 6 : 7);
+    doc.setTextColor(25, 118, 210);
+    doc.text('SCAN TO PAY', infoX, y + 4.5);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(isA5 ? 4.5 : 5.5);
+    doc.setTextColor(100, 100, 100);
+    doc.text('UPI • GPay • PhonePe', infoX, y + 7.5);
+
+    if (companySettings?.upi_mode === 'bank_account' && companySettings?.bank_account_no) {
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(isA5 ? 4.5 : 5.5);
+      doc.setTextColor(0, 0, 0);
+      doc.text(`A/C: ${companySettings.bank_account_no}`, infoX, y + 11);
+      doc.setFont('helvetica', 'normal');
+      doc.text(`IFSC: ${companySettings.bank_ifsc || ''}`, infoX, y + 14);
+    } else {
+      const upiText = `UPI: ${companySettings?.upi_id || companySettings?.upi_phone || ''}`;
+      const wrappedUpi = doc.splitTextToSize(upiText, isA5 ? 24 : 32);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(isA5 ? 4.5 : 5.5);
+      doc.setTextColor(0, 0, 0);
+      doc.text(wrappedUpi, infoX, y + 11);
+    }
+
+    centerBlockX = margin + (isA5 ? 46 : 58);
+    centerBlockWidth = contentWidth - (isA5 ? 46 : 58) - (isA5 ? 36 : 44);
+  }
 
   // Grand Total numeric stacked above Amount in Words
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(isA5 ? 7 : 8);
   doc.setTextColor(100, 100, 100);
-  doc.text('GRAND TOTAL:', margin, y + 2);
+  doc.text('GRAND TOTAL:', centerBlockX, y + 2);
 
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(isA5 ? 12 : 15);
+  doc.setFontSize(isA5 ? 11 : 14);
   doc.setTextColor(25, 118, 210);
-  doc.text(formatCurrency(grandTotal), margin, y + (isA5 ? 7 : 8.5));
+  doc.text(formatCurrency(grandTotal), centerBlockX, y + (isA5 ? 6.5 : 8));
 
-  const wordsY = y + (isA5 ? 11 : 13.5);
+  const wordsY = y + (isA5 ? 10 : 12.5);
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(isA5 ? 6.5 : 7.5);
+  doc.setFontSize(isA5 ? 6 : 7);
   doc.setTextColor(100, 100, 100);
-  doc.text('AMOUNT IN WORDS:', margin, wordsY);
+  doc.text('AMOUNT IN WORDS:', centerBlockX, wordsY);
 
   doc.setFont('helvetica', 'bolditalic');
-  doc.setFontSize(isA5 ? 7.5 : 8.5);
+  doc.setFontSize(isA5 ? 6.5 : 7.5);
   doc.setTextColor(0, 0, 0);
-  const wordsText = doc.splitTextToSize(amountInWords(grandTotal), leftBlockWidth);
-  doc.text(wordsText, margin, wordsY + (isA5 ? 3.5 : 4));
+  const wordsText = doc.splitTextToSize(amountInWords(grandTotal), centerBlockWidth);
+  doc.text(wordsText, centerBlockX, wordsY + (isA5 ? 3 : 3.5));
 
   // Authorized Signatory Block (Right)
-  const sigX = pageWidth - margin - 35;
+  const sigX = pageWidth - margin - (isA5 ? 32 : 38);
   let sigY = y + 2;
 
   if (sigImg) {
-    const maxSigWidth = isA5 ? 30 : 40;
-    const maxSigHeight = isA5 ? 12 : 15;
+    const maxSigWidth = isA5 ? 28 : 36;
+    const maxSigHeight = isA5 ? 10 : 13;
     const sigRatio = Math.min(maxSigWidth / sigImg.width, maxSigHeight / sigImg.height);
     const sw = sigImg.width * sigRatio;
     const sh = sigImg.height * sigRatio;
-    doc.addImage(sigImg.dataUrl, 'PNG', sigX + (35 - sw) / 2, sigY, sw, sh);
+    doc.addImage(sigImg.dataUrl, 'PNG', sigX + ((isA5 ? 32 : 38) - sw) / 2, sigY, sw, sh);
     sigY += sh + 1;
   } else {
-    sigY += isA5 ? 10 : 12;
+    sigY += isA5 ? 8 : 10;
   }
 
   doc.setDrawColor(180, 180, 180);
-  doc.line(sigX, sigY, sigX + 35, sigY);
-  sigY += 3.5;
+  doc.line(sigX, sigY, sigX + (isA5 ? 32 : 38), sigY);
+  sigY += 3;
 
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(isA5 ? 7 : 8);
-  doc.text(companySettings?.signatory_name || 'Authorized Signatory', sigX + 17.5, sigY, { align: 'center' });
+  doc.setFontSize(isA5 ? 6.5 : 7.5);
+  doc.text(companySettings?.signatory_name || 'Authorized Signatory', sigX + (isA5 ? 16 : 19), sigY, { align: 'center' });
 
-  sigY += 3;
+  sigY += 2.5;
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(isA5 ? 6 : 7);
+  doc.setFontSize(isA5 ? 5.5 : 6.5);
   doc.setTextColor(100, 100, 100);
-  doc.text(`For ${companySettings?.company_name || 'G.P.R Offset Printers'}`, sigX + 17.5, sigY, { align: 'center' });
+  doc.text(`For ${companySettings?.company_name || 'G.P.R Offset Printers'}`, sigX + (isA5 ? 16 : 19), sigY, { align: 'center' });
 
   return doc.output('blob');
 }

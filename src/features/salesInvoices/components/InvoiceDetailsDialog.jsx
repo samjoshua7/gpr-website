@@ -22,6 +22,8 @@ import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
 import WhatsAppIcon from '@mui/icons-material/WhatsApp';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import PrintIcon from '@mui/icons-material/Print';
+import BlockIcon from '@mui/icons-material/Block';
+import DeleteIcon from '@mui/icons-material/Delete';
 import { getInvoiceById, getInvoiceTaskProgress } from '../api';
 import { getCompanySettings } from '../../settings/api';
 import { InvoiceDocument } from './InvoiceDocument';
@@ -37,7 +39,7 @@ const STATUS_MAP = {
   void: { label: 'Voided', color: 'default' },
 };
 
-export const InvoiceDetailsDialog = ({ open, onClose, invoiceId, onEdit, onClone }) => {
+export const InvoiceDetailsDialog = ({ open, onClose, invoiceId, onEdit, onClone, onVoid, onDelete }) => {
   const [invoice, setInvoice] = useState(null);
   const [companySettings, setCompanySettings] = useState(null);
   const [paperSize, setPaperSize] = useState('A4');
@@ -224,6 +226,37 @@ export const InvoiceDetailsDialog = ({ open, onClose, invoiceId, onEdit, onClone
                 <EditIcon fontSize="small" />
               </IconButton>
             </Tooltip>
+            {onVoid && (
+              <Tooltip title={invoice.status === 'void' ? 'Already Void' : 'Void Invoice'}>
+                <span>
+                  <IconButton
+                    size="small"
+                    color="warning"
+                    disabled={invoice.status === 'void'}
+                    onClick={() => {
+                      onClose();
+                      onVoid(invoice);
+                    }}
+                  >
+                    <BlockIcon fontSize="small" />
+                  </IconButton>
+                </span>
+              </Tooltip>
+            )}
+            {onDelete && (
+              <Tooltip title="Delete Invoice">
+                <IconButton
+                  size="small"
+                  color="error"
+                  onClick={() => {
+                    onClose();
+                    onDelete(invoice);
+                  }}
+                >
+                  <DeleteIcon fontSize="small" />
+                </IconButton>
+              </Tooltip>
+            )}
             <Tooltip title="Print Invoice">
               <IconButton size="small" color="primary" onClick={handlePrint}>
                 <PrintIcon fontSize="small" />

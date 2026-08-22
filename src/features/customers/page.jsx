@@ -93,12 +93,12 @@ export const CustomersPage = () => {
   const [dependencyDetails, setDependencyDetails] = useState([]);
 
   // 1. Initial Fetch
-  const fetchCustomers = useCallback(async () => {
+  const fetchCustomers = useCallback(async (force = true) => {
     setLoading(true);
     setError(null);
     try {
-      // Fetch all customers once
-      const data = await getCustomers();
+      // Fetch all customers with fresh balances
+      const data = await getCustomers('', force);
       setAllCustomers(data);
     } catch (err) {
       console.error(err);
@@ -109,7 +109,7 @@ export const CustomersPage = () => {
   }, []);
 
   useEffect(() => {
-    fetchCustomers();
+    fetchCustomers(true);
   }, [fetchCustomers]);
 
   // 3. Client-side Processing (Filter & Sort)

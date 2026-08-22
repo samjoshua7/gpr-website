@@ -45,7 +45,6 @@ import CannotDeleteDialog from '../../components/feedback/CannotDeleteDialog';
 import { SearchInput } from '../../components/ui/SearchInput';
 import { HighlightText } from '../../components/ui/HighlightText';
 import { TablePagination, TableSortLabel, Stack } from '@mui/material';
-import { InvoiceProgressBar } from '../../components/ui/InvoiceProgressBar';
 import { formatDate } from '../../lib/formatDate';
 
 const STATUS_MAP = {
@@ -70,6 +69,48 @@ const currencyFormatter = new Intl.NumberFormat('en-IN', {
 });
 
 const formatCurrency = (amount) => currencyFormatter.format(amount || 0);
+
+const getShortInvoiceNo = (fullNo) => {
+  if (!fullNo) return '';
+  const parts = fullNo.split('/');
+  return parts[parts.length - 1] || fullNo;
+};
+
+const getProgressInfo = (taskStatuses = [], activeWorkflow = []) => {
+  if (!taskStatuses || taskStatuses.length === 0) return null;
+  const workflowList = activeWorkflow && activeWorkflow.length > 0 ? activeWorkflow : [
+    'New Orders', 'Designing', 'Proof', 'Printing', 'Additional works', 'Cutting', 'Packing', 'Out for Delivery', 'Delivered'
+  ];
+  let totalFraction = 0;
+  const details = [];
+  taskStatuses.forEach((task, idx) => {
+    const stageIdx = workflowList.indexOf(task.status);
+    const fraction = stageIdx >= 0 ? (stageIdx + 1) / workflowList.length : 0;
+    totalFraction += fraction;
+    const pName = task.product_name || `Item ${idx + 1}`;
+    details.push(`${pName}: ${task.status || 'Pending'} (${Math.round(fraction * 100)}%)`);
+  });
+  const percent = Math.round((totalFraction / taskStatuses.length) * 100);
+
+  let color = 'default';
+  let variant = 'outlined';
+  if (percent >= 100) {
+    color = 'success';
+  } else if (percent >= 60) {
+    color = 'primary';
+  } else if (percent >= 30) {
+    color = 'warning';
+  } else {
+    color = 'error';
+  }
+
+  return {
+    percent,
+    color,
+    variant,
+    tooltip: details.join(' | ') || `Progress: ${percent}%`
+  };
+};
 
 export const SalesInvoicesPage = () => {
   const location = useLocation();
@@ -183,6 +224,14 @@ export const SalesInvoicesPage = () => {
 
         if (valA < valB) return order === 'asc' ? -1 : 1;
         if (valA > valB) return order === 'asc' ? 1 : -1;
+
+        if (orderBy === 'invoice_date') {
+          const dateA = new Date(a.created_at || 0).getTime();
+          const dateB = new Date(b.created_at || 0).getTime();
+          if (dateA < dateB) return order === 'asc' ? -1 : 1;
+          if (dateA > dateB) return order === 'asc' ? 1 : -1;
+        }
+
         return 0;
       });
     }
@@ -461,63 +510,72 @@ export const SalesInvoicesPage = () => {
             ) : (
               paginatedInvoices.map((inv) => (
                 <TableRow key={inv.invoice_id} hover>
-                  <TableCell>{formatDate(inv.invoice_date)}</TableCell>
-                  <TableCell sx={{ minWidth: 160 }}>
-                    <Box display="flex" alignItems="center" gap={1} mb={0.5}>
-                      <Typography variant="body2" sx={{ fontWeight: 700, color: 'primary.main' }}>
-                        <HighlightText text={inv.invoice_no} highlight={searchQuery} />
-                      </Typography>
-                      <Chip
-                        label={inv.invoice_type === 'GST' ? 'GST' : 'Non-GST'}
-                        size="small"
-                        variant="outlined"
-                        color={inv.invoice_type === 'GST' ? 'primary' : 'default'}
-                        sx={{ height: 18, fontSize: '0.65rem' }}
-                      />
-                    </Box>
-                    <InvoiceProgressBar
-                      taskStatuses={taskProgressMap[inv.invoice_id] || []}
-                      workflow={workflow}
-                      height={8}
-                    />
+                  <TableCell sx={{ whiteSpace: 'nowrap' }}>{formatDate(inv.invoice_date)}</TableCell>
+                  <TableCell sx={{ whiteSpace: 'nowrap' }}>
+                    {(() => {
+                      const shortNo = getShortInvoiceNo(inv.invoice_no);
+                      const progressInfo = getProgressInfo(taskProgressMap[inv.invoice_id], workflow);
+                      return (
+                        <Box display="flex" alignItems="center" gap={0.75}>
+                          <Tooltip title={`Full Invoice No: ${inv.invoice_no}`} arrow placement="top">
+                            <Typography
+                              variant="body2"
+                              sx={{
+                                fontWeight: 700,
+                                color: 'primary.main',
+                                cursor: 'pointer',
+                                whiteSpace: 'nowrap',
+                              }}
+                              onClick={() => handleViewClick(inv)}
+                            >
+                              <HighlightText text={shortNo} highlight={searchQuery} />
+                            </Typography>
+                          </Tooltip>
+                          <Chip
+                            label={inv.invoice_type === 'GST' ? 'GST' : 'Non-GST'}
+                            size="small"
+                            variant="outlined"
+                            color={inv.invoice_type === 'GST' ? 'primary' : 'default'}
+                            sx={{ height: 18, fontSize: '0.65rem' }}
+                          />
+                          {progressInfo && (
+                            <Tooltip title={progressInfo.tooltip} arrow placement="top">
+                              <Chip
+                                label={`${progressInfo.percent}%`}
+                                size="small"
+                                color={progressInfo.color}
+                                variant={progressInfo.variant}
+                                sx={{ height: 18, fontSize: '0.65rem', fontWeight: 700 }}
+                              />
+                            </Tooltip>
+                          )}
+                        </Box>
+                      );
+                    })()}
                   </TableCell>
                   <TableCell sx={{ fontWeight: 600 }}>
                     <HighlightText text={inv.customers?.name || '—'} highlight={searchQuery} />
                   </TableCell>
-                  <TableCell align="right" sx={{ fontWeight: 600 }}>
+                  <TableCell align="right" sx={{ fontWeight: 600, whiteSpace: 'nowrap' }}>
                     {formatCurrency(inv.total_amount)}
                   </TableCell>
-                  <TableCell align="center">
-                    <Typography variant="body2" sx={{ fontWeight: 700, color: 'success.main', display: 'block' }}>
-                      {formatCurrency(inv.amount_paid)} paid
-                    </Typography>
-                    <Chip
-                      label={STATUS_MAP[inv.status]?.label || inv.status}
-                      color={STATUS_MAP[inv.status]?.color || 'default'}
-                      size="small"
-                      sx={{ fontWeight: 600, height: 20, fontSize: '0.7rem', mt: 0.5 }}
-                    />
-                  </TableCell>
-                  <TableCell align="center">
-                    <Tooltip title="View Details">
-                      <IconButton color="info" onClick={() => handleViewClick(inv)} size="small" sx={{ mr: 0.5 }}>
-                        <VisibilityIcon fontSize="small" />
-                      </IconButton>
-                    </Tooltip>
-                    <Tooltip title={inv.status === 'void' ? 'Already Void' : 'Void Invoice'}>
-                      <IconButton
-                        color="warning"
-                        onClick={() => handleVoidClick(inv)}
-                        disabled={inv.status === 'void'}
+                  <TableCell align="center" sx={{ whiteSpace: 'nowrap' }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1 }}>
+                      <Chip
+                        label={STATUS_MAP[inv.status]?.label || inv.status}
+                        color={STATUS_MAP[inv.status]?.color || 'default'}
                         size="small"
-                        sx={{ mr: 0.5 }}
-                      >
-                        <BlockIcon fontSize="small" />
-                      </IconButton>
-                    </Tooltip>
-                    <Tooltip title="Delete">
-                      <IconButton color="error" onClick={() => handleDeleteClick(inv)} size="small">
-                        <DeleteIcon fontSize="small" />
+                        sx={{ fontWeight: 600, height: 20, fontSize: '0.7rem' }}
+                      />
+                      <Typography variant="body2" sx={{ fontWeight: 600, color: inv.amount_paid > 0 ? 'success.main' : 'text.secondary' }}>
+                        {formatCurrency(inv.amount_paid)}
+                      </Typography>
+                    </Box>
+                  </TableCell>
+                  <TableCell align="center" sx={{ whiteSpace: 'nowrap' }}>
+                    <Tooltip title="View Details">
+                      <IconButton color="info" onClick={() => handleViewClick(inv)} size="small">
+                        <VisibilityIcon fontSize="small" />
                       </IconButton>
                     </Tooltip>
                   </TableCell>
@@ -545,6 +603,8 @@ export const SalesInvoicesPage = () => {
         invoiceId={selectedInvoiceId}
         onEdit={handleEditClick}
         onClone={handleCloneInvoice}
+        onVoid={handleVoidClick}
+        onDelete={handleDeleteClick}
       />
 
       {/* Dialog Form */}

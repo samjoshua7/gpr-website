@@ -133,7 +133,7 @@ export const InvoiceDialog = ({
   const [loading, setLoading] = useState(false);
   const [apiError, setApiError] = useState(null);
 
-  // Initial load
+  // Initial load & record population
   useEffect(() => {
     const initData = async () => {
       setCustomersLoading(true);
@@ -146,14 +146,104 @@ export const InvoiceDialog = ({
         setCustomers(customerList);
         setInventoryItems(itemList);
 
-        if (preselectedJob && preselectedJob.customer_id) {
-          const matched = customerList.find(c => c.customer_id === preselectedJob.customer_id);
-          if (matched) {
-             handleCustomerChange(null, matched);
+        if (activeEditRecord) {
+          // Edit or Clone mode - populate with existing record data
+          const recordId = activeEditRecord.invoice_id || activeEditRecord.quotation_id;
+          const recordNo = activeEditRecord.invoice_no || activeEditRecord.quotation_no;
+          const recordDate = activeEditRecord.invoice_date || activeEditRecord.quotation_date;
+
+          if (recordId) {
+            setInvoiceNo(recordNo);
+            setInvoiceDate(recordDate);
+          } else {
+            // Clone mode - generate a fresh number
+            try {
+              const nextNo = isQuotation
+                ? await getNextQuotationNumber(activeEditRecord.invoice_type || 'NON_GST')
+                : await getNextInvoiceNumber(activeEditRecord.invoice_type || 'NON_GST');
+              setInvoiceNo(nextNo);
+            } catch (err) {
+              console.error('Failed to generate sequence number:', err);
+              setInvoiceNo('ERR-GEN');
+            }
+            setInvoiceDate(new Date().toISOString().split('T')[0]);
           }
+
+          setInvoiceType(activeEditRecord.invoice_type || 'NON_GST');
+          setCustomerType(activeEditRecord.customer_type || 'B2C');
+          setIsIntraState(activeEditRecord.is_interstate === false);
+          setNotes(activeEditRecord.notes || '');
+          setDeliveryDetails(activeEditRecord.delivery_details || '');
+          setAddress(activeEditRecord.billing_address || '');
+          setShippingAddress(activeEditRecord.shipping_address || '');
+          setCustomerGstin(activeEditRecord.customer_gstin || '');
+          setDiscountAmount((activeEditRecord.discount_amount || 0).toString());
+
+          // Match and select customer
+          if (activeEditRecord.customer_id) {
+            const matched = customerList.find((c) => c.customer_id === activeEditRecord.customer_id);
+            if (matched) {
+              setSelectedCustomer(matched);
+              try {
+                const balance = await getCustomerOutstandingBalance(matched.customer_id);
+                setOutstandingBalance(balance);
+              } catch (err) {
+                console.error('Failed to load balance for edit customer:', err);
+              }
+            } else if (activeEditRecord.customer_name) {
+              setSelectedCustomer({
+                customer_id: activeEditRecord.customer_id,
+                name: activeEditRecord.customer_name,
+                address: activeEditRecord.billing_address || '',
+                gstin: activeEditRecord.customer_gstin || '',
+              });
+            }
+          }
+
+          // Load line items
+          if (activeEditRecord.items && activeEditRecord.items.length > 0) {
+            setLineItems(
+              activeEditRecord.items.map((i) => ({
+                item_id: i.item_id || null,
+                product_name: i.product_name || i.description || '',
+                description: i.description || '',
+                quantity: (i.quantity || 1).toString(),
+                unit: i.unit || 'sheet',
+                unit_price: (i.unit_price || 0).toString(),
+                discount_amount: (i.discount_amount || 0).toString(),
+                tax_rate_id: '',
+                gst_rate: i.gst_rate || 0,
+                tax_amount: i.tax_amount || 0,
+                hsn_code: i.hsn_code || '',
+                amount: i.amount || 0,
+              }))
+            );
+          }
+        } else if (preselectedJob && preselectedJob.customer_id) {
+          const matched = customerList.find((c) => c.customer_id === preselectedJob.customer_id);
+          if (matched) {
+            handleCustomerChange(null, matched);
+          }
+          setNotes(preselectedJob.description || '');
+          setLineItems([
+            {
+              item_id: null,
+              product_name: `Print Job: ${preselectedJob.description}`,
+              description: preselectedJob.description || '',
+              quantity: preselectedJob.quantity?.toString() || '1',
+              unit: 'sheet',
+              unit_price: '0.00',
+              discount_amount: '0.00',
+              tax_rate_id: '',
+              gst_rate: 0,
+              tax_amount: 0,
+              hsn_code: '',
+              amount: 0,
+            },
+          ]);
         } else if (preselectedCustomer) {
           const custId = preselectedCustomer.customer_id || preselectedCustomer.id;
-          const matched = customerList.find(c => c.customer_id === custId) || preselectedCustomer;
+          const matched = customerList.find((c) => c.customer_id === custId) || preselectedCustomer;
           handleCustomerChange(null, matched);
         }
       } catch (err) {
@@ -165,10 +255,9 @@ export const InvoiceDialog = ({
     };
 
     if (open) {
-      initData();
       setIsQuotation(initialIsQuotation);
       setSelectedCustomer(null);
-      setOutstandingBalance(0.00);
+      setOutstandingBalance(0.0);
       setAddress('');
       setShippingSameAsBilling(true);
       setShippingAddress('');
@@ -178,49 +267,31 @@ export const InvoiceDialog = ({
       setIsIntraState(true);
       setInvoiceNo('Loading...');
       setInvoiceDate(new Date().toISOString().split('T')[0]);
-      setNotes(preselectedJob?.description || '');
+      setNotes('');
       setDeliveryDetails('');
       setDiscountAmount('0.00');
       setErrors({});
       setApiError(null);
+      setLineItems([
+        {
+          item_id: null,
+          product_name: '',
+          description: '',
+          quantity: '1',
+          unit: 'sheet',
+          unit_price: '0.00',
+          discount_amount: '0.00',
+          tax_rate_id: '',
+          gst_rate: 0,
+          tax_amount: 0,
+          hsn_code: '',
+          amount: 0,
+        },
+      ]);
 
-      if (preselectedJob) {
-        setLineItems([
-          {
-            item_id: null,
-            product_name: `Print Job: ${preselectedJob.description}`,
-            description: preselectedJob.description || '',
-            quantity: preselectedJob.quantity?.toString() || '1',
-            unit: 'sheet',
-            unit_price: '0.00',
-            discount_amount: '0.00',
-            tax_rate_id: '',
-            gst_rate: 0,
-            tax_amount: 0,
-            hsn_code: '',
-            amount: 0,
-          },
-        ]);
-      } else {
-        setLineItems([
-          {
-            item_id: null,
-            product_name: '',
-            description: '',
-            quantity: '1',
-            unit: 'sheet',
-            unit_price: '0.00',
-            discount_amount: '0.00',
-            tax_rate_id: '',
-            gst_rate: 0,
-            tax_amount: 0,
-            hsn_code: '',
-            amount: 0,
-          },
-        ]);
-      }
+      initData();
     }
-  }, [open, preselectedJob, preselectedCustomer]);
+  }, [open, activeEditRecord, preselectedJob, preselectedCustomer]);
 
   // Sync shipping address when billing address or toggle changes
   useEffect(() => {
@@ -229,81 +300,26 @@ export const InvoiceDialog = ({
     }
   }, [address, shippingSameAsBilling]);
 
-  // Load next document sequence number automatically if creating new or edit
-  useEffect(() => {
-    const fetchDocumentNo = async () => {
-      if (!open) return;
-      
-      if (activeEditRecord) {
-        // Edit or Clone mode - populate with existing record data
-        const recordId = activeEditRecord.invoice_id || activeEditRecord.quotation_id;
-        const recordNo = activeEditRecord.invoice_no || activeEditRecord.quotation_no;
-        const recordDate = activeEditRecord.invoice_date || activeEditRecord.quotation_date;
-
-        if (recordId) {
-          setInvoiceNo(recordNo);
-          setInvoiceDate(recordDate);
-        } else {
-          try {
-            const nextNo = isQuotation
-              ? await getNextQuotationNumber(activeEditRecord.invoice_type || 'NON_GST')
-              : await getNextInvoiceNumber(activeEditRecord.invoice_type || 'NON_GST');
-            setInvoiceNo(nextNo);
-          } catch (err) {
-            console.error('Failed to generate sequence number:', err);
-            setInvoiceNo('ERR-GEN');
-          }
-          setInvoiceDate(new Date().toISOString().split('T')[0]);
-        }
-        setInvoiceType(activeEditRecord.invoice_type || 'NON_GST');
-        setCustomerType(activeEditRecord.customer_type || 'B2C');
-        setIsIntraState(activeEditRecord.is_interstate === false);
-        setNotes(activeEditRecord.notes || '');
-        setDeliveryDetails(activeEditRecord.delivery_details || '');
-        setAddress(activeEditRecord.billing_address || '');
-        setShippingAddress(activeEditRecord.shipping_address || '');
-        setCustomerGstin(activeEditRecord.customer_gstin || '');
-        setDiscountAmount((activeEditRecord.discount_amount || 0).toString());
-        
-        // Wait for customers to load then select
-        if (activeEditRecord.customer_id && customers.length > 0) {
-          const matched = customers.find(c => c.customer_id === activeEditRecord.customer_id);
-          if (matched) {
-             setSelectedCustomer(matched);
-          }
-        }
-        
-        // Load existing line items
-        if (activeEditRecord.items && activeEditRecord.items.length > 0) {
-          setLineItems(activeEditRecord.items.map(i => ({
-            item_id: i.item_id,
-            product_name: i.product_name || i.description || '',
-            description: i.description || '',
-            quantity: i.quantity.toString(),
-            unit: 'unit',
-            unit_price: i.unit_price.toString(),
-            discount_amount: (i.discount_amount || 0).toString(),
-            tax_rate_id: '',
-            gst_rate: i.gst_rate || 0,
-            tax_amount: i.tax_amount || 0,
-            hsn_code: i.hsn_code || '',
-            amount: i.amount || 0
-          })));
-        }
-      } else {
-        try {
-          const nextNo = isQuotation
-            ? await getNextQuotationNumber(invoiceType)
-            : await getNextInvoiceNumber(invoiceType);
-          setInvoiceNo(nextNo);
-        } catch (err) {
-          console.error('Failed to generate sequence number:', err);
-          setInvoiceNo('ERR-GEN');
-        }
+  const updateInvoiceNumberForType = async (newType, isQtn = isQuotation) => {
+    // If editing an existing record and toggled back to its original type, restore original document number
+    if (activeEditRecord && (activeEditRecord.invoice_id || activeEditRecord.quotation_id)) {
+      const origType = activeEditRecord.invoice_type || 'NON_GST';
+      const origIsQtn = !!activeEditRecord.quotation_id;
+      if (newType === origType && isQtn === origIsQtn) {
+        setInvoiceNo(activeEditRecord.invoice_no || activeEditRecord.quotation_no);
+        return;
       }
-    };
-    fetchDocumentNo();
-  }, [invoiceType, isQuotation, open, activeEditRecord, customers.length]);
+    }
+
+    try {
+      const nextNo = isQtn
+        ? await getNextQuotationNumber(newType)
+        : await getNextInvoiceNumber(newType);
+      setInvoiceNo(nextNo);
+    } catch (err) {
+      console.error('Failed to generate sequence number for type:', err);
+    }
+  };
 
   // Focus add product button when customer is selected
   useEffect(() => {
@@ -335,12 +351,19 @@ export const InvoiceDialog = ({
     setCustomerGstin(custGstinVal);
 
     // Auto-toggle GST Invoice if customer has registered GSTIN
+    let targetType = invoiceType;
     if (custGstinVal.trim().length > 0) {
+      targetType = 'GST';
       setInvoiceType('GST');
       setCustomerType('B2B');
-    } else {
+    } else if (!activeEditRecord) {
+      targetType = 'NON_GST';
       setInvoiceType('NON_GST');
       setCustomerType('B2C');
+    }
+
+    if (targetType !== invoiceType) {
+      await updateInvoiceNumberForType(targetType);
     }
 
     try {
@@ -726,7 +749,11 @@ export const InvoiceDialog = ({
               control={
                 <Checkbox
                   checked={isQuotation}
-                  onChange={(e) => setIsQuotation(e.target.checked)}
+                  onChange={async (e) => {
+                    const checked = e.target.checked;
+                    setIsQuotation(checked);
+                    await updateInvoiceNumberForType(invoiceType, checked);
+                  }}
                   color="secondary"
                   size="small"
                 />
@@ -768,6 +795,7 @@ export const InvoiceDialog = ({
                     id="customer-selection"
                     options={customers}
                     getOptionLabel={(option) => `${option.name} ${option.phone ? `(${option.phone})` : ''}`}
+                    isOptionEqualToValue={(option, value) => option?.customer_id === value?.customer_id}
                     loading={customersLoading}
                     value={selectedCustomer}
                     onChange={handleCustomerChange}
@@ -878,24 +906,70 @@ export const InvoiceDialog = ({
                         size="small"
                         fullWidth
                         value={invoiceType}
-                        onChange={(e) => {
+                        onChange={async (e) => {
                           const val = e.target.value;
                           setInvoiceType(val);
+                          await updateInvoiceNumberForType(val);
                           if (val === 'NON_GST') {
                             setIsIntraState(true);
                             setLineItems((prevItems) =>
-                              prevItems.map((item) => ({
-                                ...item,
-                                gst_rate: 0,
-                                tax_amount: 0,
-                                hsn_code: '',
-                              }))
+                              prevItems.map((item) => {
+                                const qty = parseFloat(item.quantity) || 0;
+                                const rate = parseFloat(item.unit_price) || 0;
+                                const calc = forwardLineTotal({
+                                  quantity: qty,
+                                  unitPrice: rate,
+                                  gstRate: 0,
+                                  isGst: false,
+                                });
+                                return {
+                                  ...item,
+                                  gst_rate: 0,
+                                  tax_amount: 0,
+                                  hsn_code: '',
+                                  amount: calc.amount,
+                                };
+                              })
                             );
-                          } else if (selectedCustomer?.gstin) {
-                            setCustomerGstin(selectedCustomer.gstin);
-                            setCustomerType('B2B');
                           } else {
-                            setCustomerType('B2C');
+                            if (selectedCustomer?.gstin) {
+                              setCustomerGstin(selectedCustomer.gstin);
+                              setCustomerType('B2B');
+                            } else {
+                              setCustomerType('B2C');
+                            }
+
+                            // Auto-load HSN and GST% from inventory catalog items
+                            setLineItems((prevItems) =>
+                              prevItems.map((item) => {
+                                const matched = inventoryItems.find(
+                                  (inv) =>
+                                    (item.item_id && inv.item_id === item.item_id) ||
+                                    (item.product_name && inv.name?.toLowerCase().trim() === item.product_name?.toLowerCase().trim())
+                                );
+
+                                const resolvedGstRate = matched ? (matched.gst_rate ?? matched.tax_rates?.percentage ?? 18) : (item.gst_rate || 18);
+                                const resolvedHsn = matched ? (matched.hsn_code || matched.tax_rates?.hsn_code || '') : (item.hsn_code || '');
+
+                                const qty = parseFloat(item.quantity) || 0;
+                                const rate = parseFloat(item.unit_price) || 0;
+                                const calc = forwardLineTotal({
+                                  quantity: qty,
+                                  unitPrice: rate,
+                                  gstRate: resolvedGstRate,
+                                  isGst: true,
+                                });
+
+                                return {
+                                  ...item,
+                                  item_id: matched ? matched.item_id : item.item_id,
+                                  gst_rate: resolvedGstRate,
+                                  hsn_code: resolvedHsn,
+                                  amount: calc.amount,
+                                  tax_amount: calc.taxAmount,
+                                };
+                              })
+                            );
                           }
                         }}
                         disabled={loading}

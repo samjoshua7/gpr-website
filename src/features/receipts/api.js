@@ -1,4 +1,5 @@
 import { supabase } from '../../lib/supabaseClient';
+import { invalidateCustomersCache } from '../customers/api';
 
 let cachedReceipts = null;
 let lastFetchTimeReceipts = null;
@@ -108,6 +109,7 @@ export const createReceipt = async (receiptData) => {
   }
 
   invalidateReceiptsCache();
+  invalidateCustomersCache();
   return data;
 };
 
@@ -130,6 +132,7 @@ export const updateReceipt = async (receiptId, receiptData) => {
   }
 
   invalidateReceiptsCache();
+  invalidateCustomersCache();
   return data;
 };
 
@@ -144,6 +147,7 @@ export const deleteReceipt = async (receiptId) => {
   }
 
   invalidateReceiptsCache();
+  invalidateCustomersCache();
   return true;
 };
 

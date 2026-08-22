@@ -15,16 +15,21 @@ import {
   IconButton,
   Divider,
   MenuItem,
+  Switch,
+  FormControlLabel,
+  Chip,
 } from '@mui/material';
 import SaveIcon from '@mui/icons-material/Save';
 import DeleteIcon from '@mui/icons-material/Delete';
 import AddIcon from '@mui/icons-material/Add';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
+import QrCode2Icon from '@mui/icons-material/QrCode2';
 
 import { getCompanySettings, updateCompanySettings } from './api';
 import { useAuth } from '../../hooks/useAuth';
 import { BrandingUpload } from './components/BrandingUpload';
+import { generateQrDataUrl, buildUpiPaymentUri } from '../../lib/qrCode';
 
 export const SettingsPage = () => {
   const { profile } = useAuth();
@@ -126,6 +131,14 @@ export const SettingsPage = () => {
         signatory_image_url: settings.signatory_image_url || null,
         signatory_name: settings.signatory_name || null,
         default_invoice_paper_size: settings.default_invoice_paper_size || 'A4',
+        upi_enabled: settings.upi_enabled !== false,
+        upi_mode: settings.upi_mode || 'upi_id',
+        upi_id: settings.upi_id || null,
+        upi_phone: settings.upi_phone || null,
+        bank_name: settings.bank_name || null,
+        bank_account_no: settings.bank_account_no || null,
+        bank_ifsc: settings.bank_ifsc || null,
+        bank_branch: settings.bank_branch || null,
       });
       setSuccess('Settings saved successfully.');
     } catch (err) {
@@ -308,6 +321,200 @@ export const SettingsPage = () => {
                 </ListItem>
               )}
             </List>
+          </Paper>
+        </Grid>
+
+        {/* Payment & Dynamic UPI QR Settings */}
+        <Grid item xs={12}>
+          <Paper elevation={0} variant="outlined" sx={{ p: 3, borderRadius: 2 }}>
+            <Box display="flex" justifyContent="space-between" alignItems="center" flexWrap="wrap" gap={1} mb={2}>
+              <Box display="flex" alignItems="center" gap={1}>
+                <QrCode2Icon color="primary" />
+                <Typography variant="h6" fontWeight={700}>
+                  Payment & Dynamic UPI QR Settings
+                </Typography>
+              </Box>
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={settings?.upi_enabled !== false}
+                    onChange={(e) => setSettings(prev => ({ ...prev, upi_enabled: e.target.checked }))}
+                    color="primary"
+                  />
+                }
+                label={
+                  <Typography variant="subtitle2" fontWeight={600}>
+                    Show Dynamic UPI QR on Invoices
+                  </Typography>
+                }
+              />
+            </Box>
+
+            <Typography variant="body2" color="text.secondary" mb={3}>
+              Configure your business UPI or Bank Account destination. A dynamic QR code with the exact invoice total is automatically rendered on every invoice and vector PDF.
+            </Typography>
+
+            <Grid container spacing={3}>
+              <Grid item xs={12} md={7}>
+                <Grid container spacing={2}>
+                  <Grid item xs={12}>
+                    <TextField
+                      select
+                      fullWidth
+                      label="Payment Destination Mode"
+                      name="upi_mode"
+                      value={settings?.upi_mode || 'upi_id'}
+                      onChange={handleChange}
+                      helperText={
+                        settings?.upi_mode === 'bank_account'
+                          ? 'NPCI Direct Transfer: Routes payments directly to Account Number and IFSC.'
+                          : 'VPA / Mobile Number: Routes payments to your registered UPI ID or Phone Number.'
+                      }
+                    >
+                      <MenuItem value="upi_id">UPI ID / VPA / Mobile Number (e.g. Google Pay, PhonePe, Paytm)</MenuItem>
+                      <MenuItem value="bank_account">Direct Bank Account & IFSC (NPCI Virtual Route)</MenuItem>
+                    </TextField>
+                  </Grid>
+
+                  {settings?.upi_mode !== 'bank_account' ? (
+                    <React.Fragment>
+                      <Grid item xs={12} sm={7}>
+                        <TextField
+                          fullWidth
+                          label="UPI ID / VPA *"
+                          name="upi_id"
+                          placeholder="e.g. 9876543210@upi or gprprinters@okaxis"
+                          value={settings?.upi_id || ''}
+                          onChange={handleChange}
+                          helperText="Primary virtual payment address (VPA)"
+                        />
+                      </Grid>
+                      <Grid item xs={12} sm={5}>
+                        <TextField
+                          fullWidth
+                          label="UPI Phone Number"
+                          name="upi_phone"
+                          placeholder="e.g. 9876543210"
+                          value={settings?.upi_phone || ''}
+                          onChange={handleChange}
+                          helperText="Optional phone number fallback"
+                        />
+                      </Grid>
+                    </React.Fragment>
+                  ) : (
+                    <React.Fragment>
+                      <Grid item xs={12} sm={6}>
+                        <TextField
+                          fullWidth
+                          label="Bank Name *"
+                          name="bank_name"
+                          placeholder="e.g. State Bank of India"
+                          value={settings?.bank_name || ''}
+                          onChange={handleChange}
+                        />
+                      </Grid>
+                      <Grid item xs={12} sm={6}>
+                        <TextField
+                          fullWidth
+                          label="Account Number *"
+                          name="bank_account_no"
+                          placeholder="e.g. 123456789012"
+                          value={settings?.bank_account_no || ''}
+                          onChange={handleChange}
+                        />
+                      </Grid>
+                      <Grid item xs={12} sm={6}>
+                        <TextField
+                          fullWidth
+                          label="IFSC Code *"
+                          name="bank_ifsc"
+                          placeholder="e.g. SBIN0001234"
+                          value={settings?.bank_ifsc || ''}
+                          onChange={(e) => setSettings(prev => ({ ...prev, bank_ifsc: e.target.value.toUpperCase() }))}
+                          inputProps={{ style: { textTransform: 'uppercase' } }}
+                        />
+                      </Grid>
+                      <Grid item xs={12} sm={6}>
+                        <TextField
+                          fullWidth
+                          label="Branch Name"
+                          name="bank_branch"
+                          placeholder="e.g. Tirunelveli Town"
+                          value={settings?.bank_branch || ''}
+                          onChange={handleChange}
+                        />
+                      </Grid>
+                    </React.Fragment>
+                  )}
+                </Grid>
+              </Grid>
+
+              {/* QR Preview Column */}
+              <Grid item xs={12} md={5}>
+                <Box
+                  sx={{
+                    p: 2,
+                    border: '1px solid',
+                    borderColor: 'divider',
+                    borderRadius: 2,
+                    bgcolor: 'grey.50',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    textAlign: 'center',
+                    minHeight: 180,
+                  }}
+                >
+                  <Typography variant="caption" fontWeight={700} color="text.secondary" sx={{ mb: 1, textTransform: 'uppercase' }}>
+                    Live Dynamic QR Preview (Sample: ₹500.00)
+                  </Typography>
+
+                  {(() => {
+                    const sampleUri = buildUpiPaymentUri({
+                      companySettings: settings,
+                      amount: '500.00',
+                      invoiceNo: 'SAMPLE-001',
+                    });
+                    const qrData = sampleUri ? generateQrDataUrl(sampleUri, 160) : null;
+
+                    if (!qrData || settings?.upi_enabled === false) {
+                      return (
+                        <Box py={2}>
+                          <Typography variant="body2" color="text.secondary">
+                            {settings?.upi_enabled === false
+                              ? 'UPI QR Code is currently disabled.'
+                              : 'Enter your UPI ID or Bank Details to preview the QR code.'}
+                          </Typography>
+                        </Box>
+                      );
+                    }
+
+                    return (
+                      <React.Fragment>
+                        <Box
+                          component="img"
+                          src={qrData}
+                          alt="Sample QR Code"
+                          sx={{ width: 140, height: 140, border: '1px solid #cbd5e1', p: 0.5, bgcolor: '#fff', borderRadius: 1, imageRendering: 'pixelated' }}
+                        />
+                        <Chip
+                          label="Scan to Pay INR 500.00"
+                          size="small"
+                          color="primary"
+                          sx={{ mt: 1, fontWeight: 700, fontSize: '0.7rem' }}
+                        />
+                        <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.5 }}>
+                          {settings?.upi_mode === 'bank_account'
+                            ? `A/C: ${settings?.bank_account_no || '—'} | IFSC: ${settings?.bank_ifsc || '—'}`
+                            : `UPI: ${settings?.upi_id || settings?.upi_phone || '—'}`}
+                        </Typography>
+                      </React.Fragment>
+                    );
+                  })()}
+                </Box>
+              </Grid>
+            </Grid>
           </Paper>
         </Grid>
       </Grid>

@@ -389,10 +389,17 @@ export const components = {
       },
     },
   },
+  MuiDrawer: {
+    styleOverrides: {
+      paper: {
+        borderRadius: '0px !important',
+      },
+    },
+  },
   MuiListItemButton: {
     styleOverrides: {
       root: {
-        borderRadius: density.radiusSm,
+        borderRadius: 0,
       },
     },
   },

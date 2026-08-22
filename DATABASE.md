@@ -236,6 +236,18 @@ Mirror the Supabase auth.users record with additional application-level metadata
 | gstin | text | Nullable |
 | invoice_prefix | text | Default INV |
 | financial_year_start | date | Required |
+| default_invoice_paper_size | text | Default A4 (A4 or A5) |
+| logo_url | text | Storage bucket URL for logo |
+| signatory_image_url | text | Storage bucket URL for signature |
+| signatory_name | text | Default Authorized Signatory |
+| upi_enabled | boolean | Default true |
+| upi_mode | text | Default upi_id (upi_id or bank_account) |
+| upi_id | text | Virtual Payment Address (e.g. 9876543210@upi) |
+| upi_phone | text | Phone number for UPI |
+| bank_name | text | Bank Name |
+| bank_account_no | text | Bank Account Number |
+| bank_ifsc | text | Bank IFSC Code |
+| bank_branch | text | Bank Branch Name |
 | created_at | timestamptz | Default now() |
 | updated_at | timestamptz | Default now() |
 
