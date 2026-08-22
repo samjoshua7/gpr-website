@@ -38,17 +38,20 @@ import {
   updateSalesInvoice,
   getNextInvoiceNumber,
   getCustomerOutstandingBalance,
+  getInvoiceById,
 } from '../api';
 
 import {
   createQuotation,
   updateQuotation,
   getNextQuotationNumber,
+  getQuotationById,
 } from '../../quotations/api';
 
 import { getCustomers } from '../../customers/api';
 import { getInventoryItems } from '../../inventory/api';
 import { reverseFromLineTotal, forwardLineTotal } from '../../../lib/invoiceLineMath';
+import { useGprError } from '../../../app/providers/ErrorProvider';
 
 const GSTIN_REGEX = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/;
 
@@ -72,6 +75,8 @@ export const InvoiceDialog = ({
   // Checkbox gating for switching between Invoice and Quotation:
   // Can toggle when creating a new record (!isSavedRecord) or editing a still-draft quotation
   const canToggleQuotation = !isSavedRecord || (!!editQuotation && editQuotation.status === 'draft');
+
+  const { showError: showGprError } = useGprError();
 
   // Form fields
   const [selectedCustomer, setSelectedCustomer] = useState(null);
@@ -147,10 +152,26 @@ export const InvoiceDialog = ({
         setInventoryItems(itemList);
 
         if (activeEditRecord) {
+          // If items array is missing or empty, fetch the full record to guarantee line items and calculation integrity
+          let fullRecord = activeEditRecord;
+          if (activeEditRecord.invoice_id && (!activeEditRecord.items || activeEditRecord.items.length === 0)) {
+            try {
+              fullRecord = await getInvoiceById(activeEditRecord.invoice_id);
+            } catch (err) {
+              console.warn('Failed to load full invoice items for edit:', err);
+            }
+          } else if (activeEditRecord.quotation_id && (!activeEditRecord.items || activeEditRecord.items.length === 0)) {
+            try {
+              fullRecord = await getQuotationById(activeEditRecord.quotation_id);
+            } catch (err) {
+              console.warn('Failed to load full quotation items for edit:', err);
+            }
+          }
+
           // Edit or Clone mode - populate with existing record data
-          const recordId = activeEditRecord.invoice_id || activeEditRecord.quotation_id;
-          const recordNo = activeEditRecord.invoice_no || activeEditRecord.quotation_no;
-          const recordDate = activeEditRecord.invoice_date || activeEditRecord.quotation_date;
+          const recordId = fullRecord.invoice_id || fullRecord.quotation_id;
+          const recordNo = fullRecord.invoice_no || fullRecord.quotation_no;
+          const recordDate = fullRecord.invoice_date || fullRecord.quotation_date;
 
           if (recordId) {
             setInvoiceNo(recordNo);
@@ -159,8 +180,8 @@ export const InvoiceDialog = ({
             // Clone mode - generate a fresh number
             try {
               const nextNo = isQuotation
-                ? await getNextQuotationNumber(activeEditRecord.invoice_type || 'NON_GST')
-                : await getNextInvoiceNumber(activeEditRecord.invoice_type || 'NON_GST');
+                ? await getNextQuotationNumber(fullRecord.invoice_type || 'NON_GST')
+                : await getNextInvoiceNumber(fullRecord.invoice_type || 'NON_GST');
               setInvoiceNo(nextNo);
             } catch (err) {
               console.error('Failed to generate sequence number:', err);
@@ -169,19 +190,19 @@ export const InvoiceDialog = ({
             setInvoiceDate(new Date().toISOString().split('T')[0]);
           }
 
-          setInvoiceType(activeEditRecord.invoice_type || 'NON_GST');
-          setCustomerType(activeEditRecord.customer_type || 'B2C');
-          setIsIntraState(activeEditRecord.is_interstate === false);
-          setNotes(activeEditRecord.notes || '');
-          setDeliveryDetails(activeEditRecord.delivery_details || '');
-          setAddress(activeEditRecord.billing_address || '');
-          setShippingAddress(activeEditRecord.shipping_address || '');
-          setCustomerGstin(activeEditRecord.customer_gstin || '');
-          setDiscountAmount((activeEditRecord.discount_amount || 0).toString());
+          setInvoiceType(fullRecord.invoice_type || 'NON_GST');
+          setCustomerType(fullRecord.customer_type || 'B2C');
+          setIsIntraState(fullRecord.is_interstate === false);
+          setNotes(fullRecord.notes || '');
+          setDeliveryDetails(fullRecord.delivery_details || '');
+          setAddress(fullRecord.billing_address || '');
+          setShippingAddress(fullRecord.shipping_address || '');
+          setCustomerGstin(fullRecord.customer_gstin || '');
+          setDiscountAmount((fullRecord.discount_amount || 0).toString());
 
           // Match and select customer
-          if (activeEditRecord.customer_id) {
-            const matched = customerList.find((c) => c.customer_id === activeEditRecord.customer_id);
+          if (fullRecord.customer_id) {
+            const matched = customerList.find((c) => c.customer_id === fullRecord.customer_id);
             if (matched) {
               setSelectedCustomer(matched);
               try {
@@ -190,20 +211,20 @@ export const InvoiceDialog = ({
               } catch (err) {
                 console.error('Failed to load balance for edit customer:', err);
               }
-            } else if (activeEditRecord.customer_name) {
+            } else if (fullRecord.customer_name) {
               setSelectedCustomer({
-                customer_id: activeEditRecord.customer_id,
-                name: activeEditRecord.customer_name,
-                address: activeEditRecord.billing_address || '',
-                gstin: activeEditRecord.customer_gstin || '',
+                customer_id: fullRecord.customer_id,
+                name: fullRecord.customer_name,
+                address: fullRecord.billing_address || '',
+                gstin: fullRecord.customer_gstin || '',
               });
             }
           }
 
           // Load line items
-          if (activeEditRecord.items && activeEditRecord.items.length > 0) {
+          if (fullRecord.items && fullRecord.items.length > 0) {
             setLineItems(
-              activeEditRecord.items.map((i) => ({
+              fullRecord.items.map((i) => ({
                 item_id: i.item_id || null,
                 product_name: i.product_name || i.description || '',
                 description: i.description || '',
@@ -716,6 +737,19 @@ export const InvoiceDialog = ({
     } catch (err) {
       console.error(err);
       setApiError(err.message || `Failed to save ${isQuotation ? 'quotation' : 'sales invoice'}.`);
+      showGprError(err, {
+        title: `Failed to save ${isQuotation ? 'quotation' : 'sales invoice'}`,
+        actionContext: `${activeEditRecord?.invoice_id || activeEditRecord?.quotation_id ? 'Updating' : 'Creating'} ${isQuotation ? 'Quotation' : 'Invoice'} #${invoiceNo}`,
+        payload: {
+          record_id: activeEditRecord?.invoice_id || activeEditRecord?.quotation_id,
+          invoice_no: invoiceNo,
+          customer_id: selectedCustomer?.customer_id,
+          customer_name: selectedCustomer?.name,
+          invoice_type: invoiceType,
+          total_amount: totals.grandTotal,
+          line_items_count: formattedLineItems.length,
+        },
+      });
     } finally {
       setLoading(false);
     }
@@ -794,7 +828,11 @@ export const InvoiceDialog = ({
                   <Autocomplete
                     id="customer-selection"
                     options={customers}
-                    getOptionLabel={(option) => `${option.name} ${option.phone ? `(${option.phone})` : ''}`}
+                    getOptionLabel={(option) => {
+                      if (typeof option === 'string') return option;
+                      if (!option) return '';
+                      return `${option.name || ''} ${option.phone ? `(${option.phone})` : ''}`.trim();
+                    }}
                     isOptionEqualToValue={(option, value) => option?.customer_id === value?.customer_id}
                     loading={customersLoading}
                     value={selectedCustomer}

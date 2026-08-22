@@ -25,17 +25,25 @@ import AddIcon from '@mui/icons-material/Add';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 import QrCode2Icon from '@mui/icons-material/QrCode2';
+import FolderIcon from '@mui/icons-material/Folder';
+import FolderOpenIcon from '@mui/icons-material/FolderOpen';
 
 import { getCompanySettings, updateCompanySettings } from './api';
 import { useAuth } from '../../hooks/useAuth';
 import { BrandingUpload } from './components/BrandingUpload';
 import { generateQrDataUrl, buildUpiPaymentUri } from '../../lib/qrCode';
+import {
+  getSavedDirectoryHandle,
+  pickAndSaveDirectoryHandle,
+  clearSavedDirectoryHandle,
+} from '../../lib/savedLocation';
 
 export const SettingsPage = () => {
   const { profile } = useAuth();
   const isSuperAdmin = profile?.role === 'SUPER_ADMIN';
 
   const [settings, setSettings] = useState(null);
+  const [storageFolderName, setStorageFolderName] = useState(null);
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -48,6 +56,17 @@ export const SettingsPage = () => {
     try {
       setLoading(true);
       setError(null);
+
+      // Check saved directory handle
+      try {
+        const savedDir = await getSavedDirectoryHandle();
+        if (savedDir) {
+          setStorageFolderName(savedDir.name);
+        }
+      } catch (e) {
+        console.warn('Could not read saved directory handle', e);
+      }
+
       const data = await getCompanySettings();
       if (data) {
         setSettings(data);
@@ -75,6 +94,30 @@ export const SettingsPage = () => {
   useEffect(() => {
     loadData();
   }, []);
+
+  const handleChooseStorageFolder = async () => {
+    try {
+      const dirHandle = await pickAndSaveDirectoryHandle();
+      if (dirHandle) {
+        setStorageFolderName(dirHandle.name);
+        setSuccess(`Local invoices storage folder configured: "${dirHandle.name}" (subfolders: /pdf and /jpg)`);
+      }
+    } catch (err) {
+      if (err.name !== 'AbortError') {
+        setError('Failed to select folder: ' + err.message);
+      }
+    }
+  };
+
+  const handleResetStorageFolder = async () => {
+    try {
+      await clearSavedDirectoryHandle();
+      setStorageFolderName(null);
+      setSuccess('Storage folder reset. Future exports will prompt for location.');
+    } catch (err) {
+      setError('Failed to reset storage folder: ' + err.message);
+    }
+  };
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -515,6 +558,70 @@ export const SettingsPage = () => {
                 </Box>
               </Grid>
             </Grid>
+          </Paper>
+        </Grid>
+
+        {/* Local Invoice Storage Folder Settings Card */}
+        <Grid item xs={12}>
+          <Paper sx={{ p: 3, borderRadius: 2 }}>
+            <Box display="flex" alignItems="center" gap={1} mb={2}>
+              <FolderIcon color="primary" />
+              <Typography variant="h6">Local Invoices Storage Folder (Silent Auto-Save)</Typography>
+            </Box>
+            <Typography variant="body2" color="text.secondary" paragraph>
+              Configure a local folder (such as <code>C:\gpr_invoices</code>). When you click <strong>Download PDF</strong> or <strong>Download JPG</strong>, invoices are written directly into <code>/pdf</code> and <code>/jpg</code> subfolders in the background without opening the Chrome "Save As" popup every time.
+            </Typography>
+
+            <Box
+              sx={{
+                p: 2,
+                border: '1px solid',
+                borderColor: storageFolderName ? 'success.light' : 'divider',
+                borderRadius: 2,
+                bgcolor: storageFolderName ? 'success.50' : 'grey.50',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                flexWrap: 'wrap',
+                gap: 2,
+              }}
+            >
+              <Box display="flex" alignItems="center" gap={1.5}>
+                <FolderOpenIcon color={storageFolderName ? 'success' : 'action'} sx={{ fontSize: 32 }} />
+                <Box>
+                  <Typography variant="subtitle2" fontWeight={700}>
+                    {storageFolderName ? `Active Base Folder: "${storageFolderName}"` : 'No Local Storage Folder Selected'}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary" display="block">
+                    {storageFolderName
+                      ? `Invoices will be saved to: ${storageFolderName}\\pdf\\ and ${storageFolderName}\\jpg\\`
+                      : 'Clicks on PDF/JPG download will prompt you to select a folder once or fall back to standard browser downloads.'}
+                  </Typography>
+                </Box>
+              </Box>
+
+              <Box display="flex" gap={1}>
+                <Button
+                  variant={storageFolderName ? 'outlined' : 'contained'}
+                  color="primary"
+                  startIcon={<FolderOpenIcon />}
+                  onClick={handleChooseStorageFolder}
+                  size="small"
+                >
+                  {storageFolderName ? 'Change Folder' : 'Choose Base Folder (e.g. C:\\gpr_invoices)'}
+                </Button>
+                {storageFolderName && (
+                  <Button
+                    variant="text"
+                    color="error"
+                    onClick={handleResetStorageFolder}
+                    size="small"
+                  >
+                    Reset
+                  </Button>
+                )}
+              </Box>
+            </Box>
           </Paper>
         </Grid>
       </Grid>

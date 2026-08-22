@@ -4,6 +4,7 @@ import { ThemeProvider } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 import { theme } from './theme';
 import { AuthProvider } from './providers/AuthProvider';
+import { ErrorProvider } from './providers/ErrorProvider';
 import { router } from '../routes';
 
 function App() {
@@ -11,7 +12,9 @@ function App() {
     <ThemeProvider theme={theme}>
       <CssBaseline />
       <AuthProvider>
-        <RouterProvider router={router} />
+        <ErrorProvider>
+          <RouterProvider router={router} />
+        </ErrorProvider>
       </AuthProvider>
     </ThemeProvider>
   );

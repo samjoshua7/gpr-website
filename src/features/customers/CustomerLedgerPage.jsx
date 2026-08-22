@@ -27,13 +27,15 @@ import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
 import RequestQuoteIcon from '@mui/icons-material/RequestQuote';
 
 import { getCustomerById } from './api';
-import { getInvoicesByCustomer } from '../salesInvoices/api';
+import { getInvoicesByCustomer, getInvoiceById } from '../salesInvoices/api';
 import { getReceiptsByCustomer } from '../receipts/api';
 import { getQuotationsByCustomer } from '../quotations/api';
 import InvoiceDetailsDialog from '../salesInvoices/components/InvoiceDetailsDialog';
+import InvoiceDialog from '../salesInvoices/components/InvoiceDialog';
 import ReceiptDialog from '../receipts/components/ReceiptDialog';
 import QuotationDetailsDialog from '../quotations/components/QuotationDetailsDialog';
 import { formatDate } from '../../lib/formatDate';
+import { useGprError } from '../../app/providers/ErrorProvider';
 
 const formatCurrency = (amount) => {
   return new Intl.NumberFormat('en-IN', {
@@ -45,6 +47,7 @@ const formatCurrency = (amount) => {
 export const CustomerLedgerPage = () => {
   const { customerId } = useParams();
   const navigate = useNavigate();
+  const { showError: showGprError } = useGprError();
 
   const [customer, setCustomer] = useState(null);
   const [ledgerEntries, setLedgerEntries] = useState([]);
@@ -55,6 +58,8 @@ export const CustomerLedgerPage = () => {
   // Dialog States
   const [selectedInvoiceId, setSelectedInvoiceId] = useState(null);
   const [invoiceDetailsOpen, setInvoiceDetailsOpen] = useState(false);
+  const [invoiceToEdit, setInvoiceToEdit] = useState(null);
+  const [invoiceDialogOpen, setInvoiceDialogOpen] = useState(false);
   
   const [selectedReceipt, setSelectedReceipt] = useState(null);
   const [receiptDialogOpen, setReceiptDialogOpen] = useState(false);
@@ -137,6 +142,41 @@ export const CustomerLedgerPage = () => {
     }
   }, [customerId, fetchLedgerData]);
 
+  const handleNewInvoice = () => {
+    setInvoiceToEdit(null);
+    setInvoiceDialogOpen(true);
+  };
+
+  const handleEditInvoice = async (invoiceOrEntry) => {
+    // If full invoice object is passed from InvoiceDetailsDialog
+    if (invoiceOrEntry && invoiceOrEntry.items) {
+      setInvoiceDetailsOpen(false);
+      setInvoiceToEdit(invoiceOrEntry);
+      setInvoiceDialogOpen(true);
+      return;
+    }
+
+    const invId = invoiceOrEntry?.invoice_id || invoiceOrEntry?.id;
+    if (!invId) return;
+
+    setLoading(true);
+    try {
+      const fullInvoice = await getInvoiceById(invId);
+      setInvoiceDetailsOpen(false);
+      setInvoiceToEdit(fullInvoice);
+      setInvoiceDialogOpen(true);
+    } catch (err) {
+      console.error('Failed to load invoice for editing:', err);
+      showGprError(err, {
+        title: 'Failed to load invoice details for editing',
+        actionContext: `Opening Edit Invoice Modal (ID: ${invId})`,
+        payload: { invoice_id: invId, customer_id: customer?.customer_id },
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleViewClick = (entry) => {
     if (entry.type === 'Invoice') {
       setSelectedInvoiceId(entry.id);
@@ -213,7 +253,7 @@ export const CustomerLedgerPage = () => {
             color="primary"
             size="small"
             startIcon={<AddCircleOutlineIcon />}
-            onClick={() => navigate('/dashboard/invoices', { state: { preselectedCustomer: customer } })}
+            onClick={handleNewInvoice}
             sx={{ fontWeight: 700 }}
           >
             New Invoice
@@ -332,11 +372,34 @@ export const CustomerLedgerPage = () => {
                   {formatCurrency(entry.runningBalance)}
                 </TableCell>
                 <TableCell className="no-print" align="center">
-                  <Tooltip title="View Details">
-                    <IconButton size="small" onClick={() => handleViewClick(entry)}>
-                      <VisibilityIcon fontSize="small" />
-                    </IconButton>
-                  </Tooltip>
+                  <Box display="flex" justifyContent="center" alignItems="center" gap={0.5}>
+                    <Tooltip title="View Details">
+                      <IconButton size="small" onClick={() => handleViewClick(entry)}>
+                        <VisibilityIcon fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
+                    {entry.type === 'Invoice' && (
+                      <Tooltip title="Edit Invoice">
+                        <IconButton size="small" color="primary" onClick={() => handleEditInvoice(entry)}>
+                          <EditIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                    )}
+                    {entry.type === 'Receipt' && (
+                      <Tooltip title="Edit Receipt">
+                        <IconButton
+                          size="small"
+                          color="primary"
+                          onClick={() => {
+                            setSelectedReceipt(entry.originalRecord);
+                            setReceiptDialogOpen(true);
+                          }}
+                        >
+                          <EditIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                    )}
+                  </Box>
                 </TableCell>
               </TableRow>
             ))}
@@ -439,10 +502,23 @@ export const CustomerLedgerPage = () => {
         open={invoiceDetailsOpen}
         onClose={() => setInvoiceDetailsOpen(false)}
         invoiceId={selectedInvoiceId}
-        onEdit={(invoice) => {
-          setInvoiceDetailsOpen(false);
-          navigate('/dashboard/invoices');
+        onEdit={(invoice) => handleEditInvoice(invoice)}
+      />
+
+      {/* In-Place Invoice Editor / Creator Dialog */}
+      <InvoiceDialog
+        open={invoiceDialogOpen}
+        onClose={() => {
+          setInvoiceDialogOpen(false);
+          setInvoiceToEdit(null);
         }}
+        onSaveSuccess={() => {
+          setInvoiceDialogOpen(false);
+          setInvoiceToEdit(null);
+          fetchLedgerData();
+        }}
+        preselectedCustomer={customer}
+        editInvoice={invoiceToEdit}
       />
 
       {/* Receipt Viewer / Editor */}

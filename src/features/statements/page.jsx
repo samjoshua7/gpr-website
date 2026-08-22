@@ -22,9 +22,18 @@ import {
   Select,
   InputLabel,
   FormControl,
-  TablePagination
+  TablePagination,
+  Card,
+  CardContent,
+  Snackbar,
 } from '@mui/material';
 import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
+import FileDownloadIcon from '@mui/icons-material/FileDownload';
+import TableChartIcon from '@mui/icons-material/TableChart';
+import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
+import BusinessIcon from '@mui/icons-material/Business';
+import PersonIcon from '@mui/icons-material/Person';
+import CategoryIcon from '@mui/icons-material/Category';
 import { getStatementData } from './api';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
@@ -32,6 +41,8 @@ import { SearchInput } from '../../components/ui/SearchInput';
 import PageToolbar from '../../components/layout/PageToolbar';
 import { HighlightText } from '../../components/ui/HighlightText';
 import { formatDate } from '../../lib/formatDate';
+import { buildGstr1Datasets, generateGstr1ExcelBlob } from '../../lib/gstReportGenerator';
+import { saveExportFile } from '../../lib/savedLocation';
 
 const currencyFormatter = new Intl.NumberFormat('en-IN', {
   style: 'currency',
@@ -42,12 +53,14 @@ const formatCurrency = (amount) => currencyFormatter.format(amount || 0);
 
 export const StatementsPage = () => {
   const [tabIndex, setTabIndex] = useState(0);
+  const [gstSubTab, setGstSubTab] = useState(0); // 0: b2b, 1: b2cs, 2: hsn, 3: docs
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
   const [invoices, setInvoices] = useState([]);
   const [receipts, setReceipts] = useState([]);
   const [customers, setCustomers] = useState([]);
+  const [companySettings, setCompanySettings] = useState(null);
 
   const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [startDate, setStartDate] = useState('');
@@ -59,14 +72,19 @@ export const StatementsPage = () => {
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(25);
 
+  const [exportingGst, setExportingGst] = useState(false);
+  const [toastOpen, setToastOpen] = useState(false);
+  const [toastMessage, setToastMessage] = useState('');
+
   const loadData = async () => {
     try {
       setLoading(true);
       setError(null);
       const data = await getStatementData();
-      setInvoices(data.invoices);
-      setReceipts(data.receipts);
-      setCustomers(data.customers);
+      setInvoices(data.invoices || []);
+      setReceipts(data.receipts || []);
+      setCustomers(data.customers || []);
+      setCompanySettings(data.companySettings || null);
     } catch (err) {
       console.error(err);
       setError(err.message || 'Failed to load statements data');
@@ -81,7 +99,6 @@ export const StatementsPage = () => {
 
   const handleTabChange = (e, newIndex) => {
     setTabIndex(newIndex);
-    // Reset filters depending on tab
     if (newIndex === 0) {
       setSelectedCustomer(null);
       setStartDate('');
@@ -91,14 +108,43 @@ export const StatementsPage = () => {
       setEndDate('');
     } else if (newIndex === 2) {
       setSelectedCustomer(null);
+    } else if (newIndex === 3) {
+      // GST Tab: Default to current month if not set
+      if (!startDate && !endDate) {
+        const now = new Date();
+        const firstDay = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+        const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
+        setStartDate(firstDay);
+        setEndDate(lastDay);
+      }
     }
     setPage(0);
   };
 
+  // Quick Month Selector for GST
+  const handleQuickMonthSelect = (monthsBack = 0) => {
+    const d = new Date();
+    d.setMonth(d.getMonth() - monthsBack);
+    const firstDay = new Date(d.getFullYear(), d.getMonth(), 1).toISOString().split('T')[0];
+    const lastDay = new Date(d.getFullYear(), d.getMonth() + 1, 0).toISOString().split('T')[0];
+    setStartDate(firstDay);
+    setEndDate(lastDay);
+  };
+
+  // GSTR-1 Datasets calculation
+  const gstDatasets = useMemo(() => {
+    return buildGstr1Datasets({
+      invoices,
+      companySettings,
+      startDate: tabIndex === 3 ? startDate : '',
+      endDate: tabIndex === 3 ? endDate : '',
+    });
+  }, [invoices, companySettings, startDate, endDate, tabIndex]);
+
+  // Combined standard statements data
   const combinedData = useMemo(() => {
     let rawData = [];
 
-    // Map Invoices
     invoices.forEach(inv => {
       rawData.push({
         id: inv.invoice_id,
@@ -112,7 +158,6 @@ export const StatementsPage = () => {
       });
     });
 
-    // Map Receipts
     receipts.forEach(rec => {
       rawData.push({
         id: rec.receipt_id,
@@ -127,7 +172,6 @@ export const StatementsPage = () => {
       });
     });
 
-    // Filter
     if (tabIndex === 1 && selectedCustomer) {
       rawData = rawData.filter(r => r.customerId === selectedCustomer.customer_id);
     }
@@ -143,12 +187,11 @@ export const StatementsPage = () => {
     }
     if (statusFilter !== 'all') {
       rawData = rawData.filter(r => {
-        if (r.type === 'Receipt') return true; // receipts don't have invoice statuses
+        if (r.type === 'Receipt') return true;
         return r.status === statusFilter;
       });
     }
 
-    // Sort
     rawData.sort((a, b) => {
       if (sortOrder === 'newest') return b.date - a.date;
       if (sortOrder === 'oldest') return a.date - b.date;
@@ -159,7 +202,7 @@ export const StatementsPage = () => {
 
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
-      rawData = rawData.filter(r => 
+      rawData = rawData.filter(r =>
         (r.refNo || '').toLowerCase().includes(q) ||
         (r.customerName || '').toLowerCase().includes(q)
       );
@@ -190,7 +233,7 @@ export const StatementsPage = () => {
     const doc = new jsPDF();
     doc.text('Statement Report', 14, 15);
     doc.setFontSize(10);
-    
+
     let subtitle = 'All Records';
     if (tabIndex === 1 && selectedCustomer) subtitle = `Customer: ${selectedCustomer.name}`;
     if (tabIndex === 2) subtitle = `Date Range: ${startDate || 'Start'} to ${endDate || 'End'}`;
@@ -203,10 +246,10 @@ export const StatementsPage = () => {
       const rowData = [
         formatDate(row.date),
         row.type,
-        row.refNo,
-        row.customerName,
-        row.type === 'Invoice' ? row.status : row.paymentMethod,
-        formatCurrency(row.amount)
+        row.refNo || '',
+        row.customerName || '',
+        row.status || '',
+        row.amount ? row.amount.toFixed(2) : '0.00'
       ];
       tableRows.push(rowData);
     });
@@ -215,196 +258,602 @@ export const StatementsPage = () => {
       head: [tableColumn],
       body: tableRows,
       startY: 28,
-      theme: 'grid',
-      styles: { fontSize: 8 },
-      headStyles: { fillColor: [2, 136, 209] }
     });
 
-    doc.save(`statement_${new Date().getTime()}.pdf`);
+    doc.save(`statement_${new Date().toISOString().split('T')[0]}.pdf`);
   };
 
-  if (loading) {
-    return (
-      <Box display="flex" justifyContent="center" alignItems="center" height="50vh">
-        <CircularProgress />
-      </Box>
-    );
-  }
+  // Export GST Excel Reports directly to /accounts/ folder
+  const handleExportGstr1Excel = async (exportType = 'all') => {
+    try {
+      setExportingGst(true);
+
+      const periodLabel = startDate && endDate
+        ? `${startDate}_to_${endDate}`
+        : new Date().toISOString().split('T')[0];
+
+      let fileName = `GSTR1_Report_${periodLabel}.xlsx`;
+      if (exportType === 'b2b') fileName = `GST_B2B_Invoices_${periodLabel}.xlsx`;
+      if (exportType === 'b2cs') fileName = `GST_B2C_Summary_${periodLabel}.xlsx`;
+      if (exportType === 'hsn') fileName = `GST_HSN_Summary_${periodLabel}.xlsx`;
+
+      const blob = generateGstr1ExcelBlob(gstDatasets, exportType);
+      const result = await saveExportFile({
+        fileBlob: blob,
+        fileName,
+        subfolder: 'accounts',
+      });
+
+      if (result.success) {
+        setToastMessage(`Saved GST Report to ${result.path}`);
+        setToastOpen(true);
+      }
+    } catch (err) {
+      console.error('Failed to export GSTR-1 Excel:', err);
+      alert('Failed to export GSTR-1 Excel: ' + err.message);
+    } finally {
+      setExportingGst(false);
+    }
+  };
 
   return (
-    <Box sx={{ p: 3 }}>
+    <Box sx={{ width: '100%' }}>
       <PageToolbar
-        title="Financial Statements"
-        searchQuery={searchQuery}
-        onSearchChange={setSearchQuery}
-        searchPlaceholder="Search by ref no or customer..."
-        actions={
-          <Button
-            variant="contained"
-            startIcon={<PictureAsPdfIcon />}
-            color="error"
-            onClick={handleExportPDF}
-            sx={{ fontWeight: 'bold' }}
-          >
-            Export PDF
-          </Button>
+        title="Statements & Financial Reports"
+        subtitle="Customer statements, ledger balances, and official GST portal GSTR-1 reports"
+        action={
+          tabIndex === 3 ? (
+            <Button
+              variant="contained"
+              color="success"
+              startIcon={<FileDownloadIcon />}
+              onClick={() => handleExportGstr1Excel('all')}
+              disabled={exportingGst || gstDatasets.b2b.length + gstDatasets.b2cs.length === 0}
+            >
+              {exportingGst ? 'Generating GSTR-1...' : 'Export GSTR-1 Excel (Upload Ready)'}
+            </Button>
+          ) : (
+            <Button
+              variant="contained"
+              color="primary"
+              startIcon={<PictureAsPdfIcon />}
+              onClick={handleExportPDF}
+              disabled={loading || combinedData.length === 0}
+            >
+              Export PDF
+            </Button>
+          )
         }
       />
-      {error && <Alert severity="error" sx={{ mb: 3 }}>{error}</Alert>}
 
-      <Paper elevation={0} variant="outlined" sx={{ borderRadius: 2, mb: 3 }}>
-        <Tabs value={tabIndex} onChange={handleTabChange} sx={{ borderBottom: 1, borderColor: 'divider' }}>
-          <Tab label="Overall Statement" />
+      <Paper sx={{ mb: 3 }}>
+        <Tabs
+          value={tabIndex}
+          onChange={handleTabChange}
+          indicatorColor="primary"
+          textColor="primary"
+          variant="scrollable"
+          scrollButtons="auto"
+        >
+          <Tab label="All Transactions" />
           <Tab label="Customer Statement" />
           <Tab label="Date Range Statement" />
+          <Tab
+            icon={<TableChartIcon fontSize="small" />}
+            iconPosition="start"
+            label="GST Reports (GSTR-1 Portal Ready)"
+            sx={{ fontWeight: 700, color: tabIndex === 3 ? 'success.main' : 'inherit' }}
+          />
         </Tabs>
-        
-        <Box p={3}>
-          <Grid container spacing={2} alignItems="center">
-            {tabIndex === 1 && (
-              <Grid item xs={12} md={4}>
-                <Autocomplete
-                  options={customers}
-                  getOptionLabel={(option) => option.name}
-                  value={selectedCustomer}
-                  onChange={(e, val) => setSelectedCustomer(val)}
-                  renderInput={(params) => <TextField {...params} label="Select Customer" size="small" />}
-                />
-              </Grid>
-            )}
-
-            {(tabIndex === 2 || tabIndex === 0) && (
-              <React.Fragment>
-                <Grid item xs={12} md={3}>
-                  <TextField
-                    fullWidth
-                    label="Start Date"
-                    type="date"
-                    size="small"
-                    InputLabelProps={{ shrink: true }}
-                    value={startDate}
-                    onChange={(e) => setStartDate(e.target.value)}
-                  />
-                </Grid>
-                <Grid item xs={12} md={3}>
-                  <TextField
-                    fullWidth
-                    label="End Date"
-                    type="date"
-                    size="small"
-                    InputLabelProps={{ shrink: true }}
-                    value={endDate}
-                    onChange={(e) => setEndDate(e.target.value)}
-                  />
-                </Grid>
-              </React.Fragment>
-            )}
-
-            <Grid item xs={12} md={3}>
-              <FormControl fullWidth size="small">
-                <InputLabel>Status</InputLabel>
-                <Select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} label="Status">
-                  <MenuItem value="all">All Statuses</MenuItem>
-                  <MenuItem value="unpaid">Unpaid Invoices</MenuItem>
-                  <MenuItem value="partial">Partially Paid</MenuItem>
-                  <MenuItem value="paid">Paid</MenuItem>
-                  <MenuItem value="void">Voided</MenuItem>
-                </Select>
-              </FormControl>
-            </Grid>
-
-            <Grid item xs={12} md={3}>
-              <FormControl fullWidth size="small">
-                <InputLabel>Sort By</InputLabel>
-                <Select value={sortOrder} onChange={(e) => setSortOrder(e.target.value)} label="Sort By">
-                  <MenuItem value="newest">Newest First</MenuItem>
-                  <MenuItem value="oldest">Oldest First</MenuItem>
-                  <MenuItem value="highest">Highest Amount</MenuItem>
-                  <MenuItem value="lowest">Lowest Amount</MenuItem>
-                </Select>
-              </FormControl>
-            </Grid>
-          </Grid>
-        </Box>
       </Paper>
 
-      <TableContainer component={Paper} elevation={0} variant="outlined" sx={{ borderRadius: 2 }}>
-        <Table>
-          <TableHead sx={{ bgcolor: 'action.hover' }}>
-            <TableRow>
-              <TableCell sx={{ fontWeight: 'bold' }}>Date</TableCell>
-              <TableCell sx={{ fontWeight: 'bold' }}>Type</TableCell>
-              <TableCell sx={{ fontWeight: 'bold' }}>Ref No</TableCell>
-              <TableCell sx={{ fontWeight: 'bold' }}>Customer</TableCell>
-              <TableCell sx={{ fontWeight: 'bold' }}>Status / Method</TableCell>
-              <TableCell sx={{ fontWeight: 'bold' }} align="right">Amount</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {loading && combinedData.length === 0 ? (
-              Array.from(new Array(3)).map((_, index) => (
-                <TableRow key={index}>
-                  <TableCell><CircularProgress size={24} /></TableCell>
-                  <TableCell></TableCell>
-                  <TableCell></TableCell>
-                  <TableCell></TableCell>
-                  <TableCell></TableCell>
-                  <TableCell></TableCell>
-                </TableRow>
-              ))
-            ) : paginatedData.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={6} align="center" sx={{ py: 3 }}>
-                  No statement records found for the selected criteria.
-                </TableCell>
-              </TableRow>
-            ) : (
-              paginatedData.map((row, idx) => (
-                <TableRow key={`${row.type}-${row.id}-${idx}`} hover>
-                  <TableCell>{formatDate(row.date)}</TableCell>
-                  <TableCell>
-                    <Chip 
-                      label={row.type} 
-                      size="small" 
-                      color={row.type === 'Invoice' ? 'primary' : 'success'} 
-                      variant="outlined" 
-                    />
-                  </TableCell>
-                  <TableCell sx={{ fontWeight: 600 }}>
-                    <HighlightText text={row.refNo} highlight={searchQuery} />
-                  </TableCell>
-                  <TableCell>
-                    <HighlightText text={row.customerName} highlight={searchQuery} />
-                  </TableCell>
-                  <TableCell>
-                    {row.type === 'Invoice' ? (
-                      <Chip label={row.status} size="small" />
-                    ) : (
-                      <Typography variant="body2">{row.paymentMethod}</Typography>
-                    )}
-                  </TableCell>
-                  <TableCell align="right" sx={{ fontWeight: 'bold', color: row.type === 'Invoice' ? 'inherit' : 'success.main' }}>
-                    {row.type === 'Receipt' ? '+ ' : ''}{formatCurrency(row.amount)}
-                  </TableCell>
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </TableContainer>
+      {/* --- TAB 3: GST REPORTS (GSTR-1 PORTAL READY) --- */}
+      {tabIndex === 3 ? (
+        <Box>
+          {/* Period Filter & Quick Buttons */}
+          <Paper sx={{ p: 2, mb: 3 }}>
+            <Grid container spacing={2} alignItems="center">
+              <Grid item xs={12} md={5}>
+                <Box display="flex" gap={1} alignItems="center">
+                  <TextField
+                    label="From Date"
+                    type="date"
+                    size="small"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                    InputLabelProps={{ shrink: true }}
+                    fullWidth
+                  />
+                  <TextField
+                    label="To Date"
+                    type="date"
+                    size="small"
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                    InputLabelProps={{ shrink: true }}
+                    fullWidth
+                  />
+                </Box>
+              </Grid>
 
-      {combinedData.length > 0 && (
-        <TablePagination
-          rowsPerPageOptions={[25, 50, 100]}
-          component="div"
-          count={combinedData.length}
-          rowsPerPage={rowsPerPage}
-          page={page}
-          onPageChange={handleChangePage}
-          onRowsPerPageChange={handleChangeRowsPerPage}
-          sx={{ borderTopLeftRadius: 0, borderTopRightRadius: 0 }}
-        />
+              <Grid item xs={12} md={7}>
+                <Box display="flex" gap={1} flexWrap="wrap" justifyContent={{ xs: 'flex-start', md: 'flex-end' }}>
+                  <Button size="small" variant="outlined" onClick={() => handleQuickMonthSelect(0)}>
+                    This Month
+                  </Button>
+                  <Button size="small" variant="outlined" onClick={() => handleQuickMonthSelect(1)}>
+                    Last Month
+                  </Button>
+                  <Button size="small" variant="outlined" onClick={() => { setStartDate(''); setEndDate(''); }}>
+                    All Time
+                  </Button>
+                  {companySettings?.gstin && (
+                    <Chip label={`GSTIN: ${companySettings.gstin}`} color="primary" variant="outlined" sx={{ fontWeight: 700 }} />
+                  )}
+                </Box>
+              </Grid>
+            </Grid>
+          </Paper>
+
+          {/* GST Summary Metric Cards */}
+          <Grid container spacing={2} sx={{ mb: 3 }}>
+            <Grid item xs={12} sm={6} md={3}>
+              <Card sx={{ bgcolor: 'grey.50', border: '1px solid', borderColor: 'divider' }}>
+                <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
+                  <Typography variant="caption" color="text.secondary" fontWeight={700} display="block">
+                    TOTAL TAXABLE TURNOVER
+                  </Typography>
+                  <Typography variant="h5" fontWeight={900} color="primary.main">
+                    {formatCurrency(gstDatasets.summary.totalTaxable)}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    {gstDatasets.summary.totalGstInvoices} GST Invoices in period
+                  </Typography>
+                </CardContent>
+              </Card>
+            </Grid>
+
+            <Grid item xs={12} sm={6} md={3}>
+              <Card sx={{ bgcolor: 'grey.50', border: '1px solid', borderColor: 'divider' }}>
+                <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
+                  <Typography variant="caption" color="text.secondary" fontWeight={700} display="block">
+                    B2B TAXABLE VALUE (4A)
+                  </Typography>
+                  <Typography variant="h5" fontWeight={900} color="success.main">
+                    {formatCurrency(gstDatasets.summary.b2bTaxable)}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    GST: {formatCurrency(gstDatasets.summary.b2bGst)} ({gstDatasets.summary.b2bCount} Lines)
+                  </Typography>
+                </CardContent>
+              </Card>
+            </Grid>
+
+            <Grid item xs={12} sm={6} md={3}>
+              <Card sx={{ bgcolor: 'grey.50', border: '1px solid', borderColor: 'divider' }}>
+                <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
+                  <Typography variant="caption" color="text.secondary" fontWeight={700} display="block">
+                    B2C TAXABLE VALUE (7)
+                  </Typography>
+                  <Typography variant="h5" fontWeight={900} color="secondary.main">
+                    {formatCurrency(gstDatasets.summary.b2cTaxable)}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    GST: {formatCurrency(gstDatasets.summary.b2cGst)} ({gstDatasets.summary.b2cCount} Invoices)
+                  </Typography>
+                </CardContent>
+              </Card>
+            </Grid>
+
+            <Grid item xs={12} sm={6} md={3}>
+              <Card sx={{ bgcolor: 'grey.50', border: '1px solid', borderColor: 'divider' }}>
+                <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
+                  <Typography variant="caption" color="text.secondary" fontWeight={700} display="block">
+                    TOTAL GST LIABILITY
+                  </Typography>
+                  <Typography variant="h5" fontWeight={900} color="error.main">
+                    {formatCurrency(gstDatasets.summary.totalGst)}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    CGST: {formatCurrency(gstDatasets.summary.cgst)} | SGST: {formatCurrency(gstDatasets.summary.sgst)}
+                  </Typography>
+                </CardContent>
+              </Card>
+            </Grid>
+          </Grid>
+
+          {/* Export Buttons Bar */}
+          <Paper sx={{ p: 2, mb: 3, display: 'flex', gap: 1.5, flexWrap: 'wrap', alignItems: 'center', bgcolor: '#f8fafc', border: '1px solid #e2e8f0' }}>
+            <Typography variant="subtitle2" fontWeight={700} sx={{ mr: 1 }}>
+              Quick Export to <code>C:\gpr_invoices\accounts\</code>:
+            </Typography>
+            <Button
+              variant="contained"
+              color="success"
+              size="small"
+              startIcon={<FileDownloadIcon />}
+              onClick={() => handleExportGstr1Excel('all')}
+              disabled={exportingGst}
+            >
+              Full GSTR-1 Workbook (.xlsx)
+            </Button>
+            <Button
+              variant="outlined"
+              color="primary"
+              size="small"
+              startIcon={<BusinessIcon />}
+              onClick={() => handleExportGstr1Excel('b2b')}
+              disabled={exportingGst || gstDatasets.b2b.length === 0}
+            >
+              B2B Sheet Only
+            </Button>
+            <Button
+              variant="outlined"
+              color="secondary"
+              size="small"
+              startIcon={<PersonIcon />}
+              onClick={() => handleExportGstr1Excel('b2cs')}
+              disabled={exportingGst || gstDatasets.b2cs.length === 0}
+            >
+              B2C Sheet Only
+            </Button>
+            <Button
+              variant="outlined"
+              color="info"
+              size="small"
+              startIcon={<CategoryIcon />}
+              onClick={() => handleExportGstr1Excel('hsn')}
+              disabled={exportingGst || gstDatasets.hsn.length === 0}
+            >
+              HSN Summary Only
+            </Button>
+          </Paper>
+
+          {/* GST Sub-Tabs (B2B, B2CS, HSN, DOCS) */}
+          <Paper sx={{ mb: 2 }}>
+            <Tabs
+              value={gstSubTab}
+              onChange={(e, v) => setGstSubTab(v)}
+              textColor="primary"
+              indicatorColor="primary"
+            >
+              <Tab label={`B2B Invoices (${gstDatasets.b2b.length})`} />
+              <Tab label={`B2C Small Summary (${gstDatasets.b2cs.length})`} />
+              <Tab label={`HSN Summary (${gstDatasets.hsn.length})`} />
+              <Tab label={`Documents Issued (${gstDatasets.docs.length})`} />
+            </Tabs>
+          </Paper>
+
+          {/* Subtab 0: B2B Table */}
+          {gstSubTab === 0 && (
+            <TableContainer component={Paper} elevation={1}>
+              <Table size="small">
+                <TableHead sx={{ bgcolor: 'grey.100' }}>
+                  <TableRow>
+                    <TableCell><strong>GSTIN of Recipient</strong></TableCell>
+                    <TableCell><strong>Receiver Name</strong></TableCell>
+                    <TableCell><strong>Invoice No</strong></TableCell>
+                    <TableCell><strong>Invoice Date</strong></TableCell>
+                    <TableCell align="right"><strong>Invoice Value</strong></TableCell>
+                    <TableCell><strong>Place of Supply</strong></TableCell>
+                    <TableCell align="center"><strong>Rate %</strong></TableCell>
+                    <TableCell align="right"><strong>Taxable Value</strong></TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {gstDatasets.b2b.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={8} align="center" sx={{ py: 3 }}>
+                        No B2B invoices found in selected date range.
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    gstDatasets.b2b.map((row, idx) => (
+                      <TableRow key={`b2b-${idx}`} hover>
+                        <TableCell><Typography variant="body2" fontWeight={700}>{row['GSTIN/UIN of Recipient'] || '—'}</Typography></TableCell>
+                        <TableCell>{row['Receiver Name']}</TableCell>
+                        <TableCell>{row['Invoice Number']}</TableCell>
+                        <TableCell>{row['Invoice date']}</TableCell>
+                        <TableCell align="right">{formatCurrency(row['Invoice Value'])}</TableCell>
+                        <TableCell>{row['Place Of Supply']}</TableCell>
+                        <TableCell align="center"><Chip label={`${row['Rate']}%`} size="small" /></TableCell>
+                        <TableCell align="right" sx={{ fontWeight: 700 }}>{formatCurrency(row['Taxable Value'])}</TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          )}
+
+          {/* Subtab 1: B2CS Table */}
+          {gstSubTab === 1 && (
+            <TableContainer component={Paper} elevation={1}>
+              <Table size="small">
+                <TableHead sx={{ bgcolor: 'grey.100' }}>
+                  <TableRow>
+                    <TableCell><strong>Type</strong></TableCell>
+                    <TableCell><strong>Place of Supply</strong></TableCell>
+                    <TableCell align="center"><strong>Rate %</strong></TableCell>
+                    <TableCell align="right"><strong>Taxable Value</strong></TableCell>
+                    <TableCell align="right"><strong>Cess Amount</strong></TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {gstDatasets.b2cs.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={5} align="center" sx={{ py: 3 }}>
+                        No B2C small supplies found in selected date range.
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    gstDatasets.b2cs.map((row, idx) => (
+                      <TableRow key={`b2cs-${idx}`} hover>
+                        <TableCell>{row['Type']}</TableCell>
+                        <TableCell>{row['Place Of Supply']}</TableCell>
+                        <TableCell align="center"><Chip label={`${row['Rate']}%`} size="small" /></TableCell>
+                        <TableCell align="right" sx={{ fontWeight: 700 }}>{formatCurrency(row['Taxable Value'])}</TableCell>
+                        <TableCell align="right">{formatCurrency(row['Cess Amount'])}</TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          )}
+
+          {/* Subtab 2: HSN Summary Table */}
+          {gstSubTab === 2 && (
+            <TableContainer component={Paper} elevation={1}>
+              <Table size="small">
+                <TableHead sx={{ bgcolor: 'grey.100' }}>
+                  <TableRow>
+                    <TableCell><strong>HSN Code</strong></TableCell>
+                    <TableCell><strong>Description</strong></TableCell>
+                    <TableCell align="center"><strong>UQC</strong></TableCell>
+                    <TableCell align="right"><strong>Total Qty</strong></TableCell>
+                    <TableCell align="right"><strong>Total Value</strong></TableCell>
+                    <TableCell align="right"><strong>Taxable Value</strong></TableCell>
+                    <TableCell align="right"><strong>Central Tax (CGST)</strong></TableCell>
+                    <TableCell align="right"><strong>State Tax (SGST)</strong></TableCell>
+                    <TableCell align="right"><strong>Integrated Tax (IGST)</strong></TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {gstDatasets.hsn.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={9} align="center" sx={{ py: 3 }}>
+                        No HSN items found in selected date range.
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    gstDatasets.hsn.map((row, idx) => (
+                      <TableRow key={`hsn-${idx}`} hover>
+                        <TableCell><Typography variant="body2" fontWeight={700}>{row['HSN']}</Typography></TableCell>
+                        <TableCell>{row['Description']}</TableCell>
+                        <TableCell align="center">{row['UQC']}</TableCell>
+                        <TableCell align="right">{row['Total Quantity']}</TableCell>
+                        <TableCell align="right">{formatCurrency(row['Total Value'])}</TableCell>
+                        <TableCell align="right" sx={{ fontWeight: 700 }}>{formatCurrency(row['Taxable Value'])}</TableCell>
+                        <TableCell align="right">{formatCurrency(row['Central Tax Amount'])}</TableCell>
+                        <TableCell align="right">{formatCurrency(row['State/UT Tax Amount'])}</TableCell>
+                        <TableCell align="right">{formatCurrency(row['Integrated Tax Amount'])}</TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          )}
+
+          {/* Subtab 3: Documents Issued Table */}
+          {gstSubTab === 3 && (
+            <TableContainer component={Paper} elevation={1}>
+              <Table size="small">
+                <TableHead sx={{ bgcolor: 'grey.100' }}>
+                  <TableRow>
+                    <TableCell><strong>Nature of Document</strong></TableCell>
+                    <TableCell><strong>From Serial No</strong></TableCell>
+                    <TableCell><strong>To Serial No</strong></TableCell>
+                    <TableCell align="right"><strong>Total Number</strong></TableCell>
+                    <TableCell align="right"><strong>Cancelled / Voided</strong></TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {gstDatasets.docs.map((row, idx) => (
+                    <TableRow key={`docs-${idx}`} hover>
+                      <TableCell>{row['Nature of Document']}</TableCell>
+                      <TableCell><Typography variant="body2" fontWeight={700}>{row['Sr. No. From']}</Typography></TableCell>
+                      <TableCell><Typography variant="body2" fontWeight={700}>{row['Sr. No. To']}</Typography></TableCell>
+                      <TableCell align="right">{row['Total Number']}</TableCell>
+                      <TableCell align="right" sx={{ color: 'error.main', fontWeight: 700 }}>{row['Cancelled']}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          )}
+        </Box>
+      ) : (
+        /* --- STANDARD STATEMENTS TABS (0, 1, 2) --- */
+        <Box>
+          {/* Filters */}
+          <Paper sx={{ p: 2, mb: 3 }}>
+            <Grid container spacing={2} alignItems="center">
+              {tabIndex === 1 && (
+                <Grid item xs={12} sm={4}>
+                  <Autocomplete
+                    options={customers}
+                    getOptionLabel={(option) => option.name || ''}
+                    value={selectedCustomer}
+                    onChange={(event, newValue) => setSelectedCustomer(newValue)}
+                    renderInput={(params) => <TextField {...params} label="Select Customer" size="small" />}
+                  />
+                </Grid>
+              )}
+
+              {(tabIndex === 0 || tabIndex === 2) && (
+                <>
+                  <Grid item xs={12} sm={3}>
+                    <TextField
+                      label="From Date"
+                      type="date"
+                      size="small"
+                      value={startDate}
+                      onChange={(e) => setStartDate(e.target.value)}
+                      InputLabelProps={{ shrink: true }}
+                      fullWidth
+                    />
+                  </Grid>
+                  <Grid item xs={12} sm={3}>
+                    <TextField
+                      label="To Date"
+                      type="date"
+                      size="small"
+                      value={endDate}
+                      onChange={(e) => setEndDate(e.target.value)}
+                      InputLabelProps={{ shrink: true }}
+                      fullWidth
+                    />
+                  </Grid>
+                </>
+              )}
+
+              <Grid item xs={12} sm={3}>
+                <FormControl size="small" fullWidth>
+                  <InputLabel>Status</InputLabel>
+                  <Select
+                    value={statusFilter}
+                    label="Status"
+                    onChange={(e) => setStatusFilter(e.target.value)}
+                  >
+                    <MenuItem value="all">All</MenuItem>
+                    <MenuItem value="paid">Paid</MenuItem>
+                    <MenuItem value="partial">Partially Paid</MenuItem>
+                    <MenuItem value="unpaid">Unpaid</MenuItem>
+                    <MenuItem value="void">Void</MenuItem>
+                  </Select>
+                </FormControl>
+              </Grid>
+
+              <Grid item xs={12} sm={3}>
+                <FormControl size="small" fullWidth>
+                  <InputLabel>Sort By</InputLabel>
+                  <Select
+                    value={sortOrder}
+                    label="Sort By"
+                    onChange={(e) => setSortOrder(e.target.value)}
+                  >
+                    <MenuItem value="newest">Newest First</MenuItem>
+                    <MenuItem value="oldest">Oldest First</MenuItem>
+                    <MenuItem value="highest">Highest Amount</MenuItem>
+                    <MenuItem value="lowest">Lowest Amount</MenuItem>
+                  </Select>
+                </FormControl>
+              </Grid>
+            </Grid>
+          </Paper>
+
+          {/* Search Bar */}
+          <Box mb={2}>
+            <SearchInput
+              value={searchQuery}
+              onChange={(val) => setSearchQuery(val)}
+              placeholder="Search by Ref No or Customer Name..."
+            />
+          </Box>
+
+          {/* Statement Table */}
+          <TableContainer component={Paper} elevation={1}>
+            <Table size="small">
+              <TableHead sx={{ bgcolor: 'grey.100' }}>
+                <TableRow>
+                  <TableCell><strong>Date</strong></TableCell>
+                  <TableCell><strong>Type</strong></TableCell>
+                  <TableCell><strong>Ref No</strong></TableCell>
+                  <TableCell><strong>Customer</strong></TableCell>
+                  <TableCell><strong>Status</strong></TableCell>
+                  <TableCell align="right"><strong>Amount</strong></TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {loading ? (
+                  Array.from(new Array(5)).map((_, i) => (
+                    <TableRow key={i}>
+                      <TableCell><CircularProgress size={16} /></TableCell>
+                      <TableCell></TableCell>
+                      <TableCell></TableCell>
+                      <TableCell></TableCell>
+                      <TableCell></TableCell>
+                      <TableCell></TableCell>
+                    </TableRow>
+                  ))
+                ) : paginatedData.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={6} align="center" sx={{ py: 3 }}>
+                      No statement records found for the selected criteria.
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  paginatedData.map((row, idx) => (
+                    <TableRow key={`${row.type}-${row.id}-${idx}`} hover>
+                      <TableCell>{formatDate(row.date)}</TableCell>
+                      <TableCell>
+                        <Chip
+                          label={row.type}
+                          size="small"
+                          color={row.type === 'Invoice' ? 'primary' : 'success'}
+                          variant="outlined"
+                        />
+                      </TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>
+                        <HighlightText text={row.refNo} highlight={searchQuery} />
+                      </TableCell>
+                      <TableCell>
+                        <HighlightText text={row.customerName} highlight={searchQuery} />
+                      </TableCell>
+                      <TableCell>
+                        {row.type === 'Invoice' ? (
+                          <Chip label={row.status} size="small" />
+                        ) : (
+                          <Typography variant="body2">{row.paymentMethod}</Typography>
+                        )}
+                      </TableCell>
+                      <TableCell align="right" sx={{ fontWeight: 'bold', color: row.type === 'Invoice' ? 'inherit' : 'success.main' }}>
+                        {row.type === 'Receipt' ? '+ ' : ''}{formatCurrency(row.amount)}
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </TableContainer>
+
+          {combinedData.length > 0 && (
+            <TablePagination
+              rowsPerPageOptions={[25, 50, 100]}
+              component="div"
+              count={combinedData.length}
+              rowsPerPage={rowsPerPage}
+              page={page}
+              onPageChange={handleChangePage}
+              onRowsPerPageChange={handleChangeRowsPerPage}
+              sx={{ borderTopLeftRadius: 0, borderTopRightRadius: 0 }}
+            />
+          )}
+        </Box>
       )}
+
+      {/* Snackbar feedback */}
+      <Snackbar
+        open={toastOpen}
+        autoHideDuration={4000}
+        onClose={() => setToastOpen(false)}
+        message={toastMessage}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      />
     </Box>
   );
 };
+
+export default StatementsPage;

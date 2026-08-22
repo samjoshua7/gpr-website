@@ -19,17 +19,20 @@ import {
 } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
 import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
+import ImageIcon from '@mui/icons-material/Image';
 import WhatsAppIcon from '@mui/icons-material/WhatsApp';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import PrintIcon from '@mui/icons-material/Print';
 import BlockIcon from '@mui/icons-material/Block';
 import DeleteIcon from '@mui/icons-material/Delete';
+import Snackbar from '@mui/material/Snackbar';
 import { getInvoiceById, getInvoiceTaskProgress } from '../api';
 import { getCompanySettings } from '../../settings/api';
 import { InvoiceDocument } from './InvoiceDocument';
 import { InvoiceNotesPanel } from './InvoiceNotesPanel';
-import { getSavedDirectoryHandle } from '../../../lib/savedLocation';
+import { formatExportFileName, saveExportFile } from '../../../lib/savedLocation';
 import { generateInvoicePdf } from '../../../lib/pdfGenerator';
+import { generateInvoiceJpg } from '../../../lib/imageGenerator';
 import { InvoiceProgressBar } from '../../../components/ui/InvoiceProgressBar';
 
 const STATUS_MAP = {
@@ -47,6 +50,9 @@ export const InvoiceDetailsDialog = ({ open, onClose, invoiceId, onEdit, onClone
   const [workflow, setWorkflow] = useState([]);
   const [loading, setLoading] = useState(false);
   const [downloadingPdf, setDownloadingPdf] = useState(false);
+  const [exportingJpg, setExportingJpg] = useState(false);
+  const [toastOpen, setToastOpen] = useState(false);
+  const [toastMessage, setToastMessage] = useState('');
   const [error, setError] = useState(null);
 
   const handlePrint = () => {
@@ -65,61 +71,53 @@ export const InvoiceDetailsDialog = ({ open, onClose, invoiceId, onEdit, onClone
         throw new Error('Failed to generate PDF document.');
       }
 
-      const cleanCustomerName = (invoice.customer_name || invoice.customers?.name || 'Customer').replace(/[/\\?%*:|"<>]/g, '');
-      const cleanInvoiceNo = (invoice.invoice_no || 'INVOICE').replace(/[/\\?%*:|"<>]/g, '-');
-      const fileName = `${cleanInvoiceNo} ${cleanCustomerName}.pdf`;
+      const fileName = formatExportFileName(invoice, 'pdf');
+      const result = await saveExportFile({
+        fileBlob: pdfBlob,
+        fileName,
+        subfolder: 'pdf',
+      });
 
-      // Try File System Access API if supported (Chrome/Edge)
-      if ('showSaveFilePicker' in window) {
-        try {
-          let startIn = undefined;
-          try {
-            const savedHandle = await getSavedDirectoryHandle();
-            if (savedHandle && (await savedHandle.queryPermission({ mode: 'readwrite' })) === 'granted') {
-              startIn = savedHandle;
-            }
-          } catch (err) {
-            console.warn('Saved directory handle permission not available', err);
-          }
-
-          const filePickerOptions = {
-            suggestedName: fileName,
-            types: [
-              {
-                description: 'PDF Document',
-                accept: { 'application/pdf': ['.pdf'] },
-              },
-            ],
-          };
-          if (startIn) {
-            filePickerOptions.startIn = startIn;
-          }
-
-          const fileHandle = await window.showSaveFilePicker(filePickerOptions);
-          const writable = await fileHandle.createWritable();
-          await writable.write(pdfBlob);
-          await writable.close();
-          return;
-        } catch (err) {
-          if (err.name === 'AbortError') return; // User canceled save dialog
-          console.warn('Native save dialog failed or dismissed, falling back to download link', err);
-        }
+      if (result.success) {
+        setToastMessage(`Saved PDF to ${result.path}`);
+        setToastOpen(true);
       }
-
-      // Standard browser download fallback (Firefox/Safari)
-      const url = URL.createObjectURL(pdfBlob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = fileName;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
     } catch (err) {
       console.error('PDF generation error:', err);
-      alert('Failed to generate PDF: ' + err.message);
+      alert('Failed to export PDF: ' + err.message);
     } finally {
       setDownloadingPdf(false);
+    }
+  };
+
+  const handleDownloadJpg = async () => {
+    if (!invoice) return;
+
+    try {
+      setExportingJpg(true);
+
+      const containerEl = document.getElementById('printable-invoice-container');
+      if (!containerEl) {
+        throw new Error('Printable invoice container element not found.');
+      }
+
+      const jpgBlob = await generateInvoiceJpg(containerEl, 2.5, 0.95);
+      const fileName = formatExportFileName(invoice, 'jpg');
+      const result = await saveExportFile({
+        fileBlob: jpgBlob,
+        fileName,
+        subfolder: 'jpg',
+      });
+
+      if (result.success) {
+        setToastMessage(`Saved JPG to ${result.path}`);
+        setToastOpen(true);
+      }
+    } catch (err) {
+      console.error('JPG generation error:', err);
+      alert('Failed to export JPG: ' + err.message);
+    } finally {
+      setExportingJpg(false);
     }
   };
 
@@ -262,9 +260,14 @@ export const InvoiceDetailsDialog = ({ open, onClose, invoiceId, onEdit, onClone
                 <PrintIcon fontSize="small" />
               </IconButton>
             </Tooltip>
-            <Tooltip title="Download PDF">
+            <Tooltip title="Save PDF (gpr_invoices/pdf)">
               <IconButton size="small" color="error" onClick={handleDownloadPdf} disabled={downloadingPdf}>
                 {downloadingPdf ? <CircularProgress size={18} color="inherit" /> : <PictureAsPdfIcon fontSize="small" />}
+              </IconButton>
+            </Tooltip>
+            <Tooltip title="Save JPG (gpr_invoices/jpg)">
+              <IconButton size="small" color="secondary" onClick={handleDownloadJpg} disabled={exportingJpg}>
+                {exportingJpg ? <CircularProgress size={18} color="inherit" /> : <ImageIcon fontSize="small" />}
               </IconButton>
             </Tooltip>
             <Tooltip title="Send via WhatsApp">
@@ -298,7 +301,7 @@ export const InvoiceDetailsDialog = ({ open, onClose, invoiceId, onEdit, onClone
             <Grid container spacing={3}>
               {/* Left Column (md=8): Printable Invoice Document styled as a page */}
               <Grid item xs={12} md={8}>
-                <Paper elevation={2} sx={{ p: 1, bgcolor: '#ffffff', borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
+                <Paper id="printable-invoice-container" elevation={2} sx={{ p: 1, bgcolor: '#ffffff', borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
                   <InvoiceDocument
                     invoice={invoice}
                     companySettings={companySettings}
@@ -323,6 +326,14 @@ export const InvoiceDetailsDialog = ({ open, onClose, invoiceId, onEdit, onClone
           Close
         </Button>
       </DialogActions>
+
+      <Snackbar
+        open={toastOpen}
+        autoHideDuration={4000}
+        onClose={() => setToastOpen(false)}
+        message={toastMessage}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      />
     </Dialog>
   );
 };

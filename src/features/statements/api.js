@@ -13,11 +13,36 @@ export const getStatementData = async (forceRefresh = false) => {
     return cachedStatementData;
   }
 
-  // Parallel fetch invoices and receipts to build statement
-  const [invoicesRes, receiptsRes, customersRes] = await Promise.all([
-    supabase.from('sales_invoices').select('*, customers(name)').order('invoice_date', { ascending: false }),
+  // Parallel fetch invoices, receipts, customers, and company settings
+  const [invoicesRes, receiptsRes, customersRes, settingsRes] = await Promise.all([
+    supabase
+      .from('sales_invoices')
+      .select(`
+        *,
+        customers (
+          name,
+          phone,
+          address,
+          gstin
+        ),
+        items:sales_invoice_items (
+          invoice_item_id,
+          product_name,
+          description,
+          hsn_code,
+          quantity,
+          unit_price,
+          gst_rate,
+          tax_amount,
+          discount_amount,
+          amount
+        )
+      `)
+      .order('invoice_date', { ascending: false })
+      .order('created_at', { ascending: false }),
     supabase.from('receipts').select('*, customers(name)').order('receipt_date', { ascending: false }),
-    supabase.from('customers').select('customer_id, name, opening_balance')
+    supabase.from('customers').select('customer_id, name, phone, gstin, opening_balance'),
+    supabase.from('company_settings').select('*').limit(1).maybeSingle(),
   ]);
 
   if (invoicesRes.error) throw new Error(invoicesRes.error.message);
@@ -27,7 +52,8 @@ export const getStatementData = async (forceRefresh = false) => {
   cachedStatementData = {
     invoices: invoicesRes.data || [],
     receipts: receiptsRes.data || [],
-    customers: customersRes.data || []
+    customers: customersRes.data || [],
+    companySettings: settingsRes.data || null,
   };
   lastFetchTimeStatementData = Date.now();
 

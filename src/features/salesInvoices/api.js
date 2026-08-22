@@ -317,13 +317,36 @@ export const voidSalesInvoice = async (id) => {
 };
 
 export const deleteSalesInvoice = async (id) => {
+  // 1. Delete child line items first
+  const { error: itemsError } = await supabase
+    .from('sales_invoice_items')
+    .delete()
+    .eq('invoice_id', id);
+
+  if (itemsError) {
+    console.warn('Notice: Issue deleting invoice line items:', itemsError.message);
+  }
+
+  // 2. Unlink any converted quotations
+  await supabase
+    .from('quotations')
+    .update({ converted_invoice_id: null })
+    .eq('converted_invoice_id', id);
+
+  // 3. Unlink any job cards
+  await supabase
+    .from('job_cards')
+    .update({ invoice_id: null })
+    .eq('invoice_id', id);
+
+  // 4. Delete parent invoice
   const { error } = await supabase
     .from('sales_invoices')
     .delete()
     .eq('invoice_id', id);
 
   if (error) {
-    throw new Error(error.message);
+    throw error;
   }
 
   invalidateSalesInvoicesCache();

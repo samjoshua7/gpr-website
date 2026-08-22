@@ -25,7 +25,7 @@ import { useNavigate } from 'react-router-dom';
 import { getQuotationById, convertQuotationToInvoice } from '../api';
 import { getCompanySettings } from '../../settings/api';
 import { QuotationDocument } from './QuotationDocument';
-import { getSavedDirectoryHandle } from '../../../lib/savedLocation';
+import { saveExportFile, formatExportFileName } from '../../../lib/savedLocation';
 import { generateInvoicePdf } from '../../../lib/pdfGenerator';
 
 const STATUS_MAP = {
@@ -59,54 +59,17 @@ export const QuotationDetailsDialog = ({ open, onClose, quotationId, onEdit, onC
         throw new Error('Failed to generate PDF document.');
       }
 
-      const cleanCustomerName = (quotation.customer_name || quotation.customers?.name || 'Customer').replace(/[/\\?%*:|"<>]/g, '');
-      const cleanQuotationNo = (quotation.quotation_no || 'QUOTATION').replace(/[/\\?%*:|"<>]/g, '-');
-      const fileName = `${cleanQuotationNo} ${cleanCustomerName}.pdf`;
+      const fileName = formatExportFileName({
+        invoice_no: quotation.quotation_no,
+        invoice_date: quotation.quotation_date,
+        customer_name: quotation.customer_name || quotation.customers?.name,
+      }, 'pdf');
 
-      if ('showSaveFilePicker' in window) {
-        try {
-          let startIn = undefined;
-          try {
-            const savedHandle = await getSavedDirectoryHandle();
-            if (savedHandle && (await savedHandle.queryPermission({ mode: 'readwrite' })) === 'granted') {
-              startIn = savedHandle;
-            }
-          } catch (err) {
-            console.warn('Saved directory handle permission not available', err);
-          }
-
-          const filePickerOptions = {
-            suggestedName: fileName,
-            types: [
-              {
-                description: 'PDF Document',
-                accept: { 'application/pdf': ['.pdf'] },
-              },
-            ],
-          };
-          if (startIn) {
-            filePickerOptions.startIn = startIn;
-          }
-
-          const fileHandle = await window.showSaveFilePicker(filePickerOptions);
-          const writable = await fileHandle.createWritable();
-          await writable.write(pdfBlob);
-          await writable.close();
-          return;
-        } catch (err) {
-          if (err.name === 'AbortError') return;
-          console.warn('Native save dialog failed, falling back to download link', err);
-        }
-      }
-
-      const url = URL.createObjectURL(pdfBlob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = fileName;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
+      await saveExportFile({
+        fileBlob: pdfBlob,
+        fileName,
+        subfolder: 'pdf',
+      });
     } catch (err) {
       console.error('PDF generation error:', err);
       alert('Failed to generate PDF: ' + err.message);

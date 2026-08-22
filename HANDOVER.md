@@ -1,29 +1,36 @@
-# Handover: Reed-Solomon Error Correction Block Table Offset Fix
+# Handover: In-App GPR-ERROR Modal, Customer Reassignment & Safe Bill Deletion
 
 ## Objective
-Executed the fix specified in `AGENT_TASK_QR_FIX.md` to resolve the silent QR scanning failure in `src/lib/qrCode.js`.
+Implemented the requested universal **`GPR-ERROR`** diagnostic popup modal with 1-click clipboard copy for debugging, fixed invoice deletion foreign-key lockouts, and improved invoice customer reassignment.
 
 ---
 
-## Root Cause & Decision
-- `QRErrorCorrectLevel` has values `{ L: 1, M: 0, Q: 3, H: 2 }` per ISO/IEC 18004 2-bit format information bit specifications.
-- `RS_BLOCK_TABLE` rows are physically laid out in order `[L, M, Q, H]` (indices 0, 1, 2, 3).
-- Using raw enum value `M = 0` as the row offset in `(typeNumber - 1) * 4 + errorCorrectLevel` caused Level M requests to fetch Level L block dimensions while format bits declared Level M.
-- Replaced `getRsBlockTable` in `src/lib/qrCode.js` with an explicit `switch` mapping: `L -> 0, M -> 1, Q -> 2, H -> 3`.
+## Decisions Made
+- Created `GprErrorDialog.jsx` and `ErrorProvider.jsx` with global window binding (`window.showGprError`) and `useGprError()` hook.
+- Added high-density diagnostic reporting including Error Code, Postgres Details/Hint, Operation Context, Payload Snapshot, and Timestamp.
+- Updated `deleteSalesInvoice(id)` in `salesInvoices/api.js` to delete line items and unlink job cards / quotations before deleting parent invoices, preventing PostgreSQL foreign key lockouts.
+- Guarded customer autocomplete in `InvoiceDialog.jsx` and connected all saving, voiding, and deleting catch blocks to `showGprError`.
 
 ---
 
-## Files Modified
-- `src/lib/qrCode.js`
+## Files Modified / Created
+- `src/components/feedback/GprErrorDialog.jsx` [NEW]
+- `src/app/providers/ErrorProvider.jsx` [NEW]
+- `src/app/App.jsx`
+- `src/features/salesInvoices/api.js`
+- `src/features/salesInvoices/components/InvoiceDialog.jsx`
+- `src/features/salesInvoices/page.jsx`
+- `src/features/customers/CustomerLedgerPage.jsx`
 - `HANDOVER.md`
 
 ---
 
-## UPI Ecosystem Note
-- For maximum reliability across consumer payment apps (Google Pay, PhonePe, Paytm, BHIM), recommend using **`upi_id` mode** (real registered VPA such as `9876543210@upi` or `business@okaxis`).
-- **`bank_account` mode** uses the synthetic address format `{accountNumber}@{IFSC}.ifsc.npci`. While the QR decodes correctly, some consumer banking apps enforce registered-VPA checks and may display an "invalid payee" prompt on their servers.
+## Remaining TODOs (Priority Order)
+1. Test deleting an unpaid invoice to verify that child records are cleanly unlinked and deleted.
+2. Test editing an invoice and changing the customer, then verify the customer updates and saves.
+3. Test triggering any intentional error to view the **`GPR-ERROR`** diagnostic modal and verify the **"Copy Error Details"** button.
 
 ---
 
-## Remaining TODOs (Priority Order)
-1. Physically scan the QR in Company Settings (`/dashboard/settings`) or from an invoice view with Google Lens / Google Pay / PhonePe to confirm instant detection and prefill.
+## Known Risks
+- None.

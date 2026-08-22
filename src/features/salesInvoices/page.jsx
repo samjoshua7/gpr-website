@@ -46,6 +46,7 @@ import { SearchInput } from '../../components/ui/SearchInput';
 import { HighlightText } from '../../components/ui/HighlightText';
 import { TablePagination, TableSortLabel, Stack } from '@mui/material';
 import { formatDate } from '../../lib/formatDate';
+import { useGprError } from '../../app/providers/ErrorProvider';
 
 const STATUS_MAP = {
   unpaid: { label: 'Unpaid', color: 'error' },
@@ -115,6 +116,7 @@ const getProgressInfo = (taskStatuses = [], activeWorkflow = []) => {
 export const SalesInvoicesPage = () => {
   const location = useLocation();
   const navigate = useNavigate();
+  const { showError: showGprError } = useGprError();
 
   const [invoices, setInvoices] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -356,6 +358,16 @@ export const SalesInvoicesPage = () => {
     } catch (err) {
       console.error(err);
       setVoidError(err.message || 'Failed to void invoice.');
+      showGprError(err, {
+        title: 'Failed to Void Sales Invoice',
+        actionContext: `Voiding Invoice #${invoiceToVoid?.invoice_no}`,
+        payload: {
+          invoice_id: invoiceToVoid?.invoice_id,
+          invoice_no: invoiceToVoid?.invoice_no,
+          customer_name: invoiceToVoid?.customers?.name,
+          status: invoiceToVoid?.status,
+        },
+      });
     } finally {
       setVoidLoading(false);
     }
@@ -392,6 +404,11 @@ export const SalesInvoicesPage = () => {
     } catch (err) {
       console.error(err);
       setError('Failed to run dependency audits on this invoice.');
+      showGprError(err, {
+        title: 'Failed to run dependency checks for invoice deletion',
+        actionContext: `Checking dependencies for Invoice #${invoice?.invoice_no}`,
+        payload: { invoice_id: invoice?.invoice_id, invoice_no: invoice?.invoice_no },
+      });
     } finally {
       setLoading(false);
     }
@@ -409,6 +426,16 @@ export const SalesInvoicesPage = () => {
     } catch (err) {
       console.error(err);
       setDeleteError(err.message || 'Failed to delete invoice.');
+      showGprError(err, {
+        title: 'Failed to Delete Sales Invoice',
+        actionContext: `Deleting Invoice #${invoiceToDelete?.invoice_no}`,
+        payload: {
+          invoice_id: invoiceToDelete?.invoice_id,
+          invoice_no: invoiceToDelete?.invoice_no,
+          customer_id: invoiceToDelete?.customer_id,
+          status: invoiceToDelete?.status,
+        },
+      });
     } finally {
       setDeleteLoading(false);
     }
