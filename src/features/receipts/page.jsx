@@ -282,9 +282,13 @@ export const ReceiptsPage = () => {
             <TableBody>
               {paginatedReceipts.map((receipt) => (
                 <TableRow key={receipt.receipt_id} hover>
-                  <TableCell>{formatDate(receipt.receipt_date)}</TableCell>
-                  <TableCell sx={{ fontWeight: 600 }}>
-                    <HighlightText text={receipt.customers?.name} highlight={searchQuery} />
+                  <TableCell sx={{ whiteSpace: 'nowrap' }}>{formatDate(receipt.receipt_date)}</TableCell>
+                  <TableCell sx={{ maxWidth: 240, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: 600 }}>
+                    <Tooltip title={receipt.customers?.name || ''} arrow placement="top" disableHoverListener={!receipt.customers?.name || receipt.customers.name.length < 25}>
+                      <Typography variant="body2" component="span" sx={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block' }}>
+                        <HighlightText text={receipt.customers?.name} highlight={searchQuery} />
+                      </Typography>
+                    </Tooltip>
                   </TableCell>
                   <TableCell>
                     <Chip

@@ -148,8 +148,10 @@ export const EmployeeDialog = ({ open, onClose, onSave, initialData, companySett
                   onChange={handleChange}
                   label="System Role"
                 >
-                  <MenuItem value="STAFF">Staff</MenuItem>
-                  <MenuItem value="SUPER_ADMIN">Super Admin</MenuItem>
+                  <MenuItem value="SUPER_ADMIN">Super Admin (Full Access)</MenuItem>
+                  <MenuItem value="ACCOUNTS">Accounts (Financial & Billing)</MenuItem>
+                  <MenuItem value="STAFF">Staff (Department Operator)</MenuItem>
+                  <MenuItem value="STAKEHOLDER">Stakeholder (Read-Only Viewer)</MenuItem>
                 </Select>
               </FormControl>
             </Grid>

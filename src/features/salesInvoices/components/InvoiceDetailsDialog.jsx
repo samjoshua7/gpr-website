@@ -16,6 +16,9 @@ import {
   Select,
   MenuItem,
   Paper,
+  Autocomplete,
+  TextField,
+  DialogContentText,
 } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
 import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
@@ -25,8 +28,11 @@ import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import PrintIcon from '@mui/icons-material/Print';
 import BlockIcon from '@mui/icons-material/Block';
 import DeleteIcon from '@mui/icons-material/Delete';
+import LinkIcon from '@mui/icons-material/Link';
+import LinkOffIcon from '@mui/icons-material/LinkOff';
 import Snackbar from '@mui/material/Snackbar';
-import { getInvoiceById, getInvoiceTaskProgress } from '../api';
+import { getInvoiceById, getInvoiceTaskProgress, linkInvoiceToJobCard, unlinkInvoiceFromJobCard } from '../api';
+import { getJobCards, getJobCardsByCustomer } from '../../jobCards/api';
 import { getCompanySettings } from '../../settings/api';
 import { InvoiceDocument } from './InvoiceDocument';
 import { InvoiceNotesPanel } from './InvoiceNotesPanel';
@@ -34,6 +40,7 @@ import { formatExportFileName, saveExportFile } from '../../../lib/savedLocation
 import { generateInvoicePdf } from '../../../lib/pdfGenerator';
 import { generateInvoiceJpg } from '../../../lib/imageGenerator';
 import { InvoiceProgressBar } from '../../../components/ui/InvoiceProgressBar';
+import { useAuth } from '../../../hooks/useAuth';
 
 const STATUS_MAP = {
   unpaid: { label: 'Unpaid', color: 'error' },
@@ -42,7 +49,18 @@ const STATUS_MAP = {
   void: { label: 'Voided', color: 'default' },
 };
 
-export const InvoiceDetailsDialog = ({ open, onClose, invoiceId, onEdit, onClone, onVoid, onDelete }) => {
+export const InvoiceDetailsDialog = ({
+  open,
+  onClose,
+  invoiceId,
+  onEdit,
+  onClone,
+  onVoid,
+  onDelete,
+}) => {
+  const { profile } = useAuth();
+  const isStakeholder = profile?.role === 'STAKEHOLDER';
+
   const [invoice, setInvoice] = useState(null);
   const [companySettings, setCompanySettings] = useState(null);
   const [paperSize, setPaperSize] = useState('A4');
@@ -55,6 +73,17 @@ export const InvoiceDetailsDialog = ({ open, onClose, invoiceId, onEdit, onClone
   const [toastMessage, setToastMessage] = useState('');
   const [error, setError] = useState(null);
 
+  const [linkJobDialogOpen, setLinkJobDialogOpen] = useState(false);
+  const [jobCardsList, setJobCardsList] = useState([]);
+  const [jobCardsLoading, setJobCardsLoading] = useState(false);
+  const [selectedJobToLink, setSelectedJobToLink] = useState(null);
+  const [linkJobLoading, setLinkJobLoading] = useState(false);
+  const [linkJobError, setLinkJobError] = useState(null);
+
+  const [unlinkJobDialogOpen, setUnlinkJobDialogOpen] = useState(false);
+  const [unlinkJobLoading, setUnlinkJobLoading] = useState(false);
+  const [unlinkJobError, setUnlinkJobError] = useState(null);
+
   const handlePrint = () => {
     window.print();
   };
@@ -64,8 +93,6 @@ export const InvoiceDetailsDialog = ({ open, onClose, invoiceId, onEdit, onClone
 
     try {
       setDownloadingPdf(true);
-
-      // Generate vector PDF using selected paper size
       const pdfBlob = await generateInvoicePdf(invoice, companySettings, paperSize);
       if (!pdfBlob) {
         throw new Error('Failed to generate PDF document.');
@@ -95,7 +122,6 @@ export const InvoiceDetailsDialog = ({ open, onClose, invoiceId, onEdit, onClone
 
     try {
       setExportingJpg(true);
-
       const containerEl = document.getElementById('printable-invoice-container');
       if (!containerEl) {
         throw new Error('Printable invoice container element not found.');
@@ -130,33 +156,34 @@ export const InvoiceDetailsDialog = ({ open, onClose, invoiceId, onEdit, onClone
     window.open(url, '_blank');
   };
 
-  useEffect(() => {
-    const fetchInvoiceDetails = async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const [data, settingsData, progressData] = await Promise.all([
-          getInvoiceById(invoiceId),
-          getCompanySettings(),
-          getInvoiceTaskProgress([invoiceId]),
-        ]);
-        setInvoice(data);
-        setCompanySettings(settingsData);
-        setTaskStatuses(progressData[invoiceId] || []);
-        if (settingsData?.production_workflow) {
-          setWorkflow(settingsData.production_workflow);
-        }
-        if (settingsData?.default_invoice_paper_size) {
-          setPaperSize(settingsData.default_invoice_paper_size);
-        }
-      } catch (err) {
-        console.error(err);
-        setError(err.message || 'Failed to load invoice details.');
-      } finally {
-        setLoading(false);
+  const fetchInvoiceDetails = async () => {
+    if (!invoiceId) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const [data, settingsData, progressData] = await Promise.all([
+        getInvoiceById(invoiceId),
+        getCompanySettings(),
+        getInvoiceTaskProgress([invoiceId]),
+      ]);
+      setInvoice(data);
+      setCompanySettings(settingsData);
+      setTaskStatuses(progressData[invoiceId] || []);
+      if (settingsData?.production_workflow) {
+        setWorkflow(settingsData.production_workflow);
       }
-    };
+      if (settingsData?.default_invoice_paper_size) {
+        setPaperSize(settingsData.default_invoice_paper_size);
+      }
+    } catch (err) {
+      console.error(err);
+      setError(err.message || 'Failed to load invoice details.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
+  useEffect(() => {
     if (open && invoiceId) {
       fetchInvoiceDetails();
     } else {
@@ -164,6 +191,72 @@ export const InvoiceDetailsDialog = ({ open, onClose, invoiceId, onEdit, onClone
       setTaskStatuses([]);
     }
   }, [open, invoiceId]);
+
+  useEffect(() => {
+    if (linkJobDialogOpen) {
+      const fetchJobCards = async () => {
+        setJobCardsLoading(true);
+        setLinkJobError(null);
+        try {
+          let data = [];
+          if (invoice?.customer_id) {
+            data = await getJobCardsByCustomer(invoice.customer_id);
+          } else {
+            data = await getJobCards();
+          }
+
+          // Filter strictly: unbilled or currently linked to this invoice
+          const availableJobs = (data || []).filter(
+            (job) => !job.is_billed || job.job_id === invoice.job_id
+          );
+          setJobCardsList(availableJobs);
+        } catch (err) {
+          console.error(err);
+          setLinkJobError('Failed to load Job Cards.');
+        } finally {
+          setJobCardsLoading(false);
+        }
+      };
+      fetchJobCards();
+    }
+  }, [linkJobDialogOpen, invoice?.customer_id, invoice?.job_id]);
+
+  const handleConfirmLinkJob = async () => {
+    if (!selectedJobToLink || !invoice) return;
+    setLinkJobLoading(true);
+    setLinkJobError(null);
+    try {
+      await linkInvoiceToJobCard(invoice.invoice_id, selectedJobToLink.job_id);
+      await fetchInvoiceDetails();
+      setLinkJobDialogOpen(false);
+      setSelectedJobToLink(null);
+      setToastMessage(`Linked Job Card JC-${String(selectedJobToLink.job_number || 0).padStart(4, '0')} to invoice.`);
+      setToastOpen(true);
+    } catch (err) {
+      console.error(err);
+      setLinkJobError(err.message || 'Failed to link Job Card.');
+    } finally {
+      setLinkJobLoading(false);
+    }
+  };
+
+  const handleConfirmUnlinkJob = async () => {
+    if (!invoice) return;
+    setUnlinkJobLoading(true);
+    setUnlinkJobError(null);
+    try {
+      await unlinkInvoiceFromJobCard(invoice.invoice_id);
+      await fetchInvoiceDetails();
+      setUnlinkJobDialogOpen(false);
+      setToastMessage('Unlinked Job Card from invoice.');
+      setToastOpen(true);
+    } catch (err) {
+      console.error(err);
+      setUnlinkJobError(err.message || 'Failed to unlink Job Card.');
+    } finally {
+      setUnlinkJobLoading(false);
+    }
+  };
 
   const printStyles = `
     @page {
@@ -199,32 +292,64 @@ export const InvoiceDetailsDialog = ({ open, onClose, invoiceId, onEdit, onClone
     }
   `;
 
+  if (!open) return null;
+
   return (
     <Dialog open={open} onClose={onClose} maxWidth="lg" fullWidth>
       <style>{printStyles}</style>
-      <DialogTitle className="no-print" sx={{ fontWeight: 700, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <span>Invoice Details</span>
-        {invoice && (
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+      <DialogTitle
+        className="no-print"
+        sx={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          pb: 1.5,
+          borderBottom: '1px solid',
+          borderColor: 'divider',
+          flexWrap: 'wrap',
+          gap: 1,
+        }}
+      >
+        <Box display="flex" alignItems="center" gap={1.5} flexWrap="wrap">
+          <Typography variant="h6" fontWeight={800}>
+            {invoice?.invoice_no ? `Invoice ${invoice.invoice_no}` : 'Invoice Details'}
+          </Typography>
+          {invoice?.status && (
             <Chip
               label={STATUS_MAP[invoice.status]?.label || invoice.status}
               color={STATUS_MAP[invoice.status]?.color || 'default'}
               size="small"
-              sx={{ fontWeight: 600, mr: 1 }}
+              sx={{ fontWeight: 700, textTransform: 'uppercase', fontSize: '0.7rem' }}
             />
-            {onClone && (
+          )}
+          {invoice?.invoice_type && (
+            <Chip
+              label={invoice.invoice_type}
+              variant="outlined"
+              size="small"
+              color={invoice.invoice_type === 'GST' ? 'primary' : 'default'}
+              sx={{ fontWeight: 700, fontSize: '0.7rem' }}
+            />
+          )}
+        </Box>
+
+        {invoice && (
+          <Box display="flex" alignItems="center" gap={1} flexWrap="wrap">
+            {!isStakeholder && onClone && (
               <Tooltip title="Clone Invoice">
                 <IconButton size="small" onClick={() => onClone(invoice)}>
                   <ContentCopyIcon fontSize="small" />
                 </IconButton>
               </Tooltip>
             )}
-            <Tooltip title="Edit Invoice">
-              <IconButton size="small" onClick={() => onEdit && onEdit(invoice)}>
-                <EditIcon fontSize="small" />
-              </IconButton>
-            </Tooltip>
-            {onVoid && (
+            {!isStakeholder && onEdit && (
+              <Tooltip title="Edit Invoice">
+                <IconButton size="small" onClick={() => onEdit && onEdit(invoice)}>
+                  <EditIcon fontSize="small" />
+                </IconButton>
+              </Tooltip>
+            )}
+            {!isStakeholder && onVoid && (
               <Tooltip title={invoice.status === 'void' ? 'Already Void' : 'Void Invoice'}>
                 <span>
                   <IconButton
@@ -241,7 +366,7 @@ export const InvoiceDetailsDialog = ({ open, onClose, invoiceId, onEdit, onClone
                 </span>
               </Tooltip>
             )}
-            {onDelete && (
+            {!isStakeholder && onDelete && (
               <Tooltip title="Delete Invoice">
                 <IconButton
                   size="small"
@@ -255,18 +380,29 @@ export const InvoiceDetailsDialog = ({ open, onClose, invoiceId, onEdit, onClone
                 </IconButton>
               </Tooltip>
             )}
+
+            <Select
+              size="small"
+              value={paperSize}
+              onChange={(e) => setPaperSize(e.target.value)}
+              sx={{ height: 32, fontSize: '0.75rem', fontWeight: 600, ml: 1 }}
+            >
+              <MenuItem value="A4">A4 Sheet</MenuItem>
+              <MenuItem value="A5">A5 Sheet</MenuItem>
+            </Select>
+
             <Tooltip title="Print Invoice">
               <IconButton size="small" color="primary" onClick={handlePrint}>
                 <PrintIcon fontSize="small" />
               </IconButton>
             </Tooltip>
-            <Tooltip title="Save PDF (gpr_invoices/pdf)">
-              <IconButton size="small" color="error" onClick={handleDownloadPdf} disabled={downloadingPdf}>
+            <Tooltip title="Download PDF">
+              <IconButton size="small" color="primary" onClick={handleDownloadPdf} disabled={downloadingPdf}>
                 {downloadingPdf ? <CircularProgress size={18} color="inherit" /> : <PictureAsPdfIcon fontSize="small" />}
               </IconButton>
             </Tooltip>
-            <Tooltip title="Save JPG (gpr_invoices/jpg)">
-              <IconButton size="small" color="secondary" onClick={handleDownloadJpg} disabled={exportingJpg}>
+            <Tooltip title="Download JPG">
+              <IconButton size="small" color="primary" onClick={handleDownloadJpg} disabled={exportingJpg}>
                 {exportingJpg ? <CircularProgress size={18} color="inherit" /> : <ImageIcon fontSize="small" />}
               </IconButton>
             </Tooltip>
@@ -289,12 +425,58 @@ export const InvoiceDetailsDialog = ({ open, onClose, invoiceId, onEdit, onClone
           <Typography>No invoice loaded.</Typography>
         ) : (
           <Box>
-            {taskStatuses && taskStatuses.length > 0 && (
+            {/* Job Card Linked Progress Banner */}
+            {invoice?.job_cards ? (
               <Paper className="no-print" elevation={0} sx={{ p: 2, mb: 3, bgcolor: '#ffffff', borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
-                <Typography variant="caption" color="text.secondary" fontWeight={700} display="block" sx={{ mb: 1, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                  Production Task Progress:
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1, flexWrap: 'wrap', gap: 1 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Typography variant="caption" color="text.secondary" fontWeight={700} display="block" sx={{ textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                      Production Workflow Progress
+                    </Typography>
+                    <Chip
+                      label={`JC-${String(invoice.job_cards.job_number || 0).padStart(4, '0')}: ${invoice.job_cards.status || 'New Orders'}`}
+                      color="primary"
+                      size="small"
+                      sx={{ fontWeight: 700, fontSize: '0.7rem' }}
+                    />
+                  </Box>
+                  {!isStakeholder && (
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      color="warning"
+                      startIcon={<LinkOffIcon />}
+                      onClick={() => setUnlinkJobDialogOpen(true)}
+                      sx={{ textTransform: 'none', fontWeight: 600, height: 26, fontSize: '0.75rem' }}
+                    >
+                      Unlink Job Card
+                    </Button>
+                  )}
+                </Box>
+                <InvoiceProgressBar
+                  taskStatuses={[{ status: invoice.job_cards.status || 'New Orders', product_name: invoice.job_cards.description }]}
+                  workflow={workflow}
+                  height={12}
+                  showLabel
+                />
+              </Paper>
+            ) : (
+              <Paper className="no-print" elevation={0} sx={{ p: 1.5, mb: 3, bgcolor: '#ffffff', borderRadius: 2, border: '1px dashed', borderColor: 'divider', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 1 }}>
+                <Typography variant="body2" color="text.secondary">
+                  No Job Card currently linked to this invoice.
                 </Typography>
-                <InvoiceProgressBar taskStatuses={taskStatuses} workflow={workflow} height={12} showLabel />
+                {!isStakeholder && (
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    color="primary"
+                    startIcon={<LinkIcon />}
+                    onClick={() => setLinkJobDialogOpen(true)}
+                    sx={{ textTransform: 'none', fontWeight: 700 }}
+                  >
+                    Link to Job Card
+                  </Button>
+                )}
               </Paper>
             )}
 
@@ -326,6 +508,80 @@ export const InvoiceDetailsDialog = ({ open, onClose, invoiceId, onEdit, onClone
           Close
         </Button>
       </DialogActions>
+
+      {/* Manual Link Job Card Dialog */}
+      <Dialog open={linkJobDialogOpen} onClose={() => !linkJobLoading && setLinkJobDialogOpen(false)} maxWidth="xs" fullWidth>
+        <DialogTitle sx={{ fontWeight: 700, display: 'flex', alignItems: 'center', gap: 1 }}>
+          <LinkIcon color="primary" /> Link Job Card
+        </DialogTitle>
+        <DialogContent>
+          {linkJobError && <Alert severity="error" sx={{ mb: 2 }}>{linkJobError}</Alert>}
+          <DialogContentText sx={{ mb: 2 }}>
+            Select an unlinked Job Card for <strong>{invoice?.customers?.name || 'this customer'}</strong> to link with Invoice <strong>{invoice?.invoice_no}</strong> (newest first):
+          </DialogContentText>
+          <Autocomplete
+            options={jobCardsList}
+            loading={jobCardsLoading}
+            getOptionLabel={(option) => {
+              if (!option) return '';
+              const jcNo = `JC-${String(option.job_number || 0).padStart(4, '0')}`;
+              const cust = option.customers?.name || 'Customer';
+              const stage = option.status || 'New Orders';
+              return `${jcNo} • ${cust} • [${stage}]`;
+            }}
+            value={selectedJobToLink}
+            onChange={(_, val) => setSelectedJobToLink(val)}
+            renderInput={(params) => (
+              <TextField
+                {...params}
+                label="Select Job Card"
+                placeholder="Search job number or customer..."
+                margin="dense"
+                InputProps={{
+                  ...params.InputProps,
+                  endAdornment: (
+                    <React.Fragment>
+                      {jobCardsLoading ? <CircularProgress color="inherit" size={20} /> : null}
+                      {params.InputProps.endAdornment}
+                    </React.Fragment>
+                  ),
+                }}
+              />
+            )}
+          />
+        </DialogContent>
+        <DialogActions sx={{ p: 2 }}>
+          <Button onClick={() => setLinkJobDialogOpen(false)} disabled={linkJobLoading} color="inherit">
+            Cancel
+          </Button>
+          <Button
+            onClick={handleConfirmLinkJob}
+            variant="contained"
+            disabled={linkJobLoading || !selectedJobToLink}
+          >
+            {linkJobLoading ? 'Linking...' : 'Link Job Card'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Unlink Job Card Confirmation Dialog */}
+      <Dialog open={unlinkJobDialogOpen} onClose={() => !unlinkJobLoading && setUnlinkJobDialogOpen(false)}>
+        <DialogTitle sx={{ fontWeight: 700 }}>Unlink Job Card</DialogTitle>
+        <DialogContent>
+          {unlinkJobError && <Alert severity="error" sx={{ mb: 2 }}>{unlinkJobError}</Alert>}
+          <DialogContentText>
+            Are you sure you want to unlink Job Card <strong>JC-{String(invoice?.job_cards?.job_number || 0).padStart(4, '0')}</strong> from Invoice <strong>{invoice?.invoice_no}</strong>?
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions sx={{ p: 2 }}>
+          <Button onClick={() => setUnlinkJobDialogOpen(false)} disabled={unlinkJobLoading} color="inherit">
+            Cancel
+          </Button>
+          <Button onClick={handleConfirmUnlinkJob} color="warning" variant="contained" disabled={unlinkJobLoading}>
+            {unlinkJobLoading ? 'Unlinking...' : 'Confirm Unlink'}
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       <Snackbar
         open={toastOpen}

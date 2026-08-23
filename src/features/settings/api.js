@@ -71,3 +71,30 @@ export const uploadCompanyAsset = async (file, type) => {
   return publicUrlData.publicUrl;
 };
 
+export const getJobCardsCountByDepartment = async (departmentName) => {
+  if (!departmentName) return 0;
+  const { count, error } = await supabase
+    .from('job_cards')
+    .select('job_id', { count: 'exact', head: true })
+    .eq('status', departmentName);
+
+  if (error) {
+    console.error('Error fetching job card count for department:', error);
+    return 0;
+  }
+  return count || 0;
+};
+
+export const reassignJobCardsDepartment = async (oldDept, newDept) => {
+  if (!oldDept || !newDept || oldDept === newDept) return;
+  const { error } = await supabase
+    .from('job_cards')
+    .update({ status: newDept })
+    .eq('status', oldDept);
+
+  if (error) {
+    throw new Error(`Failed to reassign job cards: ${error.message}`);
+  }
+};
+
+

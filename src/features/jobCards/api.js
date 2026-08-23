@@ -26,10 +26,22 @@ export const getJobCards = async (searchQuery = '', statusFilter = '', forceRefr
     .select(`
       *,
       customers (
-        name
+        customer_id,
+        name,
+        phone,
+        gstin
+      ),
+      sales_invoices (
+        invoice_id,
+        invoice_no,
+        invoice_date,
+        total_amount,
+        amount_paid,
+        status,
+        created_at
       )
     `)
-    .order('due_date', { ascending: true, nullsFirst: false });
+    .order('created_at', { ascending: false });
 
   if (statusFilter && statusFilter !== 'all') {
     query = query.eq('status', statusFilter);
@@ -40,22 +52,43 @@ export const getJobCards = async (searchQuery = '', statusFilter = '', forceRefr
     throw new Error(error.message);
   }
 
-  // Filter client-side if a search query is provided to match both description and customer name
+  // Format and annotate each job card with billing status
+  const formattedData = (data || []).map((job) => {
+    const activeInvoices = (job.sales_invoices || []).filter((inv) => inv.status !== 'void');
+    const isBilled = activeInvoices.length > 0;
+    const linkedInvoice = isBilled ? activeInvoices[0] : null;
+
+    return {
+      ...job,
+      is_billed: isBilled,
+      linked_invoice: linkedInvoice,
+    };
+  });
+
+  // Filter client-side if a search query is provided to match description, customer name, job number, or invoice no
   if (searchQuery.trim()) {
     const cleanSearch = searchQuery.toLowerCase().trim();
-    return data.filter(
-      (job) =>
+    return formattedData.filter((job) => {
+      const jcNum = `jc-${String(job.job_number || 0).padStart(4, '0')}`.toLowerCase();
+      const rawNum = String(job.job_number || 0);
+      const invNo = (job.linked_invoice?.invoice_no || '').toLowerCase();
+      return (
         job.description?.toLowerCase().includes(cleanSearch) ||
-        job.customers?.name?.toLowerCase().includes(cleanSearch)
-    );
+        job.customers?.name?.toLowerCase().includes(cleanSearch) ||
+        job.customers?.phone?.includes(cleanSearch) ||
+        jcNum.includes(cleanSearch) ||
+        rawNum.includes(cleanSearch) ||
+        invNo.includes(cleanSearch)
+      );
+    });
   }
 
   if (!searchQuery.trim() && (!statusFilter || statusFilter === 'all')) {
-    cachedJobCards = data;
+    cachedJobCards = formattedData;
     lastFetchTimeJobCards = Date.now();
   }
 
-  return data;
+  return formattedData;
 };
 
 export const getJobCardById = async (id) => {
@@ -64,7 +97,19 @@ export const getJobCardById = async (id) => {
     .select(`
       *,
       customers (
-        name
+        customer_id,
+        name,
+        phone,
+        gstin
+      ),
+      sales_invoices (
+        invoice_id,
+        invoice_no,
+        invoice_date,
+        total_amount,
+        amount_paid,
+        status,
+        created_at
       )
     `)
     .eq('job_id', id)
@@ -74,7 +119,12 @@ export const getJobCardById = async (id) => {
     throw new Error(error.message);
   }
 
-  return data;
+  const activeInvoices = (data.sales_invoices || []).filter((inv) => inv.status !== 'void');
+  return {
+    ...data,
+    is_billed: activeInvoices.length > 0,
+    linked_invoice: activeInvoices.length > 0 ? activeInvoices[0] : null,
+  };
 };
 
 export const createJobCard = async (jobData) => {
@@ -85,15 +135,23 @@ export const createJobCard = async (jobData) => {
     .from('job_cards')
     .insert([
       {
-        customer_id: jobData.customer_id,
+        customer_id: jobData.customer_id || null,
         description: jobData.description,
-        quantity: parseFloat(jobData.quantity),
-        status: jobData.status || 'pending',
+        quantity: parseFloat(jobData.quantity) || 1,
+        status: jobData.status || 'New Orders',
         due_date: jobData.due_date || null,
         created_by: user?.id || null,
       },
     ])
-    .select()
+    .select(`
+      *,
+      customers (
+        customer_id,
+        name,
+        phone,
+        gstin
+      )
+    `)
     .single();
 
   if (error) {
@@ -108,14 +166,22 @@ export const updateJobCard = async (id, jobData) => {
   const { data, error } = await supabase
     .from('job_cards')
     .update({
-      customer_id: jobData.customer_id,
+      customer_id: jobData.customer_id || null,
       description: jobData.description,
-      quantity: parseFloat(jobData.quantity),
+      quantity: parseFloat(jobData.quantity) || 1,
       status: jobData.status,
       due_date: jobData.due_date || null,
     })
     .eq('job_id', id)
-    .select()
+    .select(`
+      *,
+      customers (
+        customer_id,
+        name,
+        phone,
+        gstin
+      )
+    `)
     .single();
 
   if (error) {
@@ -203,75 +269,55 @@ export const updateProductionTaskStatus = async (taskId, status) => {
   return data;
 };
 
-/**
- * Auto-advances the production task/stage of a job card when a sales invoice is created.
- */
 export const advanceJobProductionTaskOnInvoice = async (jobId) => {
   if (!jobId) return;
 
   try {
-    const { data: settingsData } = await supabase
-      .from('company_settings')
-      .select('production_workflow')
-      .single();
-
-    const workflow = settingsData?.production_workflow || [
-      'New Orders',
-      'Designing',
-      'Proof',
-      'Printing',
-      'Additional works',
-      'Cutting',
-      'Packing',
-      'Out for Delivery',
-      'Delivered',
-    ];
-
-    const { data: tasks } = await supabase
-      .from('production_tasks')
-      .select('*')
-      .eq('job_id', jobId);
-
-    if (tasks && tasks.length > 0) {
-      for (const task of tasks) {
-        const currIdx = workflow.indexOf(task.status);
-        const nextIdx = currIdx >= 0 ? currIdx + 1 : 1;
-        if (nextIdx < workflow.length) {
-          const nextStatus = workflow[nextIdx];
-          await supabase
-            .from('production_tasks')
-            .update({ status: nextStatus })
-            .eq('task_id', task.task_id);
-        }
-      }
-    } else {
-      const initialStatus = workflow[1] || 'Designing';
-      const { data: job } = await supabase
-        .from('job_cards')
-        .select('description, quantity')
-        .eq('job_id', jobId)
-        .single();
-
-      await supabase.from('production_tasks').insert([
-        {
-          job_id: jobId,
-          product_name: job?.description || 'Print Task',
-          quantity: job?.quantity || 1,
-          status: initialStatus,
-        },
-      ]);
-    }
-
-    await supabase
-      .from('job_cards')
-      .update({ status: 'in_progress' })
-      .eq('job_id', jobId);
-
-    invalidateProductionTasksCache();
     invalidateJobCardsCache();
+    invalidateProductionTasksCache();
     invalidateTaskProgressCache();
   } catch (err) {
-    console.error('Failed to auto-advance job stage on invoice creation:', err);
+    console.error('Failed to advance job on invoice creation:', err);
   }
 };
+
+export const getJobCardsByCustomer = async (customerId) => {
+  if (!customerId) return [];
+  const { data, error } = await supabase
+    .from('job_cards')
+    .select(`
+      *,
+      customers (
+        customer_id,
+        name,
+        phone,
+        gstin
+      ),
+      sales_invoices (
+        invoice_id,
+        invoice_no,
+        invoice_date,
+        total_amount,
+        amount_paid,
+        status,
+        created_at
+      )
+    `)
+    .eq('customer_id', customerId)
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return (data || []).map((job) => {
+    const activeInvoices = (job.sales_invoices || []).filter((inv) => inv.status !== 'void');
+    return {
+      ...job,
+      is_billed: activeInvoices.length > 0,
+      linked_invoice: activeInvoices.length > 0 ? activeInvoices[0] : null,
+    };
+  });
+};
+
 

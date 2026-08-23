@@ -53,6 +53,13 @@ export const DashboardPage = () => {
   const [metrics, setMetrics] = useState(null);
 
   useEffect(() => {
+    if (profile?.role === 'STAFF') {
+      navigate('/dashboard/jobs', { replace: true });
+      return;
+    }
+  }, [profile?.role, navigate]);
+
+  useEffect(() => {
     const loadDashboard = async () => {
       setLoading(true);
       try {

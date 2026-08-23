@@ -75,6 +75,12 @@ export const getSalesInvoices = async (searchQuery = '', statusFilter = '', forc
       *,
       customers (
         name
+      ),
+      job_cards (
+        job_id,
+        job_number,
+        description,
+        status
       )
     `)
     .order('invoice_date', { ascending: false })
@@ -95,7 +101,9 @@ export const getSalesInvoices = async (searchQuery = '', statusFilter = '', forc
     return data.filter(
       (inv) =>
         inv.invoice_no?.toLowerCase().includes(cleanSearch) ||
-        inv.customers?.name?.toLowerCase().includes(cleanSearch)
+        inv.customers?.name?.toLowerCase().includes(cleanSearch) ||
+        (inv.job_cards?.description || '').toLowerCase().includes(cleanSearch) ||
+        `jc-${String(inv.job_cards?.job_number || 0).padStart(4, '0')}`.includes(cleanSearch)
     );
   }
 
@@ -107,7 +115,44 @@ export const getSalesInvoices = async (searchQuery = '', statusFilter = '', forc
   return data;
 };
 
+export const linkInvoiceToJobCard = async (invoiceId, jobId) => {
+  if (!invoiceId || !jobId) throw new Error('Invoice ID and Job Card ID are required');
+
+  // 1. Clear any prior invoice linked to this jobId to guarantee strict 1-to-1 link
+  await supabase
+    .from('sales_invoices')
+    .update({ job_id: null })
+    .eq('job_id', jobId);
+
+  // 2. Link the targeted invoice
+  const { data, error } = await supabase
+    .from('sales_invoices')
+    .update({ job_id: jobId })
+    .eq('invoice_id', invoiceId)
+    .select()
+    .single();
+
+  if (error) throw new Error(error.message);
+  invalidateSalesInvoicesCache();
+  return data;
+};
+
+export const unlinkInvoiceFromJobCard = async (invoiceId) => {
+  if (!invoiceId) throw new Error('Invoice ID is required');
+  const { data, error } = await supabase
+    .from('sales_invoices')
+    .update({ job_id: null })
+    .eq('invoice_id', invoiceId)
+    .select()
+    .single();
+
+  if (error) throw new Error(error.message);
+  invalidateSalesInvoicesCache();
+  return data;
+};
+
 export const getInvoicesByCustomer = async (customerId) => {
+  if (!customerId) return [];
   const { data, error } = await supabase
     .from('sales_invoices')
     .select(`
@@ -117,10 +162,11 @@ export const getInvoicesByCustomer = async (customerId) => {
       )
     `)
     .eq('customer_id', customerId)
-    .order('invoice_date', { ascending: true });
+    .order('invoice_date', { ascending: false })
+    .order('created_at', { ascending: false });
 
   if (error) throw new Error(error.message);
-  return data;
+  return data || [];
 };
 
 export const getInvoiceById = async (id) => {
@@ -136,7 +182,11 @@ export const getInvoiceById = async (id) => {
         gstin
       ),
       job_cards (
-        description
+        job_id,
+        job_number,
+        description,
+        status,
+        quantity
       )
     `)
     .eq('invoice_id', id)
@@ -163,13 +213,46 @@ export const getInvoiceById = async (id) => {
 };
 
 export const createSalesInvoice = async (invoiceData, lineItems) => {
+  let autoCreatedJob = null;
+  let finalJobId = invoiceData.job_id || null;
+
+  // If no job card is linked, auto-create a Job Card for this invoice
+  if (!finalJobId) {
+    try {
+      const itemsSummary = (lineItems || [])
+        .map((item) => `${item.product_name || item.description || 'Item'} (Qty: ${item.quantity})`)
+        .join(', ');
+      const totalQty = (lineItems || []).reduce((acc, item) => acc + (parseFloat(item.quantity) || 0), 0) || 1;
+
+      const { data: newJob, error: jobErr } = await supabase
+        .from('job_cards')
+        .insert([
+          {
+            customer_id: invoiceData.customer_id || null,
+            description: itemsSummary || `Order for Invoice ${invoiceData.invoice_no}`,
+            quantity: totalQty,
+            status: 'New Orders',
+          },
+        ])
+        .select()
+        .single();
+
+      if (!jobErr && newJob) {
+        finalJobId = newJob.job_id;
+        autoCreatedJob = newJob;
+      }
+    } catch (err) {
+      console.error('Failed to auto-create job card for direct invoice:', err);
+    }
+  }
+
   // 1. Insert parent invoice
   const { data: invoice, error: invoiceError } = await supabase
     .from('sales_invoices')
     .insert([
       {
         customer_id: invoiceData.customer_id,
-        job_id: invoiceData.job_id || null,
+        job_id: finalJobId,
         invoice_no: invoiceData.invoice_no,
         invoice_date: invoiceData.invoice_date,
         invoice_type: invoiceData.invoice_type || 'NON_GST',
@@ -221,13 +304,13 @@ export const createSalesInvoice = async (invoiceData, lineItems) => {
     throw new Error(`Failed to insert line items: ${itemsError.message}`);
   }
 
-  if (invoiceData.job_id) {
-    await advanceJobProductionTaskOnInvoice(invoiceData.job_id);
+  if (finalJobId) {
+    await advanceJobProductionTaskOnInvoice(finalJobId);
   }
 
   invalidateSalesInvoicesCache();
   invalidateCustomersCache();
-  return invoice;
+  return { ...invoice, autoCreatedJob };
 };
 
 export const updateSalesInvoice = async (invoiceId, invoiceData, lineItems) => {

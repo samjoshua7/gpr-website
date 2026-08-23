@@ -61,23 +61,37 @@ export const AuthProvider = ({ children }) => {
         .eq('email', email)
         .single();
 
+      // Optionally fetch employee record for department assignments
+      const { data: empData } = await supabase
+        .from('employees')
+        .select('*')
+        .eq('email', email)
+        .maybeSingle();
+
       if (error || !data) {
         setAuthError('Access Denied. Your email is not registered in the system.');
         await supabase.auth.signOut();
         setSession(null);
         setUser(null);
         setProfile(null);
-      } else if (!data.active) {
+      } else if (!data.active && (!empData || !empData.active)) {
         setAuthError('Access Denied. Your account is inactive. Please contact the administrator.');
         await supabase.auth.signOut();
         setSession(null);
         setUser(null);
         setProfile(null);
       } else {
+        const mergedProfile = {
+          ...data,
+          role: empData?.role || data.role || 'STAFF',
+          departments: empData?.departments || data.departments || [],
+          name: empData?.name || data.name || 'User',
+          active: empData ? empData.active : data.active,
+        };
         setAuthError(null);
         setSession(currentSession);
         setUser(currentSession.user);
-        setProfile(data);
+        setProfile(mergedProfile);
       }
     } catch (err) {
       console.error('Error during user verification:', err);

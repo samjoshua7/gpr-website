@@ -49,7 +49,7 @@ export const router = createBrowserRouter([
   {
     path: '/dashboard',
     element: (
-      <AuthGuard allowedRoles={['SUPER_ADMIN', 'STAFF']}>
+      <AuthGuard allowedRoles={['SUPER_ADMIN', 'ACCOUNTS', 'STAFF', 'STAKEHOLDER']}>
         <AppShell />
       </AuthGuard>
     ),
@@ -62,7 +62,7 @@ export const router = createBrowserRouter([
       {
         path: 'customers',
         element: (
-          <AuthGuard allowedRoles={['SUPER_ADMIN']}>
+          <AuthGuard allowedRoles={['SUPER_ADMIN', 'ACCOUNTS', 'STAKEHOLDER']}>
             <CustomersPage />
           </AuthGuard>
         ),
@@ -70,7 +70,7 @@ export const router = createBrowserRouter([
       {
         path: 'customers/:customerId',
         element: (
-          <AuthGuard allowedRoles={['SUPER_ADMIN']}>
+          <AuthGuard allowedRoles={['SUPER_ADMIN', 'ACCOUNTS', 'STAKEHOLDER']}>
             <CustomerLedgerPage />
           </AuthGuard>
         ),
@@ -82,7 +82,7 @@ export const router = createBrowserRouter([
       {
         path: 'quotations',
         element: (
-          <AuthGuard allowedRoles={['SUPER_ADMIN', 'STAFF']}>
+          <AuthGuard allowedRoles={['SUPER_ADMIN', 'ACCOUNTS', 'STAKEHOLDER']}>
             <QuotationsPage />
           </AuthGuard>
         ),
@@ -90,7 +90,7 @@ export const router = createBrowserRouter([
       {
         path: 'invoices',
         element: (
-          <AuthGuard allowedRoles={['SUPER_ADMIN']}>
+          <AuthGuard allowedRoles={['SUPER_ADMIN', 'ACCOUNTS', 'STAKEHOLDER']}>
             <SalesInvoicesPage />
           </AuthGuard>
         ),
@@ -98,7 +98,7 @@ export const router = createBrowserRouter([
       {
         path: 'receipts',
         element: (
-          <AuthGuard allowedRoles={['SUPER_ADMIN']}>
+          <AuthGuard allowedRoles={['SUPER_ADMIN', 'ACCOUNTS', 'STAKEHOLDER']}>
             <ReceiptsPage />
           </AuthGuard>
         ),
@@ -106,7 +106,7 @@ export const router = createBrowserRouter([
       {
         path: 'inventory',
         element: (
-          <AuthGuard allowedRoles={['SUPER_ADMIN']}>
+          <AuthGuard allowedRoles={['SUPER_ADMIN', 'ACCOUNTS', 'STAKEHOLDER']}>
             <InventoryPage />
           </AuthGuard>
         ),
@@ -114,7 +114,7 @@ export const router = createBrowserRouter([
       {
         path: 'statements',
         element: (
-          <AuthGuard allowedRoles={['SUPER_ADMIN']}>
+          <AuthGuard allowedRoles={['SUPER_ADMIN', 'ACCOUNTS', 'STAKEHOLDER']}>
             <StatementsPage />
           </AuthGuard>
         ),
@@ -136,7 +136,7 @@ export const router = createBrowserRouter([
       {
         path: 'employees',
         element: (
-          <AuthGuard allowedRoles={['SUPER_ADMIN']}>
+          <AuthGuard allowedRoles={['SUPER_ADMIN', 'STAKEHOLDER']}>
             <EmployeesPage />
           </AuthGuard>
         ),
@@ -144,7 +144,7 @@ export const router = createBrowserRouter([
       {
         path: 'settings',
         element: (
-          <AuthGuard allowedRoles={['SUPER_ADMIN']}>
+          <AuthGuard allowedRoles={['SUPER_ADMIN', 'STAKEHOLDER']}>
             <SettingsPage />
           </AuthGuard>
         ),

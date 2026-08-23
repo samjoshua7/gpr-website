@@ -64,20 +64,30 @@ export const AppShell = () => {
 
   // Navigation menu definitions
   const menuItems = [
-    { text: 'Dashboard', icon: <DashboardIcon fontSize="small" />, path: '/dashboard', roles: ['SUPER_ADMIN', 'STAFF'] },
-    { text: 'Job Cards', icon: <AssignmentIcon fontSize="small" />, path: '/dashboard/jobs', roles: ['SUPER_ADMIN', 'STAFF'] },
-    { text: 'Customers', icon: <PeopleIcon fontSize="small" />, path: '/dashboard/customers', roles: ['SUPER_ADMIN'] },
-    { text: 'Quotations', icon: <RequestQuoteIcon fontSize="small" />, path: '/dashboard/quotations', roles: ['SUPER_ADMIN', 'STAFF'] },
-    { text: 'Sales Invoices', icon: <DescriptionIcon fontSize="small" />, path: '/dashboard/invoices', roles: ['SUPER_ADMIN'] },
-    { text: 'Receipts', icon: <AttachMoneyIcon fontSize="small" />, path: '/dashboard/receipts', roles: ['SUPER_ADMIN'] },
-    { text: 'Inventory', icon: <LayersIcon fontSize="small" />, path: '/dashboard/inventory', roles: ['SUPER_ADMIN'] },
-    { text: 'Statements', icon: <ReceiptIcon fontSize="small" />, path: '/dashboard/statements', roles: ['SUPER_ADMIN'] },
-    { text: 'Employees', icon: <BadgeIcon fontSize="small" />, path: '/dashboard/employees', roles: ['SUPER_ADMIN'] },
-    { text: 'Company Settings', icon: <SettingsIcon fontSize="small" />, path: '/dashboard/settings', roles: ['SUPER_ADMIN'] },
+    { text: 'Dashboard', icon: <DashboardIcon fontSize="small" />, path: '/dashboard', roles: ['SUPER_ADMIN', 'ACCOUNTS', 'STAKEHOLDER'] },
+    { text: 'Job Cards', icon: <AssignmentIcon fontSize="small" />, path: '/dashboard/jobs', roles: ['SUPER_ADMIN', 'ACCOUNTS', 'STAFF', 'STAKEHOLDER'] },
+    { text: 'Customers', icon: <PeopleIcon fontSize="small" />, path: '/dashboard/customers', roles: ['SUPER_ADMIN', 'ACCOUNTS', 'STAKEHOLDER'] },
+    { text: 'Quotations', icon: <RequestQuoteIcon fontSize="small" />, path: '/dashboard/quotations', roles: ['SUPER_ADMIN', 'ACCOUNTS', 'STAKEHOLDER'] },
+    { text: 'Sales Invoices', icon: <DescriptionIcon fontSize="small" />, path: '/dashboard/invoices', roles: ['SUPER_ADMIN', 'ACCOUNTS', 'STAKEHOLDER'] },
+    { text: 'Receipts', icon: <AttachMoneyIcon fontSize="small" />, path: '/dashboard/receipts', roles: ['SUPER_ADMIN', 'ACCOUNTS', 'STAKEHOLDER'] },
+    { text: 'Inventory', icon: <LayersIcon fontSize="small" />, path: '/dashboard/inventory', roles: ['SUPER_ADMIN', 'ACCOUNTS', 'STAKEHOLDER'] },
+    { text: 'Statements', icon: <ReceiptIcon fontSize="small" />, path: '/dashboard/statements', roles: ['SUPER_ADMIN', 'ACCOUNTS', 'STAKEHOLDER'] },
+    { text: 'Employees', icon: <BadgeIcon fontSize="small" />, path: '/dashboard/employees', roles: ['SUPER_ADMIN', 'STAKEHOLDER'] },
+    { text: 'Company Settings', icon: <SettingsIcon fontSize="small" />, path: '/dashboard/settings', roles: ['SUPER_ADMIN', 'STAKEHOLDER'] },
   ];
 
   const userRole = profile?.role || 'STAFF';
   const filteredMenuItems = menuItems.filter((item) => item.roles.includes(userRole));
+
+  const getRoleLabel = (role) => {
+    switch (role) {
+      case 'SUPER_ADMIN': return 'Super Admin';
+      case 'ACCOUNTS': return 'Accounts Staff';
+      case 'STAFF': return 'Staff (Operator)';
+      case 'STAKEHOLDER': return 'Stakeholder (Viewer)';
+      default: return 'User';
+    }
+  };
 
   const drawerContent = (
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', bgcolor: '#0f172a', color: '#ffffff' }}>
@@ -185,7 +195,7 @@ export const AppShell = () => {
               {profile?.name || 'User'}
             </Typography>
             <Typography sx={{ color: 'rgba(255, 255, 255, 0.6)', fontSize: '0.6875rem', noWrap: true, display: 'block' }}>
-              {profile?.role === 'SUPER_ADMIN' ? 'Super Admin' : 'Staff Member'}
+              {getRoleLabel(profile?.role)}
             </Typography>
           </Box>
         </Box>

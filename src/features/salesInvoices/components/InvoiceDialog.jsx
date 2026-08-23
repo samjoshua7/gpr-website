@@ -240,18 +240,21 @@ export const InvoiceDialog = ({
               }))
             );
           }
-        } else if (preselectedJob && preselectedJob.customer_id) {
-          const matched = customerList.find((c) => c.customer_id === preselectedJob.customer_id);
-          if (matched) {
-            handleCustomerChange(null, matched);
+        } else if (preselectedJob) {
+          if (preselectedJob.customer_id) {
+            const matched = customerList.find((c) => c.customer_id === preselectedJob.customer_id);
+            if (matched) {
+              handleCustomerChange(null, matched);
+            }
           }
-          setNotes(preselectedJob.description || '');
+          const jcPrefix = preselectedJob.job_number ? `JC-${String(preselectedJob.job_number).padStart(4, '0')}: ` : '';
+          setNotes(`${jcPrefix}${preselectedJob.description || ''} (Office use only)`);
           setLineItems([
             {
               item_id: null,
-              product_name: `Print Job: ${preselectedJob.description}`,
+              product_name: preselectedJob.description || 'Print Order',
               description: preselectedJob.description || '',
-              quantity: preselectedJob.quantity?.toString() || '1',
+              quantity: (preselectedJob.quantity || 1).toString(),
               unit: 'sheet',
               unit_price: '0.00',
               discount_amount: '0.00',
@@ -726,11 +729,15 @@ export const InvoiceDialog = ({
           delivery_details: deliveryDetails.trim() || null,
         };
 
+        let savedRecord = null;
         if (activeEditRecord && activeEditRecord.invoice_id) {
-          await updateSalesInvoice(activeEditRecord.invoice_id, parentPayload, formattedLineItems);
+          savedRecord = await updateSalesInvoice(activeEditRecord.invoice_id, parentPayload, formattedLineItems);
         } else {
-          await createSalesInvoice(parentPayload, formattedLineItems);
+          savedRecord = await createSalesInvoice(parentPayload, formattedLineItems);
         }
+        onSaveSuccess(savedRecord);
+        onClose();
+        return;
       }
       onSaveSuccess();
       onClose();

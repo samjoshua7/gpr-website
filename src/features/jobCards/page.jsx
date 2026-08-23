@@ -5,7 +5,6 @@ import {
   Typography,
   TextField,
   InputAdornment,
-  Paper,
   IconButton,
   Alert,
   Skeleton,
@@ -18,20 +17,17 @@ import {
   Card,
   CardContent,
   Tooltip,
-  Drawer,
   Divider,
-  List,
 } from '@mui/material';
 
 import AddIcon from '@mui/icons-material/Add';
 import SearchIcon from '@mui/icons-material/Search';
-import EditIcon from '@mui/icons-material/Edit';
-import DeleteIcon from '@mui/icons-material/Delete';
-import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
 import KeyboardArrowUpIcon from '@mui/icons-material/KeyboardArrowUp';
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
+import LockIcon from '@mui/icons-material/Lock';
+import ReceiptIcon from '@mui/icons-material/Receipt';
 
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Swiper, SwiperSlide } from 'swiper/react';
@@ -39,19 +35,18 @@ import { Navigation, Pagination, Mousewheel } from 'swiper/modules';
 import 'swiper/css';
 import 'swiper/css/navigation';
 import 'swiper/css/pagination';
+
 import { formatDate } from '../../lib/formatDate';
 import { HighlightText } from '../../components/ui/HighlightText';
-
-import {
-  getJobCards,
-  deleteJobCard,
-  getProductionTasks,
-  updateProductionTaskStatus,
-} from './api';
+import { getJobCards, deleteJobCard, updateJobStatus } from './api';
 import { getCompanySettings } from '../settings/api';
 import JobCardDialog from './components/JobCardDialog';
+import JobCardDetailsModal from './components/JobCardDetailsModal';
+import InvoiceDialog from '../salesInvoices/components/InvoiceDialog';
+import InvoiceDetailsDialog from '../salesInvoices/components/InvoiceDetailsDialog';
 import { checkReferences } from '../../lib/referenceChecker';
 import CannotDeleteDialog from '../../components/feedback/CannotDeleteDialog';
+import { useAuth } from '../../hooks/useAuth';
 import {
   DndContext,
   useDroppable,
@@ -60,6 +55,30 @@ import {
   useSensor,
   useSensors,
 } from '@dnd-kit/core';
+
+const DEFAULT_WORKFLOW = [
+  'New Orders',
+  'Designing',
+  'Proof',
+  'Printing',
+  'Additional works',
+  'Cutting',
+  'Packing',
+  'Out for Delivery',
+  'Delivered',
+];
+
+const PREDEFINED_COLORS = [
+  '#ed6c02', // orange
+  '#0288d1', // blue
+  '#9c27b0', // purple
+  '#ff9800', // warning orange
+  '#00bcd4', // cyan
+  '#2e7d32', // dark green
+  '#757575', // gray
+  '#e91e63', // pink
+  '#3f51b5', // indigo
+];
 
 const ColumnCardList = ({ children, colCardsCount }) => {
   const containerRef = useRef(null);
@@ -113,7 +132,7 @@ const ColumnCardList = ({ children, colCardsCount }) => {
         </IconButton>
       )}
 
-      {/* Fixed Height Scrollable Container with Modern Scrollbar */}
+      {/* Fixed Height Scrollable Container */}
       <Box
         ref={containerRef}
         onScroll={checkScroll}
@@ -182,10 +201,10 @@ const DroppableColumn = ({ stepName, children }) => {
   );
 };
 
-const DraggableCard = ({ id, card, stepName, isFirstStep, children }) => {
+const DraggableCard = ({ id, card, stepName, children }) => {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
-    id: `${isFirstStep ? 'job' : 'task'}-${id}`,
-    data: { card, stepName, isFirstStep },
+    id: `job-${id}`,
+    data: { card, stepName },
   });
 
   const style = {
@@ -202,33 +221,41 @@ const DraggableCard = ({ id, card, stepName, isFirstStep, children }) => {
   );
 };
 
-const PREDEFINED_COLORS = [
-  '#ed6c02', // orange
-  '#0288d1', // blue
-  '#9c27b0', // purple
-  '#ff9800', // warning orange
-  '#00bcd4', // cyan
-  '#2e7d32', // dark green
-  '#757575', // gray
-  '#e91e63', // pink
-  '#3f51b5', // indigo
-];
-
 export const JobCardsPage = () => {
-  const navigate = useNavigate();
   const location = useLocation();
+  const navigate = useNavigate();
+  const { profile } = useAuth();
+
+  const isStaff = profile?.role === 'STAFF';
+  const isStakeholder = profile?.role === 'STAKEHOLDER';
 
   const [jobs, setJobs] = useState([]);
-  const [tasks, setTasks] = useState([]);
-  const [workflow, setWorkflow] = useState([]);
+  const [workflow, setWorkflow] = useState(DEFAULT_WORKFLOW);
   const [searchQuery, setSearchQuery] = useState('');
-  const [sortOrder, setSortOrder] = useState('newest');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [warningMessage, setWarningMessage] = useState(null);
+
+  const staffDepts = profile?.departments || [];
+  const visibleWorkflow = isStaff && staffDepts.length > 0
+    ? workflow.filter((step) => staffDepts.includes(step))
+    : workflow;
 
   // Dialog Add/Edit state
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedJob, setSelectedJob] = useState(null);
+
+  // Job Details Popup Modal state (replaces side drawer)
+  const [detailsModalOpen, setDetailsModalOpen] = useState(false);
+  const [activeJobDetails, setActiveJobDetails] = useState(null);
+
+  // Invoice creation from Job Card
+  const [invoiceDialogOpen, setInvoiceDialogOpen] = useState(false);
+  const [kickoffJobForInvoice, setKickoffJobForInvoice] = useState(null);
+
+  // Invoice view popup
+  const [invoiceViewId, setInvoiceViewId] = useState(null);
+  const [invoiceViewOpen, setInvoiceViewOpen] = useState(false);
 
   // Delete State
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -240,26 +267,20 @@ export const JobCardsPage = () => {
   const [cannotDeleteOpen, setCannotDeleteOpen] = useState(false);
   const [dependencyDetails, setDependencyDetails] = useState([]);
 
-  // Rollback notice state
-  const [rollbackNotice, setRollbackNotice] = useState(null);
-
-  // Side Panel details drawer state
-  const [drawerOpen, setDrawerOpen] = useState(false);
-  const [activeCardDetails, setActiveCardDetails] = useState(null);
+  const boardRef = useRef(null);
 
   const fetchKanbanBoardData = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const [jobsData, tasksData, settingsData] = await Promise.all([
-        getJobCards(),
-        getProductionTasks(),
+      const [jobsData, settingsData] = await Promise.all([
+        getJobCards('', 'all', true),
         getCompanySettings(),
       ]);
-      setJobs(jobsData);
-      setTasks(tasksData);
-      const wf = settingsData?.production_workflow || ['New Orders'];
-      setWorkflow(wf);
+      setJobs(jobsData || []);
+      if (settingsData?.production_workflow && settingsData.production_workflow.length > 0) {
+        setWorkflow(settingsData.production_workflow);
+      }
     } catch (err) {
       console.error(err);
       setError('Failed to fetch Kanban board components.');
@@ -272,10 +293,9 @@ export const JobCardsPage = () => {
     fetchKanbanBoardData();
   }, [fetchKanbanBoardData]);
 
-  // Rollback signal checker
+  // Rollback notice checker
   useEffect(() => {
     if (location.state?.cancelKickoff) {
-      setRollbackNotice('Invoice creation was cancelled. The Job Card remains in Quote status.');
       navigate(location.pathname, { replace: true, state: {} });
     }
   }, [location.state, navigate, location.pathname]);
@@ -288,10 +308,22 @@ export const JobCardsPage = () => {
   const handleEditClick = (job) => {
     setSelectedJob(job);
     setDialogOpen(true);
-    setDrawerOpen(false);
   };
 
   const handleDeleteClick = async (job) => {
+    if (job.is_billed) {
+      setJobToDelete(job);
+      setDependencyDetails([
+        {
+          label: 'Sales Invoices',
+          count: 1,
+          examples: [job.linked_invoice?.invoice_no || 'Linked Invoice'],
+        },
+      ]);
+      setCannotDeleteOpen(true);
+      return;
+    }
+
     setLoading(true);
     try {
       const res = await checkReferences('job_cards', job.job_id);
@@ -320,7 +352,6 @@ export const JobCardsPage = () => {
       await deleteJobCard(jobToDelete.job_id);
       setDeleteOpen(false);
       setJobToDelete(null);
-      setDrawerOpen(false);
       fetchKanbanBoardData();
     } catch (err) {
       console.error(err);
@@ -334,33 +365,51 @@ export const JobCardsPage = () => {
     fetchKanbanBoardData();
   };
 
-  // Card details viewer
-  const handleOpenDetails = (card, type) => {
-    setActiveCardDetails({ ...card, cardType: type });
-    setDrawerOpen(true);
+  // Card details modal popup
+  const handleOpenDetails = (job) => {
+    setActiveJobDetails(job);
+    setDetailsModalOpen(true);
+  };
+
+  // Create invoice from job card
+  const handleCreateInvoiceFromJob = (job) => {
+    setKickoffJobForInvoice(job);
+    setInvoiceDialogOpen(true);
+  };
+
+  // View invoice popup
+  const handleViewInvoice = (invoiceId) => {
+    setInvoiceViewId(invoiceId);
+    setInvoiceViewOpen(true);
   };
 
   // Move task to next workflow step
-  const handleMoveToNext = async (card, type, currentStepIndex) => {
-    if (type === 'job') {
-      // First step (New Orders) must convert to invoice first to proceed
-      if (currentStepIndex === 0 && workflow.length > 1) {
-        const matchedJob = jobs.find((j) => j.job_id === card.job_id);
-        if (matchedJob) {
-          navigate('/dashboard/invoices', { state: { kickoffJob: matchedJob } });
-        }
-      }
-    } else {
-      // Tasks just update their status to the next string in the workflow array
-      const nextStep = workflow[currentStepIndex + 1];
-      if (nextStep) {
-        try {
-          await updateProductionTaskStatus(card.task_id, nextStep);
-          fetchKanbanBoardData();
-        } catch (err) {
-          console.error(err);
-          setError('Failed to update production stage.');
-        }
+  const handleMoveToNext = async (card, currentStepIndex) => {
+    const lastStepIndex = workflow.length - 1;
+    const isPenultimateStep = currentStepIndex === lastStepIndex - 1;
+
+    // Delivery Guardrail: Cannot advance from last_dept - 1 to last_dept if not billed
+    if (isPenultimateStep && !card.is_billed) {
+      setWarningMessage(
+        `Job Card JC-${String(card.job_number || 0).padStart(4, '0')} is [NOT BILLED]. Please create an invoice before moving to ${workflow[lastStepIndex]}.`
+      );
+      return;
+    }
+
+    const nextStep = workflow[currentStepIndex + 1];
+    if (nextStep) {
+      // Optimistic update
+      const prevJobs = [...jobs];
+      setJobs((prev) =>
+        prev.map((j) => (j.job_id === card.job_id ? { ...j, status: nextStep } : j))
+      );
+
+      try {
+        await updateJobStatus(card.job_id, nextStep);
+      } catch (err) {
+        console.error(err);
+        setJobs(prevJobs);
+        setError('Failed to update stage forward.');
       }
     }
   };
@@ -368,51 +417,40 @@ export const JobCardsPage = () => {
   // Move task to previous workflow step
   const handleMoveToPrevious = async (card, currentStepIndex) => {
     const prevStep = workflow[currentStepIndex - 1];
-    if (prevStep && currentStepIndex > 1) {
+    if (prevStep && currentStepIndex > 0) {
+      const prevJobs = [...jobs];
+      setJobs((prev) =>
+        prev.map((j) => (j.job_id === card.job_id ? { ...j, status: prevStep } : j))
+      );
+
       try {
-        await updateProductionTaskStatus(card.task_id, prevStep);
-        fetchKanbanBoardData();
+        await updateJobStatus(card.job_id, prevStep);
       } catch (err) {
         console.error(err);
-        setError('Failed to move task backward.');
+        setJobs(prevJobs);
+        setError('Failed to move stage backward.');
       }
     }
   };
 
-  const boardRef = useRef(null);
-
-  const getFilteredCards = (stepName, isFirstStep) => {
+  const getFilteredCards = (stepName) => {
     const query = searchQuery.toLowerCase().trim();
-    let filtered;
-    if (isFirstStep) {
-      filtered = jobs
-        .filter((j) => j.status === 'pending')
-        .filter(
-          (j) =>
-            !query ||
-            j.description?.toLowerCase().includes(query) ||
-            j.customers?.name?.toLowerCase().includes(query) ||
-            `jc-${String(j.job_number || 0).padStart(4, '0')}`.includes(query) ||
-            String(j.job_number || 0).includes(query)
+    return jobs
+      .filter((j) => (j.status || workflow[0]) === stepName)
+      .filter((j) => {
+        if (!query) return true;
+        const jcNum = `jc-${String(j.job_number || 0).padStart(4, '0')}`.toLowerCase();
+        const rawNum = String(j.job_number || 0);
+        const invNo = (j.linked_invoice?.invoice_no || '').toLowerCase();
+        return (
+          j.description?.toLowerCase().includes(query) ||
+          j.customers?.name?.toLowerCase().includes(query) ||
+          j.customers?.phone?.includes(query) ||
+          jcNum.includes(query) ||
+          rawNum.includes(query) ||
+          invNo.includes(query)
         );
-    } else {
-      filtered = tasks
-        .filter((t) => t.status === stepName)
-        .filter(
-          (t) =>
-            !query ||
-            t.product_name?.toLowerCase().includes(query) ||
-            t.job_cards?.customers?.name?.toLowerCase().includes(query) ||
-            `task-${String(t.task_number || 0).padStart(4, '0')}`.includes(query) ||
-            String(t.task_number || 0).includes(query)
-        );
-    }
-
-    return filtered.sort((a, b) => {
-      const dateA = new Date(a.created_at);
-      const dateB = new Date(b.created_at);
-      return sortOrder === 'newest' ? dateB - dateA : dateA - dateB;
-    });
+      });
   };
 
   const sensors = useSensors(
@@ -428,29 +466,32 @@ export const JobCardsPage = () => {
     if (!activeData) return;
 
     const targetStepName = over.id;
-    const { card, stepName, isFirstStep } = activeData;
+    const { card, stepName } = activeData;
 
     if (stepName === targetStepName) return;
 
-    if (isFirstStep) {
-      const matchedJob = jobs.find((j) => j.job_id === card.job_id);
-      if (matchedJob) {
-        navigate('/dashboard/invoices', { state: { kickoffJob: matchedJob } });
-      }
+    const lastStepIndex = workflow.length - 1;
+    const isTargetFinalStep = targetStepName === workflow[lastStepIndex];
+
+    // Delivery Guardrail on drag-and-drop
+    if (isTargetFinalStep && !card.is_billed) {
+      setWarningMessage(
+        `Job Card JC-${String(card.job_number || 0).padStart(4, '0')} is [NOT BILLED]. Please create an invoice before moving to ${workflow[lastStepIndex]}.`
+      );
       return;
     }
 
-    const previousTasks = [...tasks];
-    setTasks((prev) =>
-      prev.map((t) => (t.task_id === card.task_id ? { ...t, status: targetStepName } : t))
+    const previousJobs = [...jobs];
+    setJobs((prev) =>
+      prev.map((j) => (j.job_id === card.job_id ? { ...j, status: targetStepName } : j))
     );
 
     try {
-      await updateProductionTaskStatus(card.task_id, targetStepName);
+      await updateJobStatus(card.job_id, targetStepName);
     } catch (err) {
       console.error(err);
-      setTasks(previousTasks);
-      setError('Failed to update production stage via drag-and-drop.');
+      setJobs(previousJobs);
+      setError('Failed to update stage via drag-and-drop.');
     }
   };
 
@@ -461,7 +502,7 @@ export const JobCardsPage = () => {
         <TextField
           variant="outlined"
           size="medium"
-          placeholder="Search Job Orders..."
+          placeholder="Search Job Cards by ID, customer name, description, or invoice..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           InputProps={{
@@ -473,20 +514,22 @@ export const JobCardsPage = () => {
           }}
           sx={{ flexGrow: 1, bgcolor: 'background.paper', borderRadius: 2 }}
         />
-        <Button
-          variant="contained"
-          startIcon={<AddIcon />}
-          onClick={handleAddClick}
-          size="large"
-          sx={{ whiteSpace: 'nowrap' }}
-        >
-          Create Quote
-        </Button>
+        {!isStakeholder && !isStaff && (
+          <Button
+            variant="contained"
+            startIcon={<AddIcon />}
+            onClick={handleAddClick}
+            size="large"
+            sx={{ whiteSpace: 'nowrap', fontWeight: 700 }}
+          >
+            Create Job Card
+          </Button>
+        )}
       </Box>
 
-      {rollbackNotice && (
-        <Alert severity="warning" onClose={() => setRollbackNotice(null)} sx={{ mb: 2 }}>
-          {rollbackNotice}
+      {warningMessage && (
+        <Alert severity="warning" onClose={() => setWarningMessage(null)} sx={{ mb: 2 }}>
+          {warningMessage}
         </Alert>
       )}
 
@@ -504,7 +547,7 @@ export const JobCardsPage = () => {
             flexGrow: 1,
             pb: 4,
             '.swiper': { height: '100%', pb: 3 },
-            '.swiper-slide': { width: { xs: '100%', sm: 350, md: 350 } }, // Responsive widths
+            '.swiper-slide': { width: { xs: '100%', sm: 350, md: 350 } },
           }}
         >
           <Swiper
@@ -516,16 +559,18 @@ export const JobCardsPage = () => {
             mousewheel={{ forceToAxis: true, sensitivity: 1, releaseOnEdges: true }}
             grabCursor={false}
           >
-            {workflow.map((stepName, index) => {
-              const isFirstStep = index === 0;
-              const isLastStep = index === workflow.length - 1;
-              const colCards = getFilteredCards(stepName, isFirstStep);
-              const colColor = PREDEFINED_COLORS[index % PREDEFINED_COLORS.length];
+            {visibleWorkflow.map((stepName) => {
+              const fullIndex = workflow.indexOf(stepName);
+              const isFirstStep = fullIndex === 0;
+              const isLastStep = fullIndex === workflow.length - 1;
+              const isPenultimateStep = fullIndex === workflow.length - 2;
+              const colCards = getFilteredCards(stepName);
+              const colColor = PREDEFINED_COLORS[(fullIndex >= 0 ? fullIndex : 0) % PREDEFINED_COLORS.length];
 
               return (
                 <SwiperSlide key={stepName}>
                   <DroppableColumn stepName={stepName}>
-                    {/* Column Header - Sticky pinned at top */}
+                    {/* Column Header */}
                     <Box
                       sx={{
                         position: 'sticky',
@@ -581,27 +626,23 @@ export const JobCardsPage = () => {
                           }}
                         >
                           <Typography variant="caption" color="text.secondary">
-                            No tasks
+                            No Job Cards
                           </Typography>
                         </Box>
                       ) : (
                         colCards.map((card) => {
-                          const titleId = isFirstStep
-                            ? `JC-${String(card.job_number || 0).padStart(4, '0')}`
-                            : `TASK-${String(card.task_number || 0).padStart(4, '0')}`;
-
-                          const description = isFirstStep ? card.description : card.product_name;
-                          const customerName = isFirstStep
-                            ? card.customers?.name || 'Walk-in / Inquiry'
-                            : card.job_cards?.customers?.name || 'Walk-in / Inquiry';
+                          const titleId = `JC-${String(card.job_number || 0).padStart(4, '0')}`;
+                          const description = card.description || 'No description';
+                          const customerName = card.customers?.name || 'Walk-in Customer';
+                          const isBilled = !!card.is_billed;
+                          const disableNext = isPenultimateStep && !isBilled;
 
                           return (
                             <DraggableCard
-                              key={isFirstStep ? card.job_id : card.task_id}
-                              id={isFirstStep ? card.job_id : card.task_id}
+                              key={card.job_id}
+                              id={card.job_id}
                               card={card}
                               stepName={stepName}
-                              isFirstStep={isFirstStep}
                             >
                               <Card
                                 sx={{
@@ -618,27 +659,73 @@ export const JobCardsPage = () => {
                                 }}
                               >
                                 <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
-                                  <Box 
+                                  <Box
                                     sx={{ cursor: 'pointer' }}
-                                    onClick={() => handleOpenDetails(card, isFirstStep ? 'job' : 'task')}
+                                    onClick={() => handleOpenDetails(card)}
                                   >
-                                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                                    {/* Card Top Header: JC-XXXX and Billing Status Block */}
+                                    <Box
+                                      sx={{
+                                        display: 'flex',
+                                        justifyContent: 'space-between',
+                                        alignItems: 'center',
+                                        mb: 1,
+                                      }}
+                                    >
                                       <Typography variant="caption" sx={{ fontWeight: 800, color: colColor }}>
                                         <HighlightText text={titleId} highlight={searchQuery} />
                                       </Typography>
+
+                                      {/* Small Red/Green status block (hidden for staff) */}
+                                      {!isStaff && (
+                                        <Chip
+                                          label={isBilled ? 'BILLED' : 'NOT BILLED'}
+                                          size="small"
+                                          sx={{
+                                            height: 20,
+                                            fontSize: '0.65rem',
+                                            fontWeight: 800,
+                                            bgcolor: isBilled ? '#2e7d32' : '#d32f2f',
+                                            color: '#ffffff',
+                                            borderRadius: 1,
+                                          }}
+                                        />
+                                      )}
                                     </Box>
 
-                                    <Typography variant="body2" sx={{ fontWeight: 600, mb: 1, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                                    {/* Job Description */}
+                                    <Typography
+                                      variant="body2"
+                                      sx={{
+                                        fontWeight: 600,
+                                        mb: 1,
+                                        display: '-webkit-box',
+                                        WebkitLineClamp: 2,
+                                        WebkitBoxOrient: 'vertical',
+                                        overflow: 'hidden',
+                                      }}
+                                    >
                                       <HighlightText text={description} highlight={searchQuery} />
                                     </Typography>
 
-                                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
+                                    {/* Customer / Client */}
+                                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
                                       Client: <strong><HighlightText text={customerName} highlight={searchQuery} /></strong>
                                     </Typography>
 
+                                    {/* Linked invoice badge if billed (hidden for staff) */}
+                                    {!isStaff && isBilled && card.linked_invoice && (
+                                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 1 }}>
+                                        <ReceiptIcon sx={{ fontSize: '0.85rem', color: 'success.main' }} />
+                                        <Typography variant="caption" sx={{ fontWeight: 700, color: 'success.dark' }}>
+                                          {card.linked_invoice.invoice_no}
+                                        </Typography>
+                                      </Box>
+                                    )}
+
                                     <Divider sx={{ my: 1 }} />
 
-                                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1.5 }}>
                                       <Typography variant="caption" color="text.secondary">
                                         Qty: <strong>{card.quantity}</strong>
                                       </Typography>
@@ -648,67 +735,55 @@ export const JobCardsPage = () => {
                                     </Box>
                                   </Box>
 
-                                  {/* Per-column action button scheme */}
-                                  {isFirstStep ? (
-                                    <Button 
-                                      variant="contained" 
-                                      fullWidth 
-                                      size="small"
-                                      startIcon={<CheckCircleIcon />}
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        handleMoveToNext(card, 'job', index);
-                                      }}
-                                      sx={{ 
-                                        textTransform: 'none', 
-                                        fontWeight: 700,
-                                        bgcolor: colColor,
-                                        '&:hover': { bgcolor: colColor, filter: 'brightness(0.9)' }
-                                      }}
-                                    >
-                                      CREATE INVOICE
-                                    </Button>
-                                  ) : index === 1 ? (
-                                    <Button
-                                      variant="contained"
-                                      fullWidth
-                                      size="small"
-                                      color="success"
-                                      endIcon={<ArrowForwardIcon />}
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        handleMoveToNext(card, 'task', index);
-                                      }}
-                                      sx={{ textTransform: 'none', fontWeight: 700 }}
-                                    >
-                                      Next Stage
-                                    </Button>
-                                  ) : !isLastStep ? (
-                                    <Box sx={{ display: 'flex', gap: 1, justifyContent: 'space-between' }}>
+                                  {/* Column Navigation Controls */}
+                                  <Box sx={{ display: 'flex', gap: 1, justifyContent: 'space-between', alignItems: 'center' }}>
+                                    {!isFirstStep ? (
                                       <IconButton
                                         size="small"
-                                        color="error"
+                                        color="inherit"
                                         onClick={(e) => {
                                           e.stopPropagation();
-                                          handleMoveToPrevious(card, index);
+                                          handleMoveToPrevious(card, fullIndex);
                                         }}
-                                        sx={{ border: '1px solid', borderColor: 'error.main', borderRadius: 1 }}
+                                        sx={{ border: '1px solid rgba(0,0,0,0.12)', borderRadius: 1 }}
                                       >
                                         <ArrowBackIcon fontSize="small" />
                                       </IconButton>
-                                      <IconButton
-                                        size="small"
-                                        color="success"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          handleMoveToNext(card, 'task', index);
-                                        }}
-                                        sx={{ border: '1px solid', borderColor: 'success.main', borderRadius: 1 }}
+                                    ) : (
+                                      <Box />
+                                    )}
+
+                                    {!isLastStep && (
+                                      <Tooltip
+                                        title={
+                                          disableNext
+                                            ? 'Cannot deliver an unbilled job card. Please create an invoice first.'
+                                            : `Move to ${workflow[fullIndex + 1]}`
+                                        }
                                       >
-                                        <ArrowForwardIcon fontSize="small" />
-                                      </IconButton>
-                                    </Box>
-                                  ) : null}
+                                        <span>
+                                          <Button
+                                            size="small"
+                                            variant="contained"
+                                            color={disableNext ? 'inherit' : 'primary'}
+                                            disabled={disableNext}
+                                            endIcon={disableNext ? <LockIcon fontSize="small" /> : <ArrowForwardIcon fontSize="small" />}
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              handleMoveToNext(card, fullIndex);
+                                            }}
+                                            sx={{
+                                              textTransform: 'none',
+                                              fontWeight: 700,
+                                              fontSize: '0.75rem',
+                                            }}
+                                          >
+                                            Next Stage
+                                          </Button>
+                                        </span>
+                                      </Tooltip>
+                                    )}
+                                  </Box>
                                 </CardContent>
                               </Card>
                             </DraggableCard>
@@ -724,102 +799,21 @@ export const JobCardsPage = () => {
         </Box>
       </DndContext>
 
-      {/* Drawer Details Side Panel */}
-      <Drawer anchor="right" open={drawerOpen} onClose={() => setDrawerOpen(false)}>
-        <Box sx={{ width: { xs: 300, sm: 360 }, p: 3 }}>
-          {activeCardDetails && (
-            <React.Fragment>
-              <Typography variant="h6" sx={{ fontWeight: 900, mb: 2 }}>
-                {activeCardDetails.cardType === 'job' ? 'Job Quote Details' : 'Task Details'}
-              </Typography>
-              <Chip
-                label={activeCardDetails.status.toUpperCase()}
-                color={activeCardDetails.status === 'pending' ? 'warning' : 'primary'}
-                sx={{ fontWeight: 700, mb: 3 }}
-              />
+      {/* Job Card Details Popup Modal (Centered, not shelf) */}
+      <JobCardDetailsModal
+        open={detailsModalOpen}
+        onClose={() => setDetailsModalOpen(false)}
+        jobCard={activeJobDetails}
+        onEdit={(job) => handleEditClick(job)}
+        onDelete={(job) => handleDeleteClick(job)}
+        onCreateInvoice={(job) => handleCreateInvoiceFromJob(job)}
+        onViewInvoice={(invoiceId) => handleViewInvoice(invoiceId)}
+        onRefresh={fetchKanbanBoardData}
+        userRole={profile?.role}
+        workflow={workflow}
+      />
 
-              <List sx={{ mb: 3 }}>
-                <Typography variant="caption" color="text.secondary">DESCRIPTION / PRODUCT</Typography>
-                <Typography variant="body1" sx={{ fontWeight: 600, mb: 2 }}>
-                  <HighlightText
-                    text={activeCardDetails.cardType === 'job' ? activeCardDetails.description : activeCardDetails.product_name}
-                    highlight={searchQuery}
-                  />
-                </Typography>
-
-                <Typography variant="caption" color="text.secondary">QUANTITY</Typography>
-                <Typography variant="body2" sx={{ fontWeight: 700, mb: 2 }}>
-                  {activeCardDetails.quantity}
-                </Typography>
-
-                <Typography variant="caption" color="text.secondary">CUSTOMER</Typography>
-                <Typography variant="body2" sx={{ mb: 2 }}>
-                  <HighlightText
-                    text={
-                      activeCardDetails.cardType === 'job'
-                        ? activeCardDetails.customers?.name || 'Walk-in / Quote'
-                        : activeCardDetails.job_cards?.customers?.name || 'Walk-in / Quote'
-                    }
-                    highlight={searchQuery}
-                  />
-                </Typography>
-
-                <Typography variant="caption" color="text.secondary">CREATED ON</Typography>
-                <Typography variant="body2" sx={{ mb: 2 }}>
-                  {formatDate(activeCardDetails.created_at)}
-                </Typography>
-
-                {activeCardDetails.cardType === 'task' && (
-                  <React.Fragment>
-                    {activeCardDetails.delivery_details && (
-                      <React.Fragment>
-                        <Typography variant="caption" color="text.secondary">DELIVERY INSTRUCTIONS</Typography>
-                        <Typography variant="body2" sx={{ mb: 2, bgcolor: 'action.hover', p: 1, borderRadius: 1 }}>
-                          {activeCardDetails.delivery_details}
-                        </Typography>
-                      </React.Fragment>
-                    )}
-                    {activeCardDetails.notes && (
-                      <React.Fragment>
-                        <Typography variant="caption" color="text.secondary">SPECIAL NOTES</Typography>
-                        <Typography variant="body2" sx={{ mb: 2, bgcolor: 'action.hover', p: 1, borderRadius: 1 }}>
-                          {activeCardDetails.notes}
-                        </Typography>
-                      </React.Fragment>
-                    )}
-                  </React.Fragment>
-                )}
-              </List>
-
-              <Divider sx={{ my: 2 }} />
-
-              {activeCardDetails.cardType === 'job' && (
-                <Box sx={{ display: 'flex', gap: 2 }}>
-                  <Button
-                    variant="outlined"
-                    startIcon={<EditIcon />}
-                    onClick={() => handleEditClick(activeCardDetails)}
-                    fullWidth
-                  >
-                    Edit
-                  </Button>
-                  <Button
-                    variant="outlined"
-                    color="error"
-                    startIcon={<DeleteIcon />}
-                    onClick={() => handleDeleteClick(activeCardDetails)}
-                    fullWidth
-                  >
-                    Delete
-                  </Button>
-                </Box>
-              )}
-            </React.Fragment>
-          )}
-        </Box>
-      </Drawer>
-
-      {/* Job Card Form Dialog */}
+      {/* Job Card Add/Edit Form Dialog */}
       <JobCardDialog
         open={dialogOpen}
         onClose={() => setDialogOpen(false)}
@@ -827,7 +821,32 @@ export const JobCardsPage = () => {
         onSaveSuccess={handleSaveSuccess}
       />
 
-      {/* Deletion checks */}
+      {/* Invoice Creation Dialog opened directly from Job Card */}
+      <InvoiceDialog
+        open={invoiceDialogOpen}
+        onClose={() => {
+          setInvoiceDialogOpen(false);
+          setKickoffJobForInvoice(null);
+        }}
+        preselectedJob={kickoffJobForInvoice}
+        onSaveSuccess={() => {
+          setInvoiceDialogOpen(false);
+          setKickoffJobForInvoice(null);
+          fetchKanbanBoardData();
+        }}
+      />
+
+      {/* Invoice Details Popup Modal */}
+      <InvoiceDetailsDialog
+        open={invoiceViewOpen}
+        onClose={() => {
+          setInvoiceViewOpen(false);
+          setInvoiceViewId(null);
+        }}
+        invoiceId={invoiceViewId}
+      />
+
+      {/* Deletion Check Dialog */}
       <CannotDeleteDialog
         open={cannotDeleteOpen}
         onClose={() => setCannotDeleteOpen(false)}
@@ -836,12 +855,13 @@ export const JobCardsPage = () => {
         details={dependencyDetails}
       />
 
+      {/* Deletion Confirmation Dialog */}
       <Dialog open={deleteOpen} onClose={() => !deleteLoading && setDeleteOpen(false)}>
         <DialogTitle sx={{ fontWeight: 700 }}>Confirm Deletion</DialogTitle>
         <DialogContent>
           {deleteError && <Alert severity="error" sx={{ mb: 2 }}>{deleteError}</Alert>}
           <DialogContentText>
-            Are you sure you want to delete this quote? This action is permanent.
+            Are you sure you want to delete this job card? This action cannot be undone.
           </DialogContentText>
         </DialogContent>
         <DialogActions sx={{ p: 2.5 }}>
@@ -849,7 +869,7 @@ export const JobCardsPage = () => {
             Cancel
           </Button>
           <Button onClick={handleDeleteConfirm} color="error" variant="contained" disabled={deleteLoading}>
-            Delete
+            Delete Job Card
           </Button>
         </DialogActions>
       </Dialog>

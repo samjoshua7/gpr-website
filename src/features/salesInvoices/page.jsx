@@ -25,6 +25,7 @@ import {
   Tab,
   Chip,
   Tooltip,
+  Snackbar,
 } from '@mui/material';
 
 import AddIcon from '@mui/icons-material/Add';
@@ -60,8 +61,9 @@ const headCells = [
   { id: 'invoice_no', label: 'Invoice No', align: 'left' },
   { id: 'customer_name', label: 'Customer Name', align: 'left' },
   { id: 'total_amount', label: 'Total Amount', align: 'right' },
-  { id: 'amount_paid', label: 'Amount Paid / Status', align: 'center' },
-  { id: 'actions', label: 'Actions', align: 'center', disableSort: true }
+  { id: 'amount_paid', label: 'Amount Paid', align: 'right' },
+  { id: 'status', label: 'Payment Status', align: 'center' },
+  { id: 'actions', label: 'Actions', align: 'center', disableSort: true },
 ];
 
 const currencyFormatter = new Intl.NumberFormat('en-IN', {
@@ -77,40 +79,40 @@ const getShortInvoiceNo = (fullNo) => {
   return parts[parts.length - 1] || fullNo;
 };
 
-const getProgressInfo = (taskStatuses = [], activeWorkflow = []) => {
-  if (!taskStatuses || taskStatuses.length === 0) return null;
+const getProgressInfo = (inv, activeWorkflow = []) => {
   const workflowList = activeWorkflow && activeWorkflow.length > 0 ? activeWorkflow : [
     'New Orders', 'Designing', 'Proof', 'Printing', 'Additional works', 'Cutting', 'Packing', 'Out for Delivery', 'Delivered'
   ];
-  let totalFraction = 0;
-  const details = [];
-  taskStatuses.forEach((task, idx) => {
-    const stageIdx = workflowList.indexOf(task.status);
-    const fraction = stageIdx >= 0 ? (stageIdx + 1) / workflowList.length : 0;
-    totalFraction += fraction;
-    const pName = task.product_name || `Item ${idx + 1}`;
-    details.push(`${pName}: ${task.status || 'Pending'} (${Math.round(fraction * 100)}%)`);
-  });
-  const percent = Math.round((totalFraction / taskStatuses.length) * 100);
 
-  let color = 'default';
-  let variant = 'outlined';
-  if (percent >= 100) {
-    color = 'success';
-  } else if (percent >= 60) {
-    color = 'primary';
-  } else if (percent >= 30) {
-    color = 'warning';
-  } else {
-    color = 'error';
+  // 1. Check direct linked Job Card
+  if (inv?.job_cards && inv.job_cards.status) {
+    const stageIdx = workflowList.indexOf(inv.job_cards.status);
+    const fraction = stageIdx >= 0 ? (stageIdx + 1) / workflowList.length : 0;
+    const percent = Math.round(fraction * 100);
+    const jcNum = `JC-${String(inv.job_cards.job_number || 0).padStart(4, '0')}`;
+
+    let color = 'default';
+    let variant = 'outlined';
+    if (percent >= 100) {
+      color = 'success';
+      variant = 'filled';
+    } else if (percent >= 60) {
+      color = 'primary';
+    } else if (percent >= 30) {
+      color = 'warning';
+    } else {
+      color = 'error';
+    }
+
+    return {
+      percent,
+      color,
+      variant,
+      tooltip: `${jcNum}: ${inv.job_cards.status} (${percent}%) - ${inv.job_cards.description || 'Job Card'}`,
+    };
   }
 
-  return {
-    percent,
-    color,
-    variant,
-    tooltip: details.join(' | ') || `Progress: ${percent}%`
-  };
+  return null;
 };
 
 export const SalesInvoicesPage = () => {
@@ -155,6 +157,10 @@ export const SalesInvoicesPage = () => {
   const [invoiceToVoid, setInvoiceToVoid] = useState(null);
   const [voidLoading, setVoidLoading] = useState(false);
   const [voidError, setVoidError] = useState(null);
+
+  // In-app auto-created job notification
+  const [notificationOpen, setNotificationOpen] = useState(false);
+  const [notificationMessage, setNotificationMessage] = useState('');
 
   const handleCloneInvoice = (invoiceData) => {
     setDetailsOpen(false); // Close details dialog
@@ -332,16 +338,15 @@ export const SalesInvoicesPage = () => {
     setCreateOpen(false);
   };
 
-  const handleSaveSuccess = async () => {
+  const handleSaveSuccess = async (savedResult) => {
     if (kickoffJob) {
-      try {
-        await updateJobStatus(kickoffJob.job_id, 'in_progress');
-      } catch (err) {
-        console.error('Failed to automatically transition job card to design:', err);
-      }
       setKickoffJob(null);
       // Clean location state to avoid reopening dialog
       navigate(location.pathname, { replace: true, state: {} });
+    } else if (savedResult?.autoCreatedJob) {
+      const jcNum = `JC-${String(savedResult.autoCreatedJob.job_number || 0).padStart(4, '0')}`;
+      setNotificationMessage(`Job Card ${jcNum} was automatically created and linked for Invoice ${savedResult.invoice_no}.`);
+      setNotificationOpen(true);
     }
     fetchInvoices(statusFilter);
   };
@@ -541,7 +546,7 @@ export const SalesInvoicesPage = () => {
                   <TableCell sx={{ whiteSpace: 'nowrap' }}>
                     {(() => {
                       const shortNo = getShortInvoiceNo(inv.invoice_no);
-                      const progressInfo = getProgressInfo(taskProgressMap[inv.invoice_id], workflow);
+                      const progressInfo = getProgressInfo(inv, workflow);
                       return (
                         <Box display="flex" alignItems="center" gap={0.75}>
                           <Tooltip title={`Full Invoice No: ${inv.invoice_no}`} arrow placement="top">
@@ -580,24 +585,26 @@ export const SalesInvoicesPage = () => {
                       );
                     })()}
                   </TableCell>
-                  <TableCell sx={{ fontWeight: 600 }}>
-                    <HighlightText text={inv.customers?.name || '—'} highlight={searchQuery} />
+                  <TableCell sx={{ fontWeight: 600, maxWidth: 220, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    <Tooltip title={inv.customers?.name || ''} arrow placement="top" disableHoverListener={!inv.customers?.name || inv.customers.name.length < 25}>
+                      <Typography variant="body2" component="span" sx={{ fontWeight: 600, display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        <HighlightText text={inv.customers?.name || '—'} highlight={searchQuery} />
+                      </Typography>
+                    </Tooltip>
                   </TableCell>
-                  <TableCell align="right" sx={{ fontWeight: 600, whiteSpace: 'nowrap' }}>
+                  <TableCell align="right" sx={{ fontWeight: 700, whiteSpace: 'nowrap' }}>
                     {formatCurrency(inv.total_amount)}
                   </TableCell>
+                  <TableCell align="right" sx={{ fontWeight: 600, whiteSpace: 'nowrap', color: inv.amount_paid > 0 ? 'success.main' : 'text.secondary' }}>
+                    {formatCurrency(inv.amount_paid)}
+                  </TableCell>
                   <TableCell align="center" sx={{ whiteSpace: 'nowrap' }}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1 }}>
-                      <Chip
-                        label={STATUS_MAP[inv.status]?.label || inv.status}
-                        color={STATUS_MAP[inv.status]?.color || 'default'}
-                        size="small"
-                        sx={{ fontWeight: 600, height: 20, fontSize: '0.7rem' }}
-                      />
-                      <Typography variant="body2" sx={{ fontWeight: 600, color: inv.amount_paid > 0 ? 'success.main' : 'text.secondary' }}>
-                        {formatCurrency(inv.amount_paid)}
-                      </Typography>
-                    </Box>
+                    <Chip
+                      label={STATUS_MAP[inv.status]?.label || inv.status}
+                      color={STATUS_MAP[inv.status]?.color || 'default'}
+                      size="small"
+                      sx={{ fontWeight: 600, height: 22, fontSize: '0.75rem', minWidth: 70 }}
+                    />
                   </TableCell>
                   <TableCell align="center" sx={{ whiteSpace: 'nowrap' }}>
                     <Tooltip title="View Details">
@@ -626,7 +633,10 @@ export const SalesInvoicesPage = () => {
       {/* Details Viewer */}
       <InvoiceDetailsDialog
         open={detailsOpen}
-        onClose={() => setDetailsOpen(false)}
+        onClose={() => {
+          setDetailsOpen(false);
+          loadData(true);
+        }}
         invoiceId={selectedInvoiceId}
         onEdit={handleEditClick}
         onClone={handleCloneInvoice}
@@ -699,6 +709,14 @@ export const SalesInvoicesPage = () => {
           </Button>
         </DialogActions>
       </Dialog>
+
+      <Snackbar
+        open={notificationOpen}
+        autoHideDuration={5000}
+        onClose={() => setNotificationOpen(false)}
+        message={notificationMessage}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      />
     </Box>
   );
 };

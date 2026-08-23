@@ -312,26 +312,32 @@ export const CustomersPage = () => {
               ) : (
                 paginatedCustomers.map((customer) => (
                   <TableRow key={customer.customer_id} hover>
-                    <TableCell>
-                      <Stack direction="row" spacing={1.5} alignItems="center">
-                        <Avatar sx={{ width: 28, height: 28, bgcolor: 'secondary.main', fontSize: '0.75rem', fontWeight: 700 }}>
+                    <TableCell sx={{ maxWidth: 240, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      <Stack direction="row" spacing={1.5} alignItems="center" sx={{ minWidth: 0 }}>
+                        <Avatar sx={{ width: 28, height: 28, bgcolor: 'secondary.main', fontSize: '0.75rem', fontWeight: 700, flexShrink: 0 }}>
                           {customer.name ? customer.name.charAt(0).toUpperCase() : 'C'}
                         </Avatar>
-                        <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
-                          <HighlightText text={customer.name} highlight={searchQuery} />
-                        </Typography>
+                        <Tooltip title={customer.name || ''} arrow placement="top" disableHoverListener={!customer.name || customer.name.length < 25}>
+                          <Typography variant="subtitle2" component="span" sx={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block' }}>
+                            <HighlightText text={customer.name} highlight={searchQuery} />
+                          </Typography>
+                        </Tooltip>
                       </Stack>
                     </TableCell>
-                    <TableCell><HighlightText text={customer.phone || '—'} highlight={searchQuery} /></TableCell>
-                    <TableCell>
+                    <TableCell sx={{ whiteSpace: 'nowrap' }}><HighlightText text={customer.phone || '—'} highlight={searchQuery} /></TableCell>
+                    <TableCell sx={{ whiteSpace: 'nowrap' }}>
                       {customer.gstin ? (
                         <Chip label={<HighlightText text={customer.gstin} highlight={searchQuery} />} size="small" variant="outlined" sx={{ fontWeight: 600, fontSize: '0.7rem', height: 20 }} />
                       ) : (
                         <Typography variant="caption" color="text.secondary">Unregistered</Typography>
                       )}
                     </TableCell>
-                    <TableCell>
-                      <Typography variant="body2"><HighlightText text={customer.identification_name || '—'} highlight={searchQuery} /></Typography>
+                    <TableCell sx={{ maxWidth: 180, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      <Tooltip title={customer.identification_name || ''} arrow placement="top" disableHoverListener={!customer.identification_name || customer.identification_name.length < 20}>
+                        <Typography variant="body2" component="span" sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block' }}>
+                          <HighlightText text={customer.identification_name || '—'} highlight={searchQuery} />
+                        </Typography>
+                      </Tooltip>
                     </TableCell>
                     <TableCell align="right">
                       <Typography 

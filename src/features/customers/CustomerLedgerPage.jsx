@@ -358,17 +358,23 @@ export const CustomerLedgerPage = () => {
             {/* Transaction Rows */}
             {ledgerEntries.map((entry, idx) => (
               <TableRow key={idx} hover>
-                <TableCell>{formatDate(entry.date)}</TableCell>
-                <TableCell>{entry.refNo}</TableCell>
-                <TableCell>{entry.type}</TableCell>
-                <TableCell>{entry.description}</TableCell>
-                <TableCell align="right" sx={{ color: entry.debit > 0 ? 'error.main' : 'inherit' }}>
+                <TableCell sx={{ whiteSpace: 'nowrap' }}>{formatDate(entry.date)}</TableCell>
+                <TableCell sx={{ whiteSpace: 'nowrap', fontWeight: 600 }}>{entry.refNo}</TableCell>
+                <TableCell sx={{ whiteSpace: 'nowrap' }}>{entry.type}</TableCell>
+                <TableCell sx={{ maxWidth: 260, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  <Tooltip title={entry.description || ''} arrow placement="top" disableHoverListener={!entry.description || entry.description.length < 30}>
+                    <Typography variant="body2" component="span" sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block' }}>
+                      {entry.description}
+                    </Typography>
+                  </Tooltip>
+                </TableCell>
+                <TableCell align="right" sx={{ whiteSpace: 'nowrap', color: entry.debit > 0 ? 'error.main' : 'inherit' }}>
                   {entry.debit > 0 ? formatCurrency(entry.debit) : '—'}
                 </TableCell>
-                <TableCell align="right" sx={{ color: entry.credit > 0 ? 'success.main' : 'inherit' }}>
+                <TableCell align="right" sx={{ whiteSpace: 'nowrap', color: entry.credit > 0 ? 'success.main' : 'inherit' }}>
                   {entry.credit > 0 ? formatCurrency(entry.credit) : '—'}
                 </TableCell>
-                <TableCell align="right" sx={{ fontWeight: 600 }}>
+                <TableCell align="right" sx={{ whiteSpace: 'nowrap', fontWeight: 600 }}>
                   {formatCurrency(entry.runningBalance)}
                 </TableCell>
                 <TableCell className="no-print" align="center">
@@ -500,7 +506,10 @@ export const CustomerLedgerPage = () => {
       {/* Invoice Details Dialog Viewer */}
       <InvoiceDetailsDialog
         open={invoiceDetailsOpen}
-        onClose={() => setInvoiceDetailsOpen(false)}
+        onClose={() => {
+          setInvoiceDetailsOpen(false);
+          fetchLedgerData();
+        }}
         invoiceId={selectedInvoiceId}
         onEdit={(invoice) => handleEditInvoice(invoice)}
       />
@@ -535,7 +544,10 @@ export const CustomerLedgerPage = () => {
       {/* Quotation Viewer */}
       <QuotationDetailsDialog
         open={quotationDetailsOpen}
-        onClose={() => setQuotationDetailsOpen(false)}
+        onClose={() => {
+          setQuotationDetailsOpen(false);
+          fetchLedgerData();
+        }}
         quotationId={selectedQuotationId}
       />
     </Box>

@@ -286,14 +286,18 @@ export const InventoryPage = () => {
 
                 return (
                   <TableRow key={item.item_id} hover>
-                    <TableCell sx={{ fontWeight: 600 }}>
-                      <HighlightText text={item.name} highlight={searchQuery} />
+                    <TableCell sx={{ maxWidth: 240, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: 600 }}>
+                      <Tooltip title={item.name || ''} arrow placement="top" disableHoverListener={!item.name || item.name.length < 25}>
+                        <Typography variant="body2" component="span" sx={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block' }}>
+                          <HighlightText text={item.name} highlight={searchQuery} />
+                        </Typography>
+                      </Tooltip>
                     </TableCell>
-                    <TableCell>{item.unit}</TableCell>
-                    <TableCell sx={{ fontWeight: 500 }}>
+                    <TableCell sx={{ whiteSpace: 'nowrap' }}>{item.unit}</TableCell>
+                    <TableCell sx={{ whiteSpace: 'nowrap', fontWeight: 500 }}>
                       <HighlightText text={item.hsn_code || '—'} highlight={searchQuery} />
                     </TableCell>
-                    <TableCell>
+                    <TableCell sx={{ whiteSpace: 'nowrap' }}>
                       {item.tax_rates ? `${item.tax_rates.tax_name} (${item.tax_rates.percentage}%)` : 'Exempt (0%)'}
                     </TableCell>
                     <TableCell align="right" sx={{ fontWeight: 600 }}>

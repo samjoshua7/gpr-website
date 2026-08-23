@@ -13,24 +13,31 @@ import {
   FormControl,
   InputLabel,
   Select,
-  FormHelperText,
+  Autocomplete,
 } from '@mui/material';
 import { createJobCard, updateJobCard } from '../api';
 import { getCustomers } from '../../customers/api';
+import { getCompanySettings } from '../../settings/api';
 
-const STATUS_OPTIONS = [
-  { value: 'pending', label: 'Pending' },
-  { value: 'in_progress', label: 'In Progress' },
-  { value: 'completed', label: 'Completed' },
-  { value: 'delivered', label: 'Delivered' },
+const DEFAULT_WORKFLOW = [
+  'New Orders',
+  'Designing',
+  'Proof',
+  'Printing',
+  'Additional works',
+  'Cutting',
+  'Packing',
+  'Out for Delivery',
+  'Delivered',
 ];
 
 export const JobCardDialog = ({ open, onClose, job, onSaveSuccess }) => {
-  const [customerId, setCustomerId] = useState('');
+  const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [description, setDescription] = useState('');
-  const [quantity, setQuantity] = useState('');
-  const [status, setStatus] = useState('pending');
+  const [quantity, setQuantity] = useState('1');
+  const [status, setStatus] = useState('New Orders');
   const [dueDate, setDueDate] = useState('');
+  const [workflow, setWorkflow] = useState(DEFAULT_WORKFLOW);
 
   const [customers, setCustomers] = useState([]);
   const [customersLoading, setCustomersLoading] = useState(false);
@@ -41,22 +48,28 @@ export const JobCardDialog = ({ open, onClose, job, onSaveSuccess }) => {
 
   const isEditMode = !!job;
 
-  // Load customer list for dropdown
+  // Load customer list & workflow settings
   useEffect(() => {
-    const fetchCustomersList = async () => {
+    const fetchInitData = async () => {
       setCustomersLoading(true);
       try {
-        const data = await getCustomers();
-        setCustomers(data);
+        const [custList, settings] = await Promise.all([
+          getCustomers(),
+          getCompanySettings(),
+        ]);
+        setCustomers(custList || []);
+        if (settings?.production_workflow && settings.production_workflow.length > 0) {
+          setWorkflow(settings.production_workflow);
+        }
       } catch (err) {
-        console.error('Failed to load customers for dropdown:', err);
+        console.error('Failed to load customers or settings:', err);
       } finally {
         setCustomersLoading(false);
       }
     };
 
     if (open) {
-      fetchCustomersList();
+      fetchInitData();
     }
   }, [open]);
 
@@ -64,22 +77,29 @@ export const JobCardDialog = ({ open, onClose, job, onSaveSuccess }) => {
   useEffect(() => {
     if (open) {
       if (job) {
-        setCustomerId(job.customer_id || '');
+        const matched = customers.find((c) => c.customer_id === job.customer_id) || (job.customers ? {
+          customer_id: job.customer_id,
+          name: job.customers.name,
+          phone: job.customers.phone,
+          gstin: job.customers.gstin,
+        } : null);
+
+        setSelectedCustomer(matched || null);
         setDescription(job.description || '');
-        setQuantity(job.quantity?.toString() || '');
-        setStatus(job.status || 'pending');
+        setQuantity(job.quantity?.toString() || '1');
+        setStatus(job.status || 'New Orders');
         setDueDate(job.due_date || '');
       } else {
-        setCustomerId('');
+        setSelectedCustomer(null);
         setDescription('');
-        setQuantity('');
-        setStatus('pending');
+        setQuantity('1');
+        setStatus(workflow[0] || 'New Orders');
         setDueDate(new Date().toISOString().split('T')[0]);
       }
       setErrors({});
       setApiError(null);
     }
-  }, [open, job]);
+  }, [open, job, customers, workflow]);
 
   const validate = () => {
     const tempErrors = {};
@@ -106,10 +126,10 @@ export const JobCardDialog = ({ open, onClose, job, onSaveSuccess }) => {
     setApiError(null);
 
     const payload = {
-      customer_id: customerId || null,
+      customer_id: selectedCustomer?.customer_id || null,
       description: description.trim(),
-      quantity: parseFloat(quantity),
-      status,
+      quantity: parseFloat(quantity) || 1,
+      status: status || workflow[0] || 'New Orders',
       due_date: dueDate || null,
     };
 
@@ -132,7 +152,7 @@ export const JobCardDialog = ({ open, onClose, job, onSaveSuccess }) => {
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
       <DialogTitle sx={{ fontWeight: 700 }}>
-        {isEditMode ? 'Edit Job Card' : 'Create Job Card'}
+        {isEditMode ? `Edit Job Card (JC-${String(job.job_number || 0).padStart(4, '0')})` : 'Create New Job Card'}
       </DialogTitle>
       <Box component="form" onSubmit={handleSubmit} noValidate>
         <DialogContent dividers>
@@ -142,35 +162,37 @@ export const JobCardDialog = ({ open, onClose, job, onSaveSuccess }) => {
             </Alert>
           )}
 
-          {/* Customer Selection */}
-          <FormControl fullWidth margin="normal" error={!!errors.customerId} disabled={loading || customersLoading}>
-            <InputLabel id="customer-select-label">Customer</InputLabel>
-            <Select
-              labelId="customer-select-label"
-              id="customer-select"
-              value={customerId}
-              label="Customer"
-              onChange={(e) => setCustomerId(e.target.value)}
-            >
-              <MenuItem value=""><em>None (Walk-in / Quote)</em></MenuItem>
-              {customersLoading ? (
-                <MenuItem disabled value="">
-                  <CircularProgress size={20} sx={{ mr: 1 }} /> Loading Customers...
-                </MenuItem>
-              ) : customers.length === 0 ? (
-                <MenuItem disabled value="">
-                  No customers available
-                </MenuItem>
-              ) : (
-                customers.map((c) => (
-                  <MenuItem key={c.customer_id} value={c.customer_id}>
-                    {c.name} {c.phone ? `(${c.phone})` : ''}
-                  </MenuItem>
-                ))
-              )}
-            </Select>
-            {errors.customerId && <FormHelperText>{errors.customerId}</FormHelperText>}
-          </FormControl>
+          {/* Searchable Customer Autocomplete */}
+          <Autocomplete
+            options={customers}
+            getOptionLabel={(option) => {
+              if (!option) return '';
+              const phoneStr = option.phone ? ` (${option.phone})` : '';
+              return `${option.name}${phoneStr}`;
+            }}
+            value={selectedCustomer}
+            onChange={(_, newValue) => setSelectedCustomer(newValue)}
+            loading={customersLoading}
+            isOptionEqualToValue={(option, val) => option.customer_id === val?.customer_id}
+            renderInput={(params) => (
+              <TextField
+                {...params}
+                label="Customer / Client"
+                placeholder="Search by customer name or phone..."
+                margin="normal"
+                InputProps={{
+                  ...params.InputProps,
+                  endAdornment: (
+                    <React.Fragment>
+                      {customersLoading ? <CircularProgress color="inherit" size={20} /> : null}
+                      {params.InputProps.endAdornment}
+                    </React.Fragment>
+                  ),
+                }}
+              />
+            )}
+            disabled={loading}
+          />
 
           {/* Description */}
           <TextField
@@ -180,7 +202,7 @@ export const JobCardDialog = ({ open, onClose, job, onSaveSuccess }) => {
             multiline
             rows={3}
             id="description"
-            label="Job Description"
+            label="Job Description / Specifications"
             name="description"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
@@ -207,29 +229,22 @@ export const JobCardDialog = ({ open, onClose, job, onSaveSuccess }) => {
             disabled={loading}
           />
 
-          {/* Status */}
+          {/* Department / Workflow Stage */}
           <FormControl fullWidth margin="normal" disabled={loading}>
-            <InputLabel id="status-select-label">Status</InputLabel>
+            <InputLabel id="status-select-label">Department / Stage</InputLabel>
             <Select
               labelId="status-select-label"
               id="status-select"
               value={status}
-              label="Status"
+              label="Department / Stage"
               onChange={(e) => setStatus(e.target.value)}
             >
-              {(!job || job.status === 'pending') ? (
-                <MenuItem value="pending">Pending (Quote)</MenuItem>
-              ) : (
-                STATUS_OPTIONS.map((opt) => (
-                  <MenuItem key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </MenuItem>
-                ))
-              )}
+              {workflow.map((stage) => (
+                <MenuItem key={stage} value={stage}>
+                  {stage}
+                </MenuItem>
+              ))}
             </Select>
-            {(!job || job.status === 'pending') && (
-              <FormHelperText>To move this job card to Design, use the status transition chip on the main page to prompt invoice creation.</FormHelperText>
-            )}
           </FormControl>
 
           {/* Due Date */}
@@ -256,7 +271,7 @@ export const JobCardDialog = ({ open, onClose, job, onSaveSuccess }) => {
             disabled={loading || customersLoading}
             startIcon={loading ? <CircularProgress size={20} color="inherit" /> : null}
           >
-            {isEditMode ? 'Update Job' : 'Create Job'}
+            {isEditMode ? 'Update Job Card' : 'Save Job Card'}
           </Button>
         </DialogActions>
       </Box>
@@ -265,3 +280,4 @@ export const JobCardDialog = ({ open, onClose, job, onSaveSuccess }) => {
 };
 
 export default JobCardDialog;
+

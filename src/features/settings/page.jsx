@@ -18,17 +18,40 @@ import {
   Switch,
   FormControlLabel,
   Chip,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogContentText,
+  DialogActions,
+  FormControl,
+  InputLabel,
+  Select,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
 } from '@mui/material';
 import SaveIcon from '@mui/icons-material/Save';
 import DeleteIcon from '@mui/icons-material/Delete';
+import EditIcon from '@mui/icons-material/Edit';
 import AddIcon from '@mui/icons-material/Add';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 import QrCode2Icon from '@mui/icons-material/QrCode2';
 import FolderIcon from '@mui/icons-material/Folder';
 import FolderOpenIcon from '@mui/icons-material/FolderOpen';
+import WarningAmberIcon from '@mui/icons-material/WarningAmber';
+import BadgeIcon from '@mui/icons-material/Badge';
 
-import { getCompanySettings, updateCompanySettings } from './api';
+import {
+  getCompanySettings,
+  updateCompanySettings,
+  getJobCardsCountByDepartment,
+  reassignJobCardsDepartment,
+} from './api';
+import { invalidateJobCardsCache } from '../jobCards/api';
 import { useAuth } from '../../hooks/useAuth';
 import { BrandingUpload } from './components/BrandingUpload';
 import { generateQrDataUrl, buildUpiPaymentUri } from '../../lib/qrCode';
@@ -41,6 +64,7 @@ import {
 export const SettingsPage = () => {
   const { profile } = useAuth();
   const isSuperAdmin = profile?.role === 'SUPER_ADMIN';
+  const isStakeholder = profile?.role === 'STAKEHOLDER';
 
   const [settings, setSettings] = useState(null);
   const [storageFolderName, setStorageFolderName] = useState(null);
@@ -51,6 +75,23 @@ export const SettingsPage = () => {
   const [success, setSuccess] = useState(null);
 
   const [newDepartment, setNewDepartment] = useState('');
+
+  // Department Edit/Rename State
+  const [editDeptOpen, setEditDeptOpen] = useState(false);
+  const [deptToEditIndex, setDeptToEditIndex] = useState(null);
+  const [deptToEditOldName, setDeptToEditOldName] = useState('');
+  const [deptNewName, setDeptNewName] = useState('');
+  const [editDeptLoading, setEditDeptLoading] = useState(false);
+  const [editDeptError, setEditDeptError] = useState(null);
+
+  // Department Delete Guardrail State
+  const [deleteDeptOpen, setDeleteDeptOpen] = useState(false);
+  const [deptToDeleteIndex, setDeptToDeleteIndex] = useState(null);
+  const [deptToDeleteName, setDeptToDeleteName] = useState('');
+  const [deptJobCount, setDeptJobCount] = useState(0);
+  const [reassignTargetDept, setReassignTargetDept] = useState('');
+  const [deleteDeptLoading, setDeleteDeptLoading] = useState(false);
+  const [deleteDeptError, setDeleteDeptError] = useState(null);
 
   const loadData = async () => {
     try {
@@ -133,12 +174,105 @@ export const SettingsPage = () => {
     setNewDepartment('');
   };
 
-  const handleRemoveDepartment = (index) => {
-    setSettings(prev => {
-      const newWf = [...prev.production_workflow];
-      newWf.splice(index, 1);
-      return { ...prev, production_workflow: newWf };
-    });
+  const handleOpenEditDept = (index) => {
+    const currentName = settings.production_workflow[index];
+    setDeptToEditIndex(index);
+    setDeptToEditOldName(currentName);
+    setDeptNewName(currentName);
+    setEditDeptError(null);
+    setEditDeptOpen(true);
+  };
+
+  const handleSaveEditDept = async () => {
+    const trimmed = deptNewName.trim();
+    if (!trimmed) {
+      setEditDeptError('Department name cannot be empty.');
+      return;
+    }
+    if (trimmed === deptToEditOldName) {
+      setEditDeptOpen(false);
+      return;
+    }
+
+    setEditDeptLoading(true);
+    setEditDeptError(null);
+    try {
+      // Reassign any existing job cards with the old department name
+      await reassignJobCardsDepartment(deptToEditOldName, trimmed);
+      invalidateJobCardsCache();
+
+      setSettings((prev) => {
+        const newWf = [...prev.production_workflow];
+        newWf[deptToEditIndex] = trimmed;
+        return { ...prev, production_workflow: newWf };
+      });
+      setEditDeptOpen(false);
+      setSuccess(`Renamed department "${deptToEditOldName}" to "${trimmed}". Click "Save All Settings" to persist workflow order.`);
+    } catch (err) {
+      console.error(err);
+      setEditDeptError(err.message || 'Failed to rename department.');
+    } finally {
+      setEditDeptLoading(false);
+    }
+  };
+
+  const handleRequestDeleteDept = async (index) => {
+    const deptName = settings.production_workflow[index];
+    setDeleteDeptError(null);
+    try {
+      const count = await getJobCardsCountByDepartment(deptName);
+      if (count === 0) {
+        // Safe to remove immediately
+        setSettings((prev) => {
+          const newWf = [...prev.production_workflow];
+          newWf.splice(index, 1);
+          return { ...prev, production_workflow: newWf };
+        });
+        setSuccess(`Removed department "${deptName}". Click "Save All Settings" to persist.`);
+      } else {
+        // In use! Guardrail dialog
+        setDeptToDeleteIndex(index);
+        setDeptToDeleteName(deptName);
+        setDeptJobCount(count);
+        const remaining = settings.production_workflow.filter((_, i) => i !== index);
+        setReassignTargetDept(remaining[0] || 'New Orders');
+        setDeleteDeptOpen(true);
+      }
+    } catch (err) {
+      console.error(err);
+      setError('Failed to check department dependencies.');
+    }
+  };
+
+  const handleConfirmDeleteDept = async () => {
+    if (deptToDeleteIndex === null || !deptToDeleteName) return;
+
+    setDeleteDeptLoading(true);
+    setDeleteDeptError(null);
+    try {
+      if (deptJobCount > 0 && reassignTargetDept) {
+        await reassignJobCardsDepartment(deptToDeleteName, reassignTargetDept);
+        invalidateJobCardsCache();
+      }
+
+      setSettings((prev) => {
+        const newWf = [...prev.production_workflow];
+        newWf.splice(deptToDeleteIndex, 1);
+        return { ...prev, production_workflow: newWf };
+      });
+
+      setDeleteDeptOpen(false);
+      setSuccess(
+        `Department "${deptToDeleteName}" deleted.${
+          deptJobCount > 0 ? ` Moved ${deptJobCount} active Job Card(s) to "${reassignTargetDept}".` : ''
+        } Click "Save All Settings" to persist.`
+      );
+    } catch (err) {
+      console.error(err);
+      setDeleteDeptError(err.message || 'Failed to reassign and delete department.');
+    } finally {
+      setDeleteDeptLoading(false);
+    }
   };
 
   const handleMoveDepartment = (index, direction) => {
@@ -206,15 +340,17 @@ export const SettingsPage = () => {
         <Typography variant="h4" fontWeight={800} color="primary">
           Company Settings
         </Typography>
-        <Button
-          variant="contained"
-          startIcon={saving ? <CircularProgress size={20} color="inherit" /> : <SaveIcon />}
-          onClick={handleSave}
-          disabled={saving}
-          sx={{ fontWeight: 'bold' }}
-        >
-          Save Settings
-        </Button>
+        {!isStakeholder && (
+          <Button
+            variant="contained"
+            startIcon={saving ? <CircularProgress size={20} color="inherit" /> : <SaveIcon />}
+            onClick={handleSave}
+            disabled={saving}
+            sx={{ fontWeight: 'bold' }}
+          >
+            Save Settings
+          </Button>
+        )}
       </Box>
 
       {error && <Alert severity="error" sx={{ mb: 3 }}>{error}</Alert>}
@@ -344,13 +480,16 @@ export const SettingsPage = () => {
                   <ListItem>
                     <ListItemText primary={`${index + 1}. ${dept}`} primaryTypographyProps={{ fontWeight: 600 }} />
                     <ListItemSecondaryAction>
-                      <IconButton size="small" onClick={() => handleMoveDepartment(index, 'up')} disabled={index === 0}>
+                      <IconButton size="small" onClick={() => handleMoveDepartment(index, 'up')} disabled={index === 0} title="Move Up">
                         <ArrowUpwardIcon fontSize="small" />
                       </IconButton>
-                      <IconButton size="small" onClick={() => handleMoveDepartment(index, 'down')} disabled={index === settings.production_workflow.length - 1}>
+                      <IconButton size="small" onClick={() => handleMoveDepartment(index, 'down')} disabled={index === settings.production_workflow.length - 1} title="Move Down">
                         <ArrowDownwardIcon fontSize="small" />
                       </IconButton>
-                      <IconButton size="small" color="error" onClick={() => handleRemoveDepartment(index)} sx={{ ml: 1 }}>
+                      <IconButton size="small" color="primary" onClick={() => handleOpenEditDept(index)} sx={{ ml: 0.5 }} title="Rename Department">
+                        <EditIcon fontSize="small" />
+                      </IconButton>
+                      <IconButton size="small" color="error" onClick={() => handleRequestDeleteDept(index)} sx={{ ml: 0.5 }} title="Delete Department">
                         <DeleteIcon fontSize="small" />
                       </IconButton>
                     </ListItemSecondaryAction>
@@ -364,6 +503,73 @@ export const SettingsPage = () => {
                 </ListItem>
               )}
             </List>
+          </Paper>
+        </Grid>
+
+        {/* Roles & Permissions Overview */}
+        <Grid item xs={12}>
+          <Paper elevation={0} variant="outlined" sx={{ p: 3, borderRadius: 2 }}>
+            <Box display="flex" alignItems="center" gap={1} mb={1}>
+              <BadgeIcon color="primary" />
+              <Typography variant="h6" fontWeight={700}>
+                Roles & Permissions Overview
+              </Typography>
+            </Box>
+            <Typography variant="body2" color="text.secondary" mb={2.5}>
+              Role-based access matrix governing page visibility, billing privacy, and operational actions across the printing press application.
+            </Typography>
+
+            <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 1 }}>
+              <Table size="small">
+                <TableHead sx={{ bgcolor: 'action.hover' }}>
+                  <TableRow>
+                    <TableCell sx={{ fontWeight: 700 }}>System Role</TableCell>
+                    <TableCell sx={{ fontWeight: 700 }}>Page Access</TableCell>
+                    <TableCell sx={{ fontWeight: 700 }}>Job Card Workflow</TableCell>
+                    <TableCell sx={{ fontWeight: 700 }}>Billing & Financial Data</TableCell>
+                    <TableCell sx={{ fontWeight: 700 }}>Settings & Employees</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  <TableRow hover>
+                    <TableCell>
+                      <Chip label="Super Admin" color="error" size="small" sx={{ fontWeight: 700 }} />
+                    </TableCell>
+                    <TableCell sx={{ fontWeight: 600 }}>All Pages (Unrestricted)</TableCell>
+                    <TableCell>Full CRUD across all departments</TableCell>
+                    <TableCell sx={{ color: 'success.main', fontWeight: 600 }}>Full CRUD & Financial Audits</TableCell>
+                    <TableCell sx={{ color: 'success.main', fontWeight: 600 }}>Full Management</TableCell>
+                  </TableRow>
+                  <TableRow hover>
+                    <TableCell>
+                      <Chip label="Accounts" color="warning" size="small" sx={{ fontWeight: 700 }} />
+                    </TableCell>
+                    <TableCell sx={{ fontWeight: 600 }}>Invoices, Receipts, Quotations, Customers, Inventory, Statements, Jobs</TableCell>
+                    <TableCell>Full CRUD across all departments</TableCell>
+                    <TableCell sx={{ color: 'success.main', fontWeight: 600 }}>Full Financial CRUD</TableCell>
+                    <TableCell sx={{ color: 'error.main', fontWeight: 600 }}>Blocked</TableCell>
+                  </TableRow>
+                  <TableRow hover>
+                    <TableCell>
+                      <Chip label="Staff (Operator)" color="primary" size="small" sx={{ fontWeight: 700 }} />
+                    </TableCell>
+                    <TableCell sx={{ fontWeight: 600 }}>Job Cards Only (Direct Landing)</TableCell>
+                    <TableCell>Assigned Departments Only (Advance/Complete Task)</TableCell>
+                    <TableCell sx={{ color: 'text.secondary', fontStyle: 'italic' }}>Hidden (Confidential)</TableCell>
+                    <TableCell sx={{ color: 'error.main', fontWeight: 600 }}>Blocked</TableCell>
+                  </TableRow>
+                  <TableRow hover>
+                    <TableCell>
+                      <Chip label="Stakeholder" color="secondary" size="small" sx={{ fontWeight: 700 }} />
+                    </TableCell>
+                    <TableCell sx={{ fontWeight: 600 }}>All Pages (Read-Only)</TableCell>
+                    <TableCell>View-only across all departments</TableCell>
+                    <TableCell sx={{ color: 'info.main', fontWeight: 600 }}>Read-Only View</TableCell>
+                    <TableCell sx={{ color: 'info.main', fontWeight: 600 }}>Read-Only View</TableCell>
+                  </TableRow>
+                </TableBody>
+              </Table>
+            </TableContainer>
           </Paper>
         </Grid>
 
@@ -625,6 +831,83 @@ export const SettingsPage = () => {
           </Paper>
         </Grid>
       </Grid>
+
+      {/* Edit/Rename Department Dialog */}
+      <Dialog open={editDeptOpen} onClose={() => !editDeptLoading && setEditDeptOpen(false)} maxWidth="xs" fullWidth>
+        <DialogTitle sx={{ fontWeight: 700 }}>Rename Department</DialogTitle>
+        <DialogContent>
+          {editDeptError && <Alert severity="error" sx={{ mb: 2 }}>{editDeptError}</Alert>}
+          <DialogContentText sx={{ mb: 2 }}>
+            Renaming <strong>"{deptToEditOldName}"</strong> will automatically update all existing Job Cards in this department to the new name.
+          </DialogContentText>
+          <TextField
+            autoFocus
+            margin="dense"
+            label="Department Name"
+            fullWidth
+            value={deptNewName}
+            onChange={(e) => setDeptNewName(e.target.value)}
+            disabled={editDeptLoading}
+            onKeyDown={(e) => { if (e.key === 'Enter') handleSaveEditDept(); }}
+          />
+        </DialogContent>
+        <DialogActions sx={{ p: 2 }}>
+          <Button onClick={() => setEditDeptOpen(false)} disabled={editDeptLoading} color="inherit">
+            Cancel
+          </Button>
+          <Button onClick={handleSaveEditDept} variant="contained" disabled={editDeptLoading || !deptNewName.trim()}>
+            {editDeptLoading ? 'Saving...' : 'Rename Department'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Delete Department Guardrail Dialog */}
+      <Dialog open={deleteDeptOpen} onClose={() => !deleteDeptLoading && setDeleteDeptOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle sx={{ fontWeight: 700, display: 'flex', alignItems: 'center', gap: 1 }}>
+          <WarningAmberIcon color="warning" />
+          Department in Use: "{deptToDeleteName}"
+        </DialogTitle>
+        <DialogContent>
+          {deleteDeptError && <Alert severity="error" sx={{ mb: 2 }}>{deleteDeptError}</Alert>}
+          <Alert severity="warning" sx={{ mb: 2 }}>
+            This department currently contains <strong>{deptJobCount}</strong> active Job Card(s).
+          </Alert>
+          <DialogContentText sx={{ mb: 2 }}>
+            To safely remove the <strong>"{deptToDeleteName}"</strong> department without orphaning active jobs, please select a destination department to move them to:
+          </DialogContentText>
+          <FormControl fullWidth margin="dense">
+            <InputLabel id="reassign-dept-label">Move Job Cards To</InputLabel>
+            <Select
+              labelId="reassign-dept-label"
+              value={reassignTargetDept}
+              label="Move Job Cards To"
+              onChange={(e) => setReassignTargetDept(e.target.value)}
+              disabled={deleteDeptLoading}
+            >
+              {(settings?.production_workflow || [])
+                .filter((dept, i) => i !== deptToDeleteIndex)
+                .map((dept) => (
+                  <MenuItem key={dept} value={dept}>
+                    {dept}
+                  </MenuItem>
+                ))}
+            </Select>
+          </FormControl>
+        </DialogContent>
+        <DialogActions sx={{ p: 2 }}>
+          <Button onClick={() => setDeleteDeptOpen(false)} disabled={deleteDeptLoading} color="inherit">
+            Cancel
+          </Button>
+          <Button
+            onClick={handleConfirmDeleteDept}
+            variant="contained"
+            color="error"
+            disabled={deleteDeptLoading || !reassignTargetDept}
+          >
+            {deleteDeptLoading ? 'Reassigning & Deleting...' : `Move ${deptJobCount} Cards & Delete`}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };

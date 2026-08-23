@@ -332,3 +332,18 @@ export const convertQuotationToInvoice = async (quotationId) => {
   invalidateQuotationsCache();
   return newInvoice;
 };
+
+export const updateQuotationNotes = async (quotationId, notes) => {
+  if (!quotationId) throw new Error('Quotation ID is required');
+  const { data, error } = await supabase
+    .from('quotations')
+    .update({ notes })
+    .eq('quotation_id', quotationId)
+    .select()
+    .single();
+
+  if (error) throw new Error(error.message);
+  invalidateQuotationsCache();
+  return data;
+};
+

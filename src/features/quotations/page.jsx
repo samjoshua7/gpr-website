@@ -273,17 +273,23 @@ export const QuotationsPage = () => {
 
                     return (
                       <TableRow key={row.quotation_id} hover>
-                        <TableCell>
+                        <TableCell sx={{ whiteSpace: 'nowrap' }}>
                           <Typography variant="body2" fontWeight={700}>
                             <HighlightText text={row.quotation_no} highlight={searchQuery} />
                           </Typography>
                         </TableCell>
-                        <TableCell>{formatDate(row.quotation_date)}</TableCell>
-                        <TableCell>
-                          <HighlightText
-                            text={row.customer_name || row.customers?.name || 'N/A'}
-                            highlight={searchQuery}
-                          />
+                        <TableCell sx={{ whiteSpace: 'nowrap' }}>{formatDate(row.quotation_date)}</TableCell>
+                        <TableCell sx={{ maxWidth: 220, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {(() => {
+                            const custName = row.customer_name || row.customers?.name || 'N/A';
+                            return (
+                              <Tooltip title={custName} arrow placement="top" disableHoverListener={custName.length < 25}>
+                                <Typography variant="body2" component="span" sx={{ fontWeight: 600, display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                  <HighlightText text={custName} highlight={searchQuery} />
+                                </Typography>
+                              </Tooltip>
+                            );
+                          })()}
                         </TableCell>
                         <TableCell>
                           <Chip
@@ -370,7 +376,10 @@ export const QuotationsPage = () => {
 
       <QuotationDetailsDialog
         open={detailsOpen}
-        onClose={() => setDetailsOpen(false)}
+        onClose={() => {
+          setDetailsOpen(false);
+          fetchQuotationsData();
+        }}
         quotationId={selectedQuotationId}
         onEdit={handleEdit}
         onClone={handleClone}

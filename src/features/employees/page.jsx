@@ -29,6 +29,14 @@ import { getEmployees, createEmployee, updateEmployee, deleteEmployee, toggleEmp
 import { getCompanySettings } from '../settings/api';
 import { EmployeeDialog } from './components/EmployeeDialog';
 import { HighlightText } from '../../components/ui/HighlightText';
+import { useAuth } from '../../hooks/useAuth';
+
+const ROLE_BADGE = {
+  SUPER_ADMIN: { label: 'Super Admin', color: 'error', variant: 'filled' },
+  ACCOUNTS: { label: 'Accounts', color: 'warning', variant: 'outlined' },
+  STAFF: { label: 'Staff', color: 'primary', variant: 'outlined' },
+  STAKEHOLDER: { label: 'Stakeholder', color: 'secondary', variant: 'outlined' },
+};
 
 const headCells = [
   { id: 'name', label: 'Name', align: 'left' },
@@ -40,6 +48,9 @@ const headCells = [
 ];
 
 export const EmployeesPage = () => {
+  const { profile } = useAuth();
+  const isStakeholder = profile?.role === 'STAKEHOLDER';
+
   const [employees, setEmployees] = useState([]);
   const [companySettings, setCompanySettings] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -186,14 +197,16 @@ export const EmployeesPage = () => {
         onSearchChange={setSearchQuery}
         searchPlaceholder="Search by name, email, phone, or role..."
         actions={
-          <Button
-            variant="contained"
-            startIcon={<AddIcon />}
-            onClick={handleAdd}
-            sx={{ fontWeight: 'bold' }}
-          >
-            Add Employee
-          </Button>
+          !isStakeholder ? (
+            <Button
+              variant="contained"
+              startIcon={<AddIcon />}
+              onClick={handleAdd}
+              sx={{ fontWeight: 'bold' }}
+            >
+              Add Employee
+            </Button>
+          ) : null
         }
       />
 
@@ -250,26 +263,31 @@ export const EmployeesPage = () => {
             ) : (
               paginatedEmployees.map((emp) => (
                 <TableRow key={emp.employee_id} hover>
-                  <TableCell sx={{ fontWeight: 600 }}>
-                    <HighlightText text={emp.name} highlight={searchQuery} />
+                  <TableCell sx={{ maxWidth: 200, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: 600 }}>
+                    <Tooltip title={emp.name || ''} arrow placement="top" disableHoverListener={!emp.name || emp.name.length < 25}>
+                      <Typography variant="body2" component="span" sx={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block' }}>
+                        <HighlightText text={emp.name} highlight={searchQuery} />
+                      </Typography>
+                    </Tooltip>
                   </TableCell>
-                  <TableCell>
-                    <Typography variant="body2"><HighlightText text={emp.email} highlight={searchQuery} /></Typography>
-                    <Typography variant="caption" color="text.secondary"><HighlightText text={emp.phone} highlight={searchQuery} /></Typography>
+                  <TableCell sx={{ maxWidth: 200, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    <Typography variant="body2" sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}><HighlightText text={emp.email} highlight={searchQuery} /></Typography>
+                    <Typography variant="caption" color="text.secondary" sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block' }}><HighlightText text={emp.phone} highlight={searchQuery} /></Typography>
                   </TableCell>
-                  <TableCell>
+                  <TableCell sx={{ whiteSpace: 'nowrap' }}>
                     <Chip 
-                      label={<HighlightText text={emp.role} highlight={searchQuery} />}  
+                      label={ROLE_BADGE[emp.role]?.label || emp.role}  
                       size="small" 
-                      color={emp.role === 'SUPER_ADMIN' ? 'error' : 'primary'}
-                      variant={emp.role === 'SUPER_ADMIN' ? 'filled' : 'outlined'}
+                      color={ROLE_BADGE[emp.role]?.color || 'primary'}
+                      variant={ROLE_BADGE[emp.role]?.variant || 'outlined'}
+                      sx={{ fontWeight: 700, fontSize: '0.75rem' }}
                     />
                   </TableCell>
-                  <TableCell>
-                    <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
+                  <TableCell sx={{ maxWidth: 240, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {emp.departments?.length > 0 ? (
                         emp.departments.map(dept => (
-                          <Chip key={dept} label={dept} size="small" variant="outlined" />
+                          <Chip key={dept} label={dept} size="small" variant="outlined" sx={{ flexShrink: 0 }} />
                         ))
                       ) : (
                         <Typography variant="caption" color="text.secondary">None</Typography>
@@ -277,23 +295,33 @@ export const EmployeesPage = () => {
                     </Box>
                   </TableCell>
                   <TableCell>
-                    <Tooltip title="Toggle Status">
-                      <IconButton onClick={() => handleToggleStatus(emp.employee_id, emp.active)} size="small">
-                        {emp.active ? <CheckCircleIcon color="success" /> : <CancelIcon color="error" />}
-                      </IconButton>
-                    </Tooltip>
+                    {!isStakeholder ? (
+                      <Tooltip title="Toggle Status">
+                        <IconButton onClick={() => handleToggleStatus(emp.employee_id, emp.active)} size="small">
+                          {emp.active ? <CheckCircleIcon color="success" /> : <CancelIcon color="error" />}
+                        </IconButton>
+                      </Tooltip>
+                    ) : (
+                      <Chip label={emp.active ? 'Active' : 'Inactive'} size="small" color={emp.active ? 'success' : 'default'} variant="outlined" />
+                    )}
                   </TableCell>
                   <TableCell align="right">
-                    <Tooltip title="Edit">
-                      <IconButton color="primary" onClick={() => handleEdit(emp)} size="small">
-                        <EditIcon fontSize="small" />
-                      </IconButton>
-                    </Tooltip>
-                    <Tooltip title="Delete">
-                      <IconButton color="error" onClick={() => handleDelete(emp.employee_id)} size="small">
-                        <DeleteIcon fontSize="small" />
-                      </IconButton>
-                    </Tooltip>
+                    {!isStakeholder ? (
+                      <React.Fragment>
+                        <Tooltip title="Edit">
+                          <IconButton color="primary" onClick={() => handleEdit(emp)} size="small">
+                            <EditIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                        <Tooltip title="Delete">
+                          <IconButton color="error" onClick={() => handleDelete(emp.employee_id)} size="small">
+                            <DeleteIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      </React.Fragment>
+                    ) : (
+                      <Typography variant="caption" color="text.secondary">View Only</Typography>
+                    )}
                   </TableCell>
                 </TableRow>
               ))
