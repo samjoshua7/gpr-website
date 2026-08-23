@@ -55,43 +55,47 @@ export const AuthProvider = ({ children }) => {
     }
 
     try {
-      const { data, error } = await supabase
+      const { data: userData, error: userError } = await supabase
         .from('users')
         .select('*')
         .eq('email', email)
-        .single();
+        .maybeSingle();
 
-      // Optionally fetch employee record for department assignments
-      const { data: empData } = await supabase
+      // Fetch employee record for role and department assignments
+      const { data: empData, error: empError } = await supabase
         .from('employees')
         .select('*')
         .eq('email', email)
         .maybeSingle();
 
-      if (error || !data) {
+      if (!userData && !empData) {
         setAuthError('Access Denied. Your email is not registered in the system.');
         await supabase.auth.signOut();
         setSession(null);
         setUser(null);
         setProfile(null);
-      } else if (!data.active && (!empData || !empData.active)) {
-        setAuthError('Access Denied. Your account is inactive. Please contact the administrator.');
-        await supabase.auth.signOut();
-        setSession(null);
-        setUser(null);
-        setProfile(null);
       } else {
-        const mergedProfile = {
-          ...data,
-          role: empData?.role || data.role || 'STAFF',
-          departments: empData?.departments || data.departments || [],
-          name: empData?.name || data.name || 'User',
-          active: empData ? empData.active : data.active,
-        };
-        setAuthError(null);
-        setSession(currentSession);
-        setUser(currentSession.user);
-        setProfile(mergedProfile);
+        const isActive = (empData ? empData.active : true) && (userData ? userData.active : true);
+        if (!isActive) {
+          setAuthError('Access Denied. Your account is inactive. Please contact the administrator.');
+          await supabase.auth.signOut();
+          setSession(null);
+          setUser(null);
+          setProfile(null);
+        } else {
+          const mergedProfile = {
+            id: userData?.id || empData?.employee_id || userId,
+            email,
+            role: empData?.role || userData?.role || 'STAFF',
+            departments: empData?.departments || userData?.departments || [],
+            name: empData?.name || userData?.name || currentSession.user.user_metadata?.full_name || 'User',
+            active: isActive,
+          };
+          setAuthError(null);
+          setSession(currentSession);
+          setUser(currentSession.user);
+          setProfile(mergedProfile);
+        }
       }
     } catch (err) {
       console.error('Error during user verification:', err);

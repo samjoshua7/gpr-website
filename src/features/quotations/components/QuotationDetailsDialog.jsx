@@ -60,6 +60,7 @@ export const QuotationDetailsDialog = ({ open, onClose, quotationId, onEdit, onC
   const [toastOpen, setToastOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
   const [error, setError] = useState(null);
+  const [lastExportedBlob, setLastExportedBlob] = useState(null);
 
   const handlePrint = () => {
     window.print();
@@ -70,11 +71,13 @@ export const QuotationDetailsDialog = ({ open, onClose, quotationId, onEdit, onC
 
     try {
       setDownloadingPdf(true);
-      const pdfBlob = await generateInvoicePdf(quotation, companySettings, paperSize);
+      const containerEl = document.getElementById('printable-quotation-container');
+      const pdfBlob = await generateInvoicePdf(containerEl || quotation, companySettings, paperSize);
       if (!pdfBlob) {
         throw new Error('Failed to generate PDF document.');
       }
 
+      setLastExportedBlob(pdfBlob);
       const fileName = formatExportFileName(
         {
           invoice_no: quotation.quotation_no,
@@ -113,6 +116,7 @@ export const QuotationDetailsDialog = ({ open, onClose, quotationId, onEdit, onC
       }
 
       const jpgBlob = await generateInvoiceJpg(containerEl, 2.5, 0.95);
+      setLastExportedBlob(jpgBlob);
       const fileName = formatExportFileName(
         {
           invoice_no: quotation.quotation_no,
@@ -133,8 +137,8 @@ export const QuotationDetailsDialog = ({ open, onClose, quotationId, onEdit, onC
         setToastOpen(true);
       }
     } catch (err) {
-      console.error('JPG generation error:', err);
-      alert('Failed to export JPG: ' + err.message);
+      console.error('JPG export error:', err);
+      alert('Failed to generate JPG: ' + err.message);
     } finally {
       setExportingJpg(false);
     }
@@ -203,10 +207,19 @@ export const QuotationDetailsDialog = ({ open, onClose, quotationId, onEdit, onC
 
   const printStyles = `
     @page {
-      size: ${paperSize === 'A5' ? 'A5' : 'A4'};
-      margin: 10mm;
+      size: ${paperSize === 'A5' ? 'A5 portrait' : 'A4 portrait'};
+      margin: ${paperSize === 'A5' ? '6mm' : '8mm'};
     }
     @media print {
+      html, body {
+        width: 100% !important;
+        height: auto !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        background: #ffffff !important;
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+      }
       body * {
         visibility: hidden;
       }
@@ -217,11 +230,13 @@ export const QuotationDetailsDialog = ({ open, onClose, quotationId, onEdit, onC
         position: absolute;
         left: 0;
         top: 0;
-        width: ${paperSize === 'A5' ? '148mm' : '210mm'};
-        max-width: 100%;
-        margin: 0 auto;
-        padding: 0;
-        box-sizing: border-box;
+        width: 100% !important;
+        max-width: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        box-sizing: border-box !important;
+        border: none !important;
+        box-shadow: none !important;
       }
       .no-print {
         display: none !important;
@@ -281,33 +296,51 @@ export const QuotationDetailsDialog = ({ open, onClose, quotationId, onEdit, onC
 
         {quotation && (
           <Box display="flex" alignItems="center" gap={1} flexWrap="wrap">
-            {!isStakeholder && !isConverted && (
-              <Button
-                variant="contained"
-                color="success"
-                size="small"
-                startIcon={converting ? <CircularProgress size={16} color="inherit" /> : <TransformIcon />}
-                onClick={handleConvertToInvoice}
-                disabled={converting}
-                sx={{ textTransform: 'none', fontWeight: 700, height: 32 }}
-              >
-                Convert to Invoice
-              </Button>
-            )}
-
-            {!isStakeholder && onClone && (
-              <Tooltip title="Clone Quotation">
-                <IconButton size="small" onClick={() => onClone(quotation)}>
-                  <ContentCopyIcon fontSize="small" />
-                </IconButton>
+            {!isConverted && (
+              <Tooltip title={isStakeholder ? 'Stakeholder read-only view' : 'Convert to Invoice'}>
+                <span>
+                  <Button
+                    variant="contained"
+                    color="success"
+                    size="small"
+                    startIcon={converting ? <CircularProgress size={16} color="inherit" /> : <TransformIcon />}
+                    onClick={handleConvertToInvoice}
+                    disabled={isStakeholder || converting}
+                    sx={{ textTransform: 'none', fontWeight: 700, height: 32, ...(isStakeholder ? { color: 'text.disabled', bgcolor: 'action.disabledBackground' } : {}) }}
+                  >
+                    Convert to Invoice
+                  </Button>
+                </span>
               </Tooltip>
             )}
 
-            {!isStakeholder && !isConverted && onEdit && (
-              <Tooltip title="Edit Quotation">
-                <IconButton size="small" onClick={() => onEdit(quotation)}>
-                  <EditIcon fontSize="small" />
-                </IconButton>
+            {onClone && (
+              <Tooltip title={isStakeholder ? 'Stakeholder read-only view' : 'Clone Quotation'}>
+                <span>
+                  <IconButton
+                    size="small"
+                    disabled={isStakeholder}
+                    onClick={() => onClone(quotation)}
+                    sx={isStakeholder ? { color: 'text.disabled' } : {}}
+                  >
+                    <ContentCopyIcon fontSize="small" />
+                  </IconButton>
+                </span>
+              </Tooltip>
+            )}
+
+            {!isConverted && onEdit && (
+              <Tooltip title={isStakeholder ? 'Stakeholder read-only view' : 'Edit Quotation'}>
+                <span>
+                  <IconButton
+                    size="small"
+                    disabled={isStakeholder}
+                    onClick={() => onEdit(quotation)}
+                    sx={isStakeholder ? { color: 'text.disabled' } : {}}
+                  >
+                    <EditIcon fontSize="small" />
+                  </IconButton>
+                </span>
               </Tooltip>
             )}
 
@@ -401,6 +434,7 @@ export const QuotationDetailsDialog = ({ open, onClose, quotationId, onEdit, onC
                 <InvoiceNotesPanel
                   invoice={quotation}
                   onNotesUpdated={async (updated) => {
+                    if (isStakeholder) return;
                     try {
                       await updateQuotationNotes(quotation.quotation_id, updated.notes);
                       setQuotation((prev) => ({ ...prev, notes: updated.notes }));
@@ -425,10 +459,26 @@ export const QuotationDetailsDialog = ({ open, onClose, quotationId, onEdit, onC
 
       <Snackbar
         open={toastOpen}
-        autoHideDuration={4000}
+        autoHideDuration={6000}
         onClose={() => setToastOpen(false)}
         message={toastMessage}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+        action={
+          lastExportedBlob ? (
+            <Button
+              color="secondary"
+              size="small"
+              variant="contained"
+              onClick={() => {
+                const url = URL.createObjectURL(lastExportedBlob);
+                window.open(url, '_blank');
+              }}
+              sx={{ fontWeight: 700, textTransform: 'none', ml: 1 }}
+            >
+              Open File
+            </Button>
+          ) : null
+        }
       />
     </Dialog>
   );

@@ -514,16 +514,25 @@ export const JobCardsPage = () => {
           }}
           sx={{ flexGrow: 1, bgcolor: 'background.paper', borderRadius: 2 }}
         />
-        {!isStakeholder && !isStaff && (
-          <Button
-            variant="contained"
-            startIcon={<AddIcon />}
-            onClick={handleAddClick}
-            size="large"
-            sx={{ whiteSpace: 'nowrap', fontWeight: 700 }}
-          >
-            Create Job Card
-          </Button>
+        {!isStaff && (
+          <Tooltip title={isStakeholder ? 'Stakeholder read-only view' : ''}>
+            <span>
+              <Button
+                variant="contained"
+                startIcon={<AddIcon />}
+                onClick={handleAddClick}
+                disabled={isStakeholder}
+                size="large"
+                sx={{
+                  whiteSpace: 'nowrap',
+                  fontWeight: 700,
+                  ...(isStakeholder ? { color: 'text.disabled', bgcolor: 'action.disabledBackground' } : {}),
+                }}
+              >
+                Create Job Card
+              </Button>
+            </span>
+          </Tooltip>
         )}
       </Box>
 
@@ -738,17 +747,22 @@ export const JobCardsPage = () => {
                                   {/* Column Navigation Controls */}
                                   <Box sx={{ display: 'flex', gap: 1, justifyContent: 'space-between', alignItems: 'center' }}>
                                     {!isFirstStep ? (
-                                      <IconButton
-                                        size="small"
-                                        color="inherit"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          handleMoveToPrevious(card, fullIndex);
-                                        }}
-                                        sx={{ border: '1px solid rgba(0,0,0,0.12)', borderRadius: 1 }}
-                                      >
-                                        <ArrowBackIcon fontSize="small" />
-                                      </IconButton>
+                                      <Tooltip title={isStakeholder ? 'Stakeholder read-only view' : 'Move to Previous Stage'}>
+                                        <span>
+                                          <IconButton
+                                            size="small"
+                                            color="inherit"
+                                            disabled={isStakeholder}
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              handleMoveToPrevious(card, fullIndex);
+                                            }}
+                                            sx={{ border: '1px solid rgba(0,0,0,0.12)', borderRadius: 1, ...(isStakeholder ? { color: 'text.disabled' } : {}) }}
+                                          >
+                                            <ArrowBackIcon fontSize="small" />
+                                          </IconButton>
+                                        </span>
+                                      </Tooltip>
                                     ) : (
                                       <Box />
                                     )}
@@ -756,17 +770,19 @@ export const JobCardsPage = () => {
                                     {!isLastStep && (
                                       <Tooltip
                                         title={
-                                          disableNext
-                                            ? 'Cannot deliver an unbilled job card. Please create an invoice first.'
-                                            : `Move to ${workflow[fullIndex + 1]}`
+                                          isStakeholder
+                                            ? 'Stakeholder read-only view'
+                                            : disableNext
+                                              ? 'Cannot deliver an unbilled job card. Please create an invoice first.'
+                                              : `Move to ${workflow[fullIndex + 1]}`
                                         }
                                       >
                                         <span>
                                           <Button
                                             size="small"
                                             variant="contained"
-                                            color={disableNext ? 'inherit' : 'primary'}
-                                            disabled={disableNext}
+                                            color={disableNext || isStakeholder ? 'inherit' : 'primary'}
+                                            disabled={disableNext || isStakeholder}
                                             endIcon={disableNext ? <LockIcon fontSize="small" /> : <ArrowForwardIcon fontSize="small" />}
                                             onClick={(e) => {
                                               e.stopPropagation();
@@ -776,6 +792,7 @@ export const JobCardsPage = () => {
                                               textTransform: 'none',
                                               fontWeight: 700,
                                               fontSize: '0.75rem',
+                                              ...(isStakeholder ? { color: 'text.disabled', bgcolor: 'action.disabledBackground' } : {}),
                                             }}
                                           >
                                             Next Stage

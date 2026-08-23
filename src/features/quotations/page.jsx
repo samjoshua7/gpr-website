@@ -38,6 +38,7 @@ import InvoiceDialog from '../salesInvoices/components/InvoiceDialog';
 import QuotationDetailsDialog from './components/QuotationDetailsDialog';
 
 import { formatDate } from '../../lib/formatDate';
+import { useAuth } from '../../hooks/useAuth';
 
 const STATUS_MAP = {
   draft: { label: 'Draft', color: 'warning' },
@@ -64,8 +65,10 @@ const currencyFormatter = new Intl.NumberFormat('en-IN', {
 const formatCurrency = (amount) => currencyFormatter.format(amount || 0);
 
 export const QuotationsPage = () => {
-  const location = useLocation();
   const navigate = useNavigate();
+  const location = useLocation();
+  const { profile } = useAuth();
+  const isStakeholder = profile?.role === 'STAKEHOLDER';
 
   const [quotations, setQuotations] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -211,14 +214,23 @@ export const QuotationsPage = () => {
         }}
         searchPlaceholder="Search quotation #, customer..."
         actions={
-          <Button
-            variant="contained"
-            startIcon={<AddIcon />}
-            onClick={handleCreate}
-            sx={{ textTransform: 'none', fontWeight: 700 }}
-          >
-            New Quotation
-          </Button>
+          <Tooltip title={isStakeholder ? 'Stakeholder read-only view' : ''}>
+            <span>
+              <Button
+                variant="contained"
+                startIcon={<AddIcon />}
+                onClick={handleCreate}
+                disabled={isStakeholder}
+                sx={{
+                  textTransform: 'none',
+                  fontWeight: 700,
+                  ...(isStakeholder ? { color: 'text.disabled', bgcolor: 'action.disabledBackground' } : {}),
+                }}
+              >
+                New Quotation
+              </Button>
+            </span>
+          </Tooltip>
         }
       />
 
@@ -320,23 +332,47 @@ export const QuotationsPage = () => {
                           </Tooltip>
 
                           {!isConverted && (
-                            <Tooltip title="Edit Quotation">
-                              <IconButton size="small" color="primary" onClick={() => handleEdit(row)}>
-                                <EditIcon fontSize="small" />
-                              </IconButton>
+                            <Tooltip title={isStakeholder ? 'Stakeholder read-only view' : 'Edit Quotation'}>
+                              <span>
+                                <IconButton
+                                  size="small"
+                                  color="primary"
+                                  disabled={isStakeholder}
+                                  onClick={() => handleEdit(row)}
+                                  sx={isStakeholder ? { color: 'text.disabled' } : {}}
+                                >
+                                  <EditIcon fontSize="small" />
+                                </IconButton>
+                              </span>
                             </Tooltip>
                           )}
 
-                          <Tooltip title="Clone Quotation">
-                            <IconButton size="small" color="info" onClick={() => handleClone(row)}>
-                              <ContentCopyIcon fontSize="small" />
-                            </IconButton>
+                          <Tooltip title={isStakeholder ? 'Stakeholder read-only view' : 'Clone Quotation'}>
+                            <span>
+                              <IconButton
+                                size="small"
+                                color="info"
+                                disabled={isStakeholder}
+                                onClick={() => handleClone(row)}
+                                sx={isStakeholder ? { color: 'text.disabled' } : {}}
+                              >
+                                <ContentCopyIcon fontSize="small" />
+                              </IconButton>
+                            </span>
                           </Tooltip>
 
-                          <Tooltip title="Delete Quotation">
-                            <IconButton size="small" color="error" onClick={() => handleDeleteClick(row)}>
-                              <DeleteIcon fontSize="small" />
-                            </IconButton>
+                          <Tooltip title={isStakeholder ? 'Stakeholder read-only view' : 'Delete Quotation'}>
+                            <span>
+                              <IconButton
+                                size="small"
+                                color="error"
+                                disabled={isStakeholder}
+                                onClick={() => handleDeleteClick(row)}
+                                sx={isStakeholder ? { color: 'text.disabled' } : {}}
+                              >
+                                <DeleteIcon fontSize="small" />
+                              </IconButton>
+                            </span>
                           </Tooltip>
                         </TableCell>
                       </TableRow>

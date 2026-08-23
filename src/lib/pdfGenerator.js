@@ -1,4 +1,5 @@
 import { jsPDF } from 'jspdf';
+import html2canvas from 'html2canvas';
 import autoTable from 'jspdf-autotable';
 import { amountInWords } from './amountInWords';
 import { formatDate } from './formatDate';
@@ -31,10 +32,55 @@ function loadImageAsBase64(url) {
   });
 }
 
-export async function generateInvoicePdf(invoice, companySettings, paperSize = 'A4') {
-  if (!invoice) return null;
+export async function generateInvoicePdf(target, companySettingsOrPaperSize = 'A4', maybePaperSize = 'A4') {
+  let element = null;
+  let paperSize = 'A4';
+
+  if (target instanceof HTMLElement) {
+    element = target;
+    paperSize = typeof companySettingsOrPaperSize === 'string' ? companySettingsOrPaperSize : 'A4';
+  } else if (typeof target === 'string') {
+    element = document.getElementById(target);
+    paperSize = typeof companySettingsOrPaperSize === 'string' ? companySettingsOrPaperSize : 'A4';
+  } else {
+    // If target is an invoice/quotation object, try finding the active container in DOM
+    element = document.getElementById('printable-invoice-container') || document.getElementById('printable-quotation-container');
+    paperSize = typeof maybePaperSize === 'string' ? maybePaperSize : (typeof companySettingsOrPaperSize === 'string' ? companySettingsOrPaperSize : 'A4');
+  }
 
   const isA5 = paperSize === 'A5';
+
+  // 1. High-precision DOM snapshot (100% WYSIWYG matching screen, Customer View, and Print)
+  if (element) {
+    const canvas = await html2canvas(element, {
+      scale: 2.5,
+      useCORS: true,
+      allowTaint: true,
+      backgroundColor: '#ffffff',
+      logging: false,
+      imageTimeout: 15000,
+    });
+
+    const doc = new jsPDF({
+      orientation: 'portrait',
+      unit: 'mm',
+      format: isA5 ? 'a5' : 'a4',
+    });
+
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const imgData = canvas.toDataURL('image/jpeg', 0.98);
+    const imgWidth = pageWidth;
+    const imgHeight = (canvas.height * imgWidth) / canvas.width;
+
+    doc.addImage(imgData, 'JPEG', 0, 0, imgWidth, Math.min(imgHeight, pageHeight));
+    return doc.output('blob');
+  }
+
+  // 2. Pure programmatic fallback if no DOM element is available
+  const invoice = target;
+  if (!invoice) return null;
+
   const doc = new jsPDF({
     orientation: 'portrait',
     unit: 'mm',

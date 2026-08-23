@@ -48,6 +48,7 @@ import { HighlightText } from '../../components/ui/HighlightText';
 import { TablePagination, TableSortLabel, Stack } from '@mui/material';
 import { formatDate } from '../../lib/formatDate';
 import { useGprError } from '../../app/providers/ErrorProvider';
+import { useAuth } from '../../hooks/useAuth';
 
 const STATUS_MAP = {
   unpaid: { label: 'Unpaid', color: 'error' },
@@ -116,9 +117,11 @@ const getProgressInfo = (inv, activeWorkflow = []) => {
 };
 
 export const SalesInvoicesPage = () => {
-  const location = useLocation();
   const navigate = useNavigate();
-  const { showError: showGprError } = useGprError();
+  const location = useLocation();
+  const { showGprError } = useGprError();
+  const { profile } = useAuth();
+  const isStakeholder = profile?.role === 'STAKEHOLDER';
 
   const [invoices, setInvoices] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -454,14 +457,22 @@ export const SalesInvoicesPage = () => {
         onSearchChange={setSearchQuery}
         searchPlaceholder="Search by invoice number or customer name..."
         actions={
-          <Button
-            variant="contained"
-            startIcon={<AddIcon />}
-            onClick={handleCreateClick}
-            sx={{ whiteSpace: 'nowrap' }}
-          >
-            Create Invoice
-          </Button>
+          <Tooltip title={isStakeholder ? 'Stakeholder read-only view' : ''}>
+            <span>
+              <Button
+                variant="contained"
+                startIcon={<AddIcon />}
+                onClick={handleCreateClick}
+                disabled={isStakeholder}
+                sx={{
+                  whiteSpace: 'nowrap',
+                  ...(isStakeholder ? { color: 'text.disabled', bgcolor: 'action.disabledBackground' } : {}),
+                }}
+              >
+                Create Invoice
+              </Button>
+            </span>
+          </Tooltip>
         }
       />
 

@@ -16,7 +16,8 @@ export const LoginPage = () => {
   // Handle automatic redirects if already logged in / restored session
   useEffect(() => {
     if (!authLoading && session && profile) {
-      if (profile.role === 'SUPER_ADMIN' || profile.role === 'STAFF') {
+      const isInternalUser = ['SUPER_ADMIN', 'STAFF', 'STAKEHOLDER', 'ACCOUNTS'].includes(profile.role);
+      if (isInternalUser) {
         navigate('/dashboard', { replace: true });
       } else {
         navigate('/', { replace: true });

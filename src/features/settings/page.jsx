@@ -340,17 +340,22 @@ export const SettingsPage = () => {
         <Typography variant="h4" fontWeight={800} color="primary">
           Company Settings
         </Typography>
-        {!isStakeholder && (
-          <Button
-            variant="contained"
-            startIcon={saving ? <CircularProgress size={20} color="inherit" /> : <SaveIcon />}
-            onClick={handleSave}
-            disabled={saving}
-            sx={{ fontWeight: 'bold' }}
-          >
-            Save Settings
-          </Button>
-        )}
+        <Tooltip title={isStakeholder ? 'Stakeholder read-only view' : ''}>
+          <span>
+            <Button
+              variant="contained"
+              startIcon={saving ? <CircularProgress size={20} color="inherit" /> : <SaveIcon />}
+              onClick={handleSave}
+              disabled={isStakeholder || saving}
+              sx={{
+                fontWeight: 'bold',
+                ...(isStakeholder ? { color: 'text.disabled', bgcolor: 'action.disabledBackground' } : {}),
+              }}
+            >
+              Save Settings
+            </Button>
+          </span>
+        </Tooltip>
       </Box>
 
       {error && <Alert severity="error" sx={{ mb: 3 }}>{error}</Alert>}
@@ -467,11 +472,21 @@ export const SettingsPage = () => {
                 placeholder="New Department/Step"
                 value={newDepartment}
                 onChange={(e) => setNewDepartment(e.target.value)}
+                disabled={isStakeholder}
                 onKeyDown={(e) => { if (e.key === 'Enter') handleAddDepartment() }}
               />
-              <Button variant="contained" onClick={handleAddDepartment} sx={{ minWidth: 40, p: 1 }}>
-                <AddIcon />
-              </Button>
+              <Tooltip title={isStakeholder ? 'Stakeholder read-only view' : ''}>
+                <span>
+                  <Button
+                    variant="contained"
+                    onClick={handleAddDepartment}
+                    disabled={isStakeholder || !newDepartment.trim()}
+                    sx={{ minWidth: 40, p: 1, ...(isStakeholder ? { color: 'text.disabled', bgcolor: 'action.disabledBackground' } : {}) }}
+                  >
+                    <AddIcon />
+                  </Button>
+                </span>
+              </Tooltip>
             </Box>
 
             <List dense sx={{ bgcolor: 'action.hover', borderRadius: 1, border: '1px solid', borderColor: 'divider' }}>
@@ -480,18 +495,34 @@ export const SettingsPage = () => {
                   <ListItem>
                     <ListItemText primary={`${index + 1}. ${dept}`} primaryTypographyProps={{ fontWeight: 600 }} />
                     <ListItemSecondaryAction>
-                      <IconButton size="small" onClick={() => handleMoveDepartment(index, 'up')} disabled={index === 0} title="Move Up">
-                        <ArrowUpwardIcon fontSize="small" />
-                      </IconButton>
-                      <IconButton size="small" onClick={() => handleMoveDepartment(index, 'down')} disabled={index === settings.production_workflow.length - 1} title="Move Down">
-                        <ArrowDownwardIcon fontSize="small" />
-                      </IconButton>
-                      <IconButton size="small" color="primary" onClick={() => handleOpenEditDept(index)} sx={{ ml: 0.5 }} title="Rename Department">
-                        <EditIcon fontSize="small" />
-                      </IconButton>
-                      <IconButton size="small" color="error" onClick={() => handleRequestDeleteDept(index)} sx={{ ml: 0.5 }} title="Delete Department">
-                        <DeleteIcon fontSize="small" />
-                      </IconButton>
+                      <Tooltip title={isStakeholder ? 'Stakeholder read-only view' : 'Move Up'}>
+                        <span>
+                          <IconButton size="small" onClick={() => handleMoveDepartment(index, 'up')} disabled={isStakeholder || index === 0}>
+                            <ArrowUpwardIcon fontSize="small" />
+                          </IconButton>
+                        </span>
+                      </Tooltip>
+                      <Tooltip title={isStakeholder ? 'Stakeholder read-only view' : 'Move Down'}>
+                        <span>
+                          <IconButton size="small" onClick={() => handleMoveDepartment(index, 'down')} disabled={isStakeholder || index === settings.production_workflow.length - 1}>
+                            <ArrowDownwardIcon fontSize="small" />
+                          </IconButton>
+                        </span>
+                      </Tooltip>
+                      <Tooltip title={isStakeholder ? 'Stakeholder read-only view' : 'Rename Department'}>
+                        <span>
+                          <IconButton size="small" color="primary" disabled={isStakeholder} onClick={() => handleOpenEditDept(index)} sx={{ ml: 0.5 }}>
+                            <EditIcon fontSize="small" />
+                          </IconButton>
+                        </span>
+                      </Tooltip>
+                      <Tooltip title={isStakeholder ? 'Stakeholder read-only view' : 'Delete Department'}>
+                        <span>
+                          <IconButton size="small" color="error" disabled={isStakeholder} onClick={() => handleRequestDeleteDept(index)} sx={{ ml: 0.5 }}>
+                            <DeleteIcon fontSize="small" />
+                          </IconButton>
+                        </span>
+                      </Tooltip>
                     </ListItemSecondaryAction>
                   </ListItem>
                   {index < settings.production_workflow.length - 1 && <Divider />}
@@ -807,24 +838,36 @@ export const SettingsPage = () => {
               </Box>
 
               <Box display="flex" gap={1}>
-                <Button
-                  variant={storageFolderName ? 'outlined' : 'contained'}
-                  color="primary"
-                  startIcon={<FolderOpenIcon />}
-                  onClick={handleChooseStorageFolder}
-                  size="small"
-                >
-                  {storageFolderName ? 'Change Folder' : 'Choose Base Folder (e.g. C:\\gpr_invoices)'}
-                </Button>
+                <Tooltip title={isStakeholder ? 'Stakeholder read-only view' : ''}>
+                  <span>
+                    <Button
+                      variant={storageFolderName ? 'outlined' : 'contained'}
+                      color="primary"
+                      startIcon={<FolderOpenIcon />}
+                      onClick={handleChooseStorageFolder}
+                      disabled={isStakeholder}
+                      size="small"
+                      sx={isStakeholder ? { color: 'text.disabled', bgcolor: 'action.disabledBackground' } : {}}
+                    >
+                      {storageFolderName ? 'Change Folder' : 'Choose Base Folder (e.g. C:\\gpr_invoices)'}
+                    </Button>
+                  </span>
+                </Tooltip>
                 {storageFolderName && (
-                  <Button
-                    variant="text"
-                    color="error"
-                    onClick={handleResetStorageFolder}
-                    size="small"
-                  >
-                    Reset
-                  </Button>
+                  <Tooltip title={isStakeholder ? 'Stakeholder read-only view' : ''}>
+                    <span>
+                      <Button
+                        variant="text"
+                        color="error"
+                        onClick={handleResetStorageFolder}
+                        disabled={isStakeholder}
+                        size="small"
+                        sx={isStakeholder ? { color: 'text.disabled' } : {}}
+                      >
+                        Reset
+                      </Button>
+                    </span>
+                  </Tooltip>
                 )}
               </Box>
             </Box>

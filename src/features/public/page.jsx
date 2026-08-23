@@ -113,10 +113,11 @@ export const PublicHomePage = () => {
   const handleUserMenuOpen = (e) => setUserMenuAnchor(e.currentTarget);
   const handleUserMenuClose = () => setUserMenuAnchor(null);
 
-  // Auto redirection for staff / admins to ERP dashboard
+  // Auto redirection for staff / admins / stakeholders / accounts to ERP dashboard
   useEffect(() => {
     if (!loading && profile) {
-      if (profile.role === 'SUPER_ADMIN' || profile.role === 'STAFF') {
+      const isInternal = ['SUPER_ADMIN', 'STAFF', 'STAKEHOLDER', 'ACCOUNTS'].includes(profile.role);
+      if (isInternal) {
         navigate('/dashboard', { replace: true });
       }
     }
@@ -127,7 +128,17 @@ export const PublicHomePage = () => {
     await signOut();
   };
 
-  const isStaffOrAdmin = profile?.role === 'SUPER_ADMIN' || profile?.role === 'STAFF';
+  const isInternalUser = ['SUPER_ADMIN', 'STAFF', 'STAKEHOLDER', 'ACCOUNTS'].includes(profile?.role);
+
+  const getRoleLabel = (role) => {
+    switch (role) {
+      case 'SUPER_ADMIN': return 'Super Admin';
+      case 'STAKEHOLDER': return 'Stakeholder';
+      case 'ACCOUNTS': return 'Accounts';
+      case 'STAFF': return 'Staff';
+      default: return 'Customer';
+    }
+  };
 
   return (
     <Box sx={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', bgcolor: 'background.default' }}>
@@ -294,15 +305,15 @@ export const PublicHomePage = () => {
                         {profile?.email || 'Logged In Account'}
                       </Typography>
                       <Chip
-                        label={isStaffOrAdmin ? (profile?.role === 'SUPER_ADMIN' ? 'Super Admin' : 'Staff') : 'Customer'}
+                        label={getRoleLabel(profile?.role)}
                         size="small"
-                        color={isStaffOrAdmin ? 'primary' : 'secondary'}
+                        color={isInternalUser ? 'primary' : 'secondary'}
                         sx={{ height: 20, fontSize: '0.7rem', fontWeight: 700 }}
                       />
                     </Box>
                     <Divider sx={{ my: 1 }} />
 
-                    {isStaffOrAdmin && (
+                    {isInternalUser && (
                       <MenuItem onClick={() => { handleUserMenuClose(); navigate('/dashboard'); }} sx={{ py: 1.2 }}>
                         <ListItemIcon sx={{ minWidth: 32, color: 'primary.main' }}>
                           <DashboardIcon fontSize="small" />

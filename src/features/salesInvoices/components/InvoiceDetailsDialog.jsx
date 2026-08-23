@@ -86,6 +86,7 @@ export const InvoiceDetailsDialog = ({
   const [unlinkJobDialogOpen, setUnlinkJobDialogOpen] = useState(false);
   const [unlinkJobLoading, setUnlinkJobLoading] = useState(false);
   const [unlinkJobError, setUnlinkJobError] = useState(null);
+  const [lastExportedBlob, setLastExportedBlob] = useState(null);
 
   const handlePrint = () => {
     window.print();
@@ -96,11 +97,13 @@ export const InvoiceDetailsDialog = ({
 
     try {
       setDownloadingPdf(true);
-      const pdfBlob = await generateInvoicePdf(invoice, companySettings, paperSize);
+      const containerEl = document.getElementById('printable-invoice-container');
+      const pdfBlob = await generateInvoicePdf(containerEl || invoice, companySettings, paperSize);
       if (!pdfBlob) {
         throw new Error('Failed to generate PDF document.');
       }
 
+      setLastExportedBlob(pdfBlob);
       const fileName = formatExportFileName(invoice, 'pdf');
       const result = await saveExportFile({
         fileBlob: pdfBlob,
@@ -131,6 +134,7 @@ export const InvoiceDetailsDialog = ({
       }
 
       const jpgBlob = await generateInvoiceJpg(containerEl, 2.5, 0.95);
+      setLastExportedBlob(jpgBlob);
       const fileName = formatExportFileName(invoice, 'jpg');
       const result = await saveExportFile({
         fileBlob: jpgBlob,
@@ -263,10 +267,19 @@ export const InvoiceDetailsDialog = ({
 
   const printStyles = `
     @page {
-      size: ${paperSize === 'A5' ? 'A5' : 'A4'};
-      margin: 10mm;
+      size: ${paperSize === 'A5' ? 'A5 portrait' : 'A4 portrait'};
+      margin: ${paperSize === 'A5' ? '6mm' : '8mm'};
     }
     @media print {
+      html, body {
+        width: 100% !important;
+        height: auto !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        background: #ffffff !important;
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+      }
       body * {
         visibility: hidden;
       }
@@ -277,11 +290,13 @@ export const InvoiceDetailsDialog = ({
         position: absolute;
         left: 0;
         top: 0;
-        width: ${paperSize === 'A5' ? '148mm' : '210mm'};
-        max-width: 100%;
-        margin: 0 auto;
-        padding: 0;
-        box-sizing: border-box;
+        width: 100% !important;
+        max-width: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        box-sizing: border-box !important;
+        border: none !important;
+        box-shadow: none !important;
       }
       .no-print {
         display: none !important;
@@ -338,49 +353,68 @@ export const InvoiceDetailsDialog = ({
 
         {invoice && (
           <Box display="flex" alignItems="center" gap={1} flexWrap="wrap">
-            {!isStakeholder && onClone && (
-              <Tooltip title="Clone Invoice">
-                <IconButton size="small" onClick={() => onClone(invoice)}>
-                  <ContentCopyIcon fontSize="small" />
-                </IconButton>
+            {onClone && (
+              <Tooltip title={isStakeholder ? 'Stakeholder read-only view' : 'Clone Invoice'}>
+                <span>
+                  <IconButton
+                    size="small"
+                    disabled={isStakeholder}
+                    onClick={() => onClone(invoice)}
+                    sx={isStakeholder ? { color: 'text.disabled' } : {}}
+                  >
+                    <ContentCopyIcon fontSize="small" />
+                  </IconButton>
+                </span>
               </Tooltip>
             )}
-            {!isStakeholder && onEdit && (
-              <Tooltip title="Edit Invoice">
-                <IconButton size="small" onClick={() => onEdit && onEdit(invoice)}>
-                  <EditIcon fontSize="small" />
-                </IconButton>
+            {onEdit && (
+              <Tooltip title={isStakeholder ? 'Stakeholder read-only view' : 'Edit Invoice'}>
+                <span>
+                  <IconButton
+                    size="small"
+                    disabled={isStakeholder}
+                    onClick={() => onEdit && onEdit(invoice)}
+                    sx={isStakeholder ? { color: 'text.disabled' } : {}}
+                  >
+                    <EditIcon fontSize="small" />
+                  </IconButton>
+                </span>
               </Tooltip>
             )}
-            {!isStakeholder && onVoid && (
-              <Tooltip title={invoice.status === 'void' ? 'Already Void' : 'Void Invoice'}>
+            {onVoid && (
+              <Tooltip title={isStakeholder ? 'Stakeholder read-only view' : (invoice.status === 'void' ? 'Already Void' : 'Void Invoice')}>
                 <span>
                   <IconButton
                     size="small"
                     color="warning"
-                    disabled={invoice.status === 'void'}
+                    disabled={isStakeholder || invoice.status === 'void'}
                     onClick={() => {
                       onClose();
                       onVoid(invoice);
                     }}
+                    sx={isStakeholder ? { color: 'text.disabled' } : {}}
                   >
                     <BlockIcon fontSize="small" />
                   </IconButton>
                 </span>
               </Tooltip>
             )}
-            {!isStakeholder && onDelete && (
-              <Tooltip title="Delete Invoice">
-                <IconButton
-                  size="small"
-                  color="error"
-                  onClick={() => {
-                    onClose();
-                    onDelete(invoice);
-                  }}
-                >
-                  <DeleteIcon fontSize="small" />
-                </IconButton>
+            {onDelete && (
+              <Tooltip title={isStakeholder ? 'Stakeholder read-only view' : 'Delete Invoice'}>
+                <span>
+                  <IconButton
+                    size="small"
+                    color="error"
+                    disabled={isStakeholder}
+                    onClick={() => {
+                      onClose();
+                      onDelete(invoice);
+                    }}
+                    sx={isStakeholder ? { color: 'text.disabled' } : {}}
+                  >
+                    <DeleteIcon fontSize="small" />
+                  </IconButton>
+                </span>
               </Tooltip>
             )}
 
@@ -462,18 +496,21 @@ export const InvoiceDetailsDialog = ({
                       sx={{ fontWeight: 700, fontSize: '0.7rem' }}
                     />
                   </Box>
-                  {!isStakeholder && (
-                    <Button
-                      size="small"
-                      variant="outlined"
-                      color="warning"
-                      startIcon={<LinkOffIcon />}
-                      onClick={() => setUnlinkJobDialogOpen(true)}
-                      sx={{ textTransform: 'none', fontWeight: 600, height: 26, fontSize: '0.75rem' }}
-                    >
-                      Unlink Job Card
-                    </Button>
-                  )}
+                  <Tooltip title={isStakeholder ? 'Stakeholder read-only view' : 'Unlink Job Card'}>
+                    <span>
+                      <Button
+                        size="small"
+                        variant="outlined"
+                        color="warning"
+                        disabled={isStakeholder}
+                        startIcon={<LinkOffIcon />}
+                        onClick={() => setUnlinkJobDialogOpen(true)}
+                        sx={{ textTransform: 'none', fontWeight: 600, height: 26, fontSize: '0.75rem', ...(isStakeholder ? { color: 'text.disabled', borderColor: 'divider' } : {}) }}
+                      >
+                        Unlink Job Card
+                      </Button>
+                    </span>
+                  </Tooltip>
                 </Box>
                 <InvoiceProgressBar
                   taskStatuses={[{ status: invoice.job_cards.status || 'New Orders', product_name: invoice.job_cards.description }]}
@@ -487,18 +524,21 @@ export const InvoiceDetailsDialog = ({
                 <Typography variant="body2" color="text.secondary">
                   No Job Card currently linked to this invoice.
                 </Typography>
-                {!isStakeholder && (
-                  <Button
-                    size="small"
-                    variant="outlined"
-                    color="primary"
-                    startIcon={<LinkIcon />}
-                    onClick={() => setLinkJobDialogOpen(true)}
-                    sx={{ textTransform: 'none', fontWeight: 700 }}
-                  >
-                    Link to Job Card
-                  </Button>
-                )}
+                <Tooltip title={isStakeholder ? 'Stakeholder read-only view' : 'Link to Job Card'}>
+                  <span>
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      color="primary"
+                      disabled={isStakeholder}
+                      startIcon={<LinkIcon />}
+                      onClick={() => setLinkJobDialogOpen(true)}
+                      sx={{ textTransform: 'none', fontWeight: 700, ...(isStakeholder ? { color: 'text.disabled', borderColor: 'divider' } : {}) }}
+                    >
+                      Link to Job Card
+                    </Button>
+                  </span>
+                </Tooltip>
               </Paper>
             )}
 
@@ -532,34 +572,28 @@ export const InvoiceDetailsDialog = ({
         </Button>
       </DialogActions>
 
-      {/* Manual Link Job Card Dialog */}
-      <Dialog open={linkJobDialogOpen} onClose={() => !linkJobLoading && setLinkJobDialogOpen(false)} maxWidth="xs" fullWidth>
-        <DialogTitle sx={{ fontWeight: 700, display: 'flex', alignItems: 'center', gap: 1 }}>
-          <LinkIcon color="primary" /> Link Job Card
-        </DialogTitle>
+      {/* Link Job Card Dialog */}
+      <Dialog open={linkJobDialogOpen} onClose={() => !linkJobLoading && setLinkJobDialogOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle sx={{ fontWeight: 700 }}>Link Invoice to Job Card</DialogTitle>
         <DialogContent>
           {linkJobError && <Alert severity="error" sx={{ mb: 2 }}>{linkJobError}</Alert>}
-          <DialogContentText sx={{ mb: 2 }}>
-            Select an unlinked Job Card for <strong>{invoice?.customers?.name || 'this customer'}</strong> to link with Invoice <strong>{invoice?.invoice_no}</strong> (newest first):
-          </DialogContentText>
+          <Typography variant="body2" color="text.secondary" mb={2}>
+            Select an existing Job Card to link to this invoice.
+          </Typography>
+
           <Autocomplete
             options={jobCardsList}
             loading={jobCardsLoading}
-            getOptionLabel={(option) => {
-              if (!option) return '';
-              const jcNo = `JC-${String(option.job_number || 0).padStart(4, '0')}`;
-              const cust = option.customers?.name || 'Customer';
-              const stage = option.status || 'New Orders';
-              return `${jcNo} • ${cust} • [${stage}]`;
-            }}
+            getOptionLabel={(option) => `JC-${String(option.job_number || 0).padStart(4, '0')}: ${option.description || 'Job Card'} (${option.customers?.name || 'Customer'})`}
             value={selectedJobToLink}
-            onChange={(_, val) => setSelectedJobToLink(val)}
+            onChange={(e, val) => setSelectedJobToLink(val)}
             renderInput={(params) => (
               <TextField
                 {...params}
-                label="Select Job Card"
-                placeholder="Search job number or customer..."
-                margin="dense"
+                label="Search Job Card"
+                variant="outlined"
+                size="small"
+                fullWidth
                 InputProps={{
                   ...params.InputProps,
                   endAdornment: (
@@ -608,10 +642,26 @@ export const InvoiceDetailsDialog = ({
 
       <Snackbar
         open={toastOpen}
-        autoHideDuration={4000}
+        autoHideDuration={6000}
         onClose={() => setToastOpen(false)}
         message={toastMessage}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+        action={
+          lastExportedBlob ? (
+            <Button
+              color="secondary"
+              size="small"
+              variant="contained"
+              onClick={() => {
+                const url = URL.createObjectURL(lastExportedBlob);
+                window.open(url, '_blank');
+              }}
+              sx={{ fontWeight: 700, textTransform: 'none', ml: 1 }}
+            >
+              Open File
+            </Button>
+          ) : null
+        }
       />
     </Dialog>
   );

@@ -45,6 +45,7 @@ import CannotDeleteDialog from '../../components/feedback/CannotDeleteDialog';
 import { SearchInput } from '../../components/ui/SearchInput';
 import { HighlightText } from '../../components/ui/HighlightText';
 import { formatDate } from '../../lib/formatDate';
+import { useAuth } from '../../hooks/useAuth';
 
 const headCells = [
   { id: 'name', label: 'Customer Name', align: 'left' },
@@ -65,6 +66,8 @@ const formatCurrency = (amount) => currencyFormatter.format(amount || 0);
 
 export const CustomersPage = () => {
   const navigate = useNavigate();
+  const { profile } = useAuth();
+  const isStakeholder = profile?.role === 'STAKEHOLDER';
   const [allCustomers, setAllCustomers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -234,21 +237,33 @@ export const CustomersPage = () => {
         searchPlaceholder="Search customers..."
         actions={
           <React.Fragment>
-            <Button
-              variant="outlined"
-              color="primary"
-              onClick={() => setImportWizardOpen(true)}
-            >
-              Import Customers
-            </Button>
-            <Button
-              variant="contained"
-              color="primary"
-              startIcon={<AddIcon />}
-              onClick={handleAddClick}
-            >
-              Add Customer
-            </Button>
+            <Tooltip title={isStakeholder ? 'Stakeholder read-only view' : ''}>
+              <span>
+                <Button
+                  variant="outlined"
+                  color="primary"
+                  disabled={isStakeholder}
+                  onClick={() => setImportWizardOpen(true)}
+                  sx={isStakeholder ? { color: 'text.disabled', borderColor: 'divider' } : {}}
+                >
+                  Import Customers
+                </Button>
+              </span>
+            </Tooltip>
+            <Tooltip title={isStakeholder ? 'Stakeholder read-only view' : ''}>
+              <span>
+                <Button
+                  variant="contained"
+                  color="primary"
+                  startIcon={<AddIcon />}
+                  disabled={isStakeholder}
+                  onClick={handleAddClick}
+                  sx={isStakeholder ? { color: 'text.disabled', bgcolor: 'action.disabledBackground' } : {}}
+                >
+                  Add Customer
+                </Button>
+              </span>
+            </Tooltip>
           </React.Fragment>
         }
       />
@@ -360,15 +375,31 @@ export const CustomersPage = () => {
                           <VisibilityIcon fontSize="small" />
                         </IconButton>
                       </Tooltip>
-                      <Tooltip title="Edit">
-                        <IconButton color="primary" onClick={() => handleEditClick(customer)} size="small" sx={{ mr: 0.5 }}>
-                          <EditIcon fontSize="small" />
-                        </IconButton>
+                      <Tooltip title={isStakeholder ? 'Stakeholder read-only view' : 'Edit'}>
+                        <span>
+                          <IconButton
+                            color="primary"
+                            disabled={isStakeholder}
+                            onClick={() => handleEditClick(customer)}
+                            size="small"
+                            sx={{ mr: 0.5, ...(isStakeholder ? { color: 'text.disabled' } : {}) }}
+                          >
+                            <EditIcon fontSize="small" />
+                          </IconButton>
+                        </span>
                       </Tooltip>
-                      <Tooltip title="Delete">
-                        <IconButton color="error" onClick={() => handleDeleteClick(customer)} size="small">
-                          <DeleteIcon fontSize="small" />
-                        </IconButton>
+                      <Tooltip title={isStakeholder ? 'Stakeholder read-only view' : 'Delete'}>
+                        <span>
+                          <IconButton
+                            color="error"
+                            disabled={isStakeholder}
+                            onClick={() => handleDeleteClick(customer)}
+                            size="small"
+                            sx={isStakeholder ? { color: 'text.disabled' } : {}}
+                          >
+                            <DeleteIcon fontSize="small" />
+                          </IconButton>
+                        </span>
                       </Tooltip>
                     </TableCell>
                   </TableRow>

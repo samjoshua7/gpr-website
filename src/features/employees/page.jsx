@@ -197,16 +197,22 @@ export const EmployeesPage = () => {
         onSearchChange={setSearchQuery}
         searchPlaceholder="Search by name, email, phone, or role..."
         actions={
-          !isStakeholder ? (
-            <Button
-              variant="contained"
-              startIcon={<AddIcon />}
-              onClick={handleAdd}
-              sx={{ fontWeight: 'bold' }}
-            >
-              Add Employee
-            </Button>
-          ) : null
+          <Tooltip title={isStakeholder ? 'Stakeholder read-only view' : ''}>
+            <span>
+              <Button
+                variant="contained"
+                startIcon={<AddIcon />}
+                onClick={handleAdd}
+                disabled={isStakeholder}
+                sx={{
+                  fontWeight: 'bold',
+                  ...(isStakeholder ? { color: 'text.disabled', bgcolor: 'action.disabledBackground' } : {}),
+                }}
+              >
+                Add Employee
+              </Button>
+            </span>
+          </Tooltip>
         }
       />
 
@@ -257,7 +263,7 @@ export const EmployeesPage = () => {
             ) : paginatedEmployees.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={6} align="center" sx={{ py: 3 }}>
-                  No employees found. Click "Add Employee" to create one.
+                  <Typography color="text.secondary">No employees found.</Typography>
                 </TableCell>
               </TableRow>
             ) : (
@@ -295,33 +301,45 @@ export const EmployeesPage = () => {
                     </Box>
                   </TableCell>
                   <TableCell>
-                    {!isStakeholder ? (
-                      <Tooltip title="Toggle Status">
-                        <IconButton onClick={() => handleToggleStatus(emp.employee_id, emp.active)} size="small">
-                          {emp.active ? <CheckCircleIcon color="success" /> : <CancelIcon color="error" />}
+                    <Tooltip title={isStakeholder ? 'Stakeholder read-only view' : 'Toggle Status'}>
+                      <span>
+                        <IconButton
+                          disabled={isStakeholder}
+                          onClick={() => handleToggleStatus(emp.employee_id, emp.active)}
+                          size="small"
+                        >
+                          {emp.active ? <CheckCircleIcon color={isStakeholder ? 'disabled' : 'success'} /> : <CancelIcon color={isStakeholder ? 'disabled' : 'error'} />}
                         </IconButton>
-                      </Tooltip>
-                    ) : (
-                      <Chip label={emp.active ? 'Active' : 'Inactive'} size="small" color={emp.active ? 'success' : 'default'} variant="outlined" />
-                    )}
+                      </span>
+                    </Tooltip>
                   </TableCell>
                   <TableCell align="right">
-                    {!isStakeholder ? (
-                      <React.Fragment>
-                        <Tooltip title="Edit">
-                          <IconButton color="primary" onClick={() => handleEdit(emp)} size="small">
-                            <EditIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                        <Tooltip title="Delete">
-                          <IconButton color="error" onClick={() => handleDelete(emp.employee_id)} size="small">
-                            <DeleteIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                      </React.Fragment>
-                    ) : (
-                      <Typography variant="caption" color="text.secondary">View Only</Typography>
-                    )}
+                    <Tooltip title={isStakeholder ? 'Stakeholder read-only view' : 'Edit'}>
+                      <span>
+                        <IconButton
+                          color="primary"
+                          disabled={isStakeholder}
+                          onClick={() => handleEdit(emp)}
+                          size="small"
+                          sx={isStakeholder ? { color: 'text.disabled' } : {}}
+                        >
+                          <EditIcon fontSize="small" />
+                        </IconButton>
+                      </span>
+                    </Tooltip>
+                    <Tooltip title={isStakeholder ? 'Stakeholder read-only view' : 'Delete'}>
+                      <span>
+                        <IconButton
+                          color="error"
+                          disabled={isStakeholder}
+                          onClick={() => handleDelete(emp.employee_id)}
+                          size="small"
+                          sx={isStakeholder ? { color: 'text.disabled' } : {}}
+                        >
+                          <DeleteIcon fontSize="small" />
+                        </IconButton>
+                      </span>
+                    </Tooltip>
                   </TableCell>
                 </TableRow>
               ))

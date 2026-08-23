@@ -354,33 +354,41 @@ export const JobCardDetailsModal = ({
                     Card can move across stages up to final stage without billing.
                   </Typography>
                 </Box>
-                {!isStakeholder && (
-                  <Box sx={{ display: 'flex', gap: 1 }}>
-                    <Button
-                      variant="outlined"
-                      color="primary"
-                      size="small"
-                      startIcon={<LinkIcon />}
-                      onClick={() => setLinkDialogOpen(true)}
-                      sx={{ textTransform: 'none', fontWeight: 700 }}
-                    >
-                      Link to Invoice
-                    </Button>
-                    <Button
-                      variant="contained"
-                      color="error"
-                      size="small"
-                      startIcon={<AddShoppingCartIcon />}
-                      onClick={() => {
-                        onClose();
-                        onCreateInvoice && onCreateInvoice(jobCard);
-                      }}
-                      sx={{ textTransform: 'none', fontWeight: 700 }}
-                    >
-                      Create Invoice
-                    </Button>
-                  </Box>
-                )}
+                <Box sx={{ display: 'flex', gap: 1 }}>
+                  <Tooltip title={isStakeholder ? 'Stakeholder read-only view' : ''}>
+                    <span>
+                      <Button
+                        variant="outlined"
+                        color="primary"
+                        size="small"
+                        disabled={isStakeholder}
+                        startIcon={<LinkIcon />}
+                        onClick={() => setLinkDialogOpen(true)}
+                        sx={{ textTransform: 'none', fontWeight: 700, ...(isStakeholder ? { color: 'text.disabled', borderColor: 'divider' } : {}) }}
+                      >
+                        Link to Invoice
+                      </Button>
+                    </span>
+                  </Tooltip>
+                  <Tooltip title={isStakeholder ? 'Stakeholder read-only view' : ''}>
+                    <span>
+                      <Button
+                        variant="contained"
+                        color="error"
+                        size="small"
+                        disabled={isStakeholder}
+                        startIcon={<AddShoppingCartIcon />}
+                        onClick={() => {
+                          onClose();
+                          onCreateInvoice && onCreateInvoice(jobCard);
+                        }}
+                        sx={{ textTransform: 'none', fontWeight: 700, ...(isStakeholder ? { color: 'text.disabled', bgcolor: 'action.disabledBackground' } : {}) }}
+                      >
+                        Create Invoice
+                      </Button>
+                    </span>
+                  </Tooltip>
+                </Box>
               </Paper>
             )
           )}
@@ -388,7 +396,7 @@ export const JobCardDetailsModal = ({
 
         <DialogActions sx={{ p: 2, display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 1 }}>
           <Box>
-            {!isStaff && !isStakeholder && (
+            {!isStaff && (
               isBilled ? (
                 <Tooltip title="This job card is linked to an active invoice. Unlink or delete the invoice first to remove this card.">
                   <span>
@@ -405,51 +413,66 @@ export const JobCardDetailsModal = ({
                   </span>
                 </Tooltip>
               ) : (
-                <Button
-                  variant="outlined"
-                  color="error"
-                  startIcon={<DeleteIcon />}
-                  size="small"
-                  onClick={() => {
-                    onClose();
-                    onDelete && onDelete(jobCard);
-                  }}
-                  sx={{ textTransform: 'none' }}
-                >
-                  Delete Job Card
-                </Button>
+                <Tooltip title={isStakeholder ? 'Stakeholder read-only view' : ''}>
+                  <span>
+                    <Button
+                      variant="outlined"
+                      color="error"
+                      startIcon={<DeleteIcon />}
+                      size="small"
+                      disabled={isStakeholder}
+                      onClick={() => {
+                        onClose();
+                        onDelete && onDelete(jobCard);
+                      }}
+                      sx={{ textTransform: 'none', ...(isStakeholder ? { color: 'text.disabled', borderColor: 'divider' } : {}) }}
+                    >
+                      Delete Job Card
+                    </Button>
+                  </span>
+                </Tooltip>
               )
             )}
           </Box>
 
           <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
             {/* Advance to Next Stage Button (for Staff & Admin) */}
-            {!isStakeholder && nextStage && (
-              <Button
-                variant="contained"
-                color="success"
-                startIcon={<CheckCircleIcon />}
-                onClick={handleOpenAdvance}
-                size="small"
-                sx={{ textTransform: 'none', fontWeight: 700 }}
-              >
-                Complete in {currentStage} → Move to {nextStage}
-              </Button>
+            {nextStage && (
+              <Tooltip title={isStakeholder ? 'Stakeholder read-only view' : ''}>
+                <span>
+                  <Button
+                    variant="contained"
+                    color="success"
+                    startIcon={<CheckCircleIcon />}
+                    onClick={handleOpenAdvance}
+                    size="small"
+                    disabled={isStakeholder}
+                    sx={{ textTransform: 'none', fontWeight: 700, ...(isStakeholder ? { color: 'text.disabled', bgcolor: 'action.disabledBackground' } : {}) }}
+                  >
+                    Complete in {currentStage} → Move to {nextStage}
+                  </Button>
+                </span>
+              </Tooltip>
             )}
 
-            {!isStaff && !isStakeholder && (
-              <Button
-                variant="outlined"
-                startIcon={<EditIcon />}
-                size="small"
-                onClick={() => {
-                  onClose();
-                  onEdit && onEdit(jobCard);
-                }}
-                sx={{ textTransform: 'none', fontWeight: 600 }}
-              >
-                Edit
-              </Button>
+            {!isStaff && (
+              <Tooltip title={isStakeholder ? 'Stakeholder read-only view' : ''}>
+                <span>
+                  <Button
+                    variant="outlined"
+                    startIcon={<EditIcon />}
+                    size="small"
+                    disabled={isStakeholder}
+                    onClick={() => {
+                      onClose();
+                      onEdit && onEdit(jobCard);
+                    }}
+                    sx={{ textTransform: 'none', fontWeight: 600, ...(isStakeholder ? { color: 'text.disabled', borderColor: 'divider' } : {}) }}
+                  >
+                    Edit
+                  </Button>
+                </span>
+              </Tooltip>
             )}
 
             <Button onClick={onClose} variant="contained" color="inherit" size="small" sx={{ textTransform: 'none' }}>
