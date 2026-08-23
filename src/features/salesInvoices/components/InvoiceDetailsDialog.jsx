@@ -19,6 +19,8 @@ import {
   Autocomplete,
   TextField,
   DialogContentText,
+  Checkbox,
+  FormControlLabel,
 } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
 import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
@@ -64,6 +66,7 @@ export const InvoiceDetailsDialog = ({
   const [invoice, setInvoice] = useState(null);
   const [companySettings, setCompanySettings] = useState(null);
   const [paperSize, setPaperSize] = useState('A4');
+  const [customerView, setCustomerView] = useState(true);
   const [taskStatuses, setTaskStatuses] = useState([]);
   const [workflow, setWorkflow] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -381,11 +384,29 @@ export const InvoiceDetailsDialog = ({
               </Tooltip>
             )}
 
+            <FormControlLabel
+              control={
+                <Checkbox
+                  size="small"
+                  checked={customerView}
+                  onChange={(e) => setCustomerView(e.target.checked)}
+                  color="primary"
+                  sx={{ p: 0.5 }}
+                />
+              }
+              label={
+                <Typography variant="caption" fontWeight={700} sx={{ whiteSpace: 'nowrap', userSelect: 'none' }}>
+                  Customer View
+                </Typography>
+              }
+              sx={{ ml: 0.5, mr: 0.5 }}
+            />
+
             <Select
               size="small"
               value={paperSize}
               onChange={(e) => setPaperSize(e.target.value)}
-              sx={{ height: 32, fontSize: '0.75rem', fontWeight: 600, ml: 1 }}
+              sx={{ height: 32, fontSize: '0.75rem', fontWeight: 600, ml: 0.5 }}
             >
               <MenuItem value="A4">A4 Sheet</MenuItem>
               <MenuItem value="A5">A5 Sheet</MenuItem>
@@ -430,13 +451,14 @@ export const InvoiceDetailsDialog = ({
               <Paper className="no-print" elevation={0} sx={{ p: 2, mb: 3, bgcolor: '#ffffff', borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1, flexWrap: 'wrap', gap: 1 }}>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <Typography variant="caption" color="text.secondary" fontWeight={700} display="block" sx={{ textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                      Production Workflow Progress
+                    <Typography variant="subtitle2" sx={{ fontWeight: 700, color: 'primary.main' }}>
+                      Production Progress: JC-{String(invoice.job_cards.job_number || 0).padStart(4, '0')}
                     </Typography>
                     <Chip
-                      label={`JC-${String(invoice.job_cards.job_number || 0).padStart(4, '0')}: ${invoice.job_cards.status || 'New Orders'}`}
-                      color="primary"
+                      label={invoice.job_cards.status || 'New Orders'}
                       size="small"
+                      color="primary"
+                      variant="outlined"
                       sx={{ fontWeight: 700, fontSize: '0.7rem' }}
                     />
                   </Box>
@@ -488,6 +510,7 @@ export const InvoiceDetailsDialog = ({
                     invoice={invoice}
                     companySettings={companySettings}
                     paperSize={paperSize}
+                    isCustomerView={customerView}
                   />
                 </Paper>
               </Grid>

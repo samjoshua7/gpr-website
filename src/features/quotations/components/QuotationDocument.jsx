@@ -20,7 +20,7 @@ const PAPER_CONFIG = {
   A5: { widthMm: 148, heightMm: 210, baseFontPx: 11, tableFontPx: 10.5, padding: 2.5, maxWidth: '600px' },
 };
 
-export const QuotationDocument = ({ quotation, companySettings, paperSize = 'A4' }) => {
+export const QuotationDocument = ({ quotation, companySettings, paperSize = 'A4', isCustomerView = true }) => {
   if (!quotation) return null;
 
   const config = PAPER_CONFIG[paperSize] || PAPER_CONFIG.A4;
@@ -85,7 +85,6 @@ export const QuotationDocument = ({ quotation, companySettings, paperSize = 'A4'
         boxSizing: 'border-box',
       }}
     >
-      {/* Header: Company Info (Left) & Logo (Right) */}
       <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={2}>
         <Box>
           <Typography variant="h5" fontWeight={800} sx={{ textTransform: 'uppercase', letterSpacing: 0.5, fontSize: `${config.baseFontPx + 8}px` }}>
@@ -95,83 +94,81 @@ export const QuotationDocument = ({ quotation, companySettings, paperSize = 'A4'
           <Box display="flex" gap={2} mt={0.5} mb={0.5}>
             {companySettings?.phone && (
               <Typography variant="body2" fontWeight={600} sx={{ fontSize: `${config.baseFontPx}px` }}>
-                Phone: {companySettings.phone}
+                Ph: {companySettings.phone}
               </Typography>
             )}
             {companySettings?.email && (
-              <Typography variant="body2" fontWeight={600} sx={{ fontSize: `${config.baseFontPx}px` }}>
+              <Typography variant="body2" sx={{ fontSize: `${config.baseFontPx}px` }}>
                 Email: {companySettings.email}
               </Typography>
             )}
           </Box>
 
           {companySettings?.address && (
-            <Typography variant="caption" color="text.secondary" sx={{ whiteSpace: 'pre-line', fontSize: `${config.baseFontPx - 2}px`, display: 'block' }}>
+            <Typography variant="caption" color="text.secondary" display="block" sx={{ fontSize: `${config.baseFontPx - 2}px` }}>
               {companySettings.address}
             </Typography>
           )}
-
-          {companySettings?.gstin && (
-            <Typography variant="body2" fontWeight={700} color="primary" mt={0.5} sx={{ fontSize: `${config.baseFontPx}px` }}>
+          {isGst && companySettings?.gstin && (
+            <Typography variant="caption" color="text.secondary" display="block" sx={{ fontSize: `${config.baseFontPx - 2}px` }}>
               GSTIN: {companySettings.gstin}
             </Typography>
           )}
         </Box>
-
         {companySettings?.logo_url && (
           <Box
             component="img"
             src={companySettings.logo_url}
             alt="Company Logo"
-            sx={{ maxHeight: paperSize === 'A5' ? 55 : 75, maxWidth: paperSize === 'A5' ? 150 : 200, objectFit: 'contain' }}
+            sx={{ height: config.baseFontPx + 36, maxHeight: 60, objectFit: 'contain' }}
           />
         )}
       </Box>
 
-      <Divider sx={{ borderBottomWidth: 2, borderColor: 'primary.main', my: 1.5 }} />
-
-      {/* Title */}
-      <Box textAlign="center" mb={2}>
-        <Typography variant="h6" fontWeight={800} sx={{ letterSpacing: 1, textTransform: 'uppercase', fontSize: `${config.baseFontPx + 4}px` }}>
-          {isGst ? 'GST QUOTATION' : 'QUOTATION'}
+      <Box textAlign="center" my={1.5} pb={1} borderBottom="2px solid #000">
+        <Typography variant="h6" fontWeight={800} sx={{ letterSpacing: 1, fontSize: `${config.baseFontPx + 4}px` }}>
+          QUOTATION / ESTIMATE
+        </Typography>
+        <Typography variant="caption" color="text.secondary" sx={{ fontSize: `${config.baseFontPx - 2}px` }}>
+          Official Commercial Quotation
         </Typography>
       </Box>
 
-      {/* Meta Box & Customer Info */}
       <Grid container spacing={2} mb={2}>
-        {/* Customer Info */}
         <Grid item xs={7}>
-          <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 1, height: '100%' }}>
-            <Typography variant="caption" color="text.secondary" fontWeight={700} display="block" sx={{ fontSize: `${config.baseFontPx - 3}px` }}>
+          <Paper variant="outlined" sx={{ p: 1.5, height: '100%', borderRadius: 1 }}>
+            <Typography variant="caption" color="text.secondary" fontWeight={700} display="block" mb={0.5} sx={{ fontSize: `${config.baseFontPx - 2}px` }}>
               QUOTATION FOR:
             </Typography>
             <Typography variant="subtitle2" fontWeight={800} sx={{ fontSize: `${config.baseFontPx}px` }}>
-              {quotation.customer_name || customer.name || 'N/A'}
+              {quotation.customer_name || customer.name || 'Walk-in Customer'}
             </Typography>
-            {(quotation.billing_address || customer.address) && (
-              <Typography variant="body2" sx={{ fontSize: `${config.baseFontPx - 2}px`, whiteSpace: 'pre-line' }}>
-                {quotation.billing_address || customer.address}
-              </Typography>
+            {customer.company_name && (
+              <Typography variant="body2" sx={{ fontSize: `${config.baseFontPx - 1}px` }}>{customer.company_name}</Typography>
             )}
             {customer.phone && (
-              <Typography variant="caption" display="block" sx={{ fontSize: `${config.baseFontPx - 2}px` }}>
-                Phone: {customer.phone}
+              <Typography variant="caption" display="block" sx={{ fontSize: `${config.baseFontPx - 2}px` }}>Phone: {customer.phone}</Typography>
+            )}
+            {customer.billing_address && (
+              <Typography variant="caption" color="text.secondary" display="block" sx={{ fontSize: `${config.baseFontPx - 2}px` }}>
+                {customer.billing_address}
               </Typography>
             )}
-            {(quotation.customer_gstin || customer.gstin) && (
-              <Typography variant="caption" fontWeight={700} display="block" color="primary" sx={{ fontSize: `${config.baseFontPx - 2}px` }}>
-                GSTIN: {quotation.customer_gstin || customer.gstin}
+            {customer.gstin && (
+              <Typography variant="caption" fontWeight={600} display="block" sx={{ fontSize: `${config.baseFontPx - 2}px` }}>
+                GSTIN: {customer.gstin}
               </Typography>
             )}
           </Paper>
         </Grid>
 
-        {/* Quotation Meta */}
         <Grid item xs={5}>
-          <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 1, height: '100%' }}>
+          <Paper variant="outlined" sx={{ p: 1.5, height: '100%', borderRadius: 1 }}>
             <Box display="flex" justifyContent="space-between" mb={0.5}>
-              <Typography variant="caption" color="text.secondary" sx={{ fontSize: `${config.baseFontPx - 2}px` }}>Quotation No:</Typography>
-              <Typography variant="body2" fontWeight={800} sx={{ fontSize: `${config.baseFontPx}px` }}>{quotation.quotation_no}</Typography>
+              <Typography variant="caption" color="text.secondary" sx={{ fontSize: `${config.baseFontPx - 2}px` }}>Quote No:</Typography>
+              <Typography variant="body2" fontWeight={800} color="primary" sx={{ fontSize: `${config.baseFontPx}px` }}>
+                {quotation.quotation_no}
+              </Typography>
             </Box>
             <Box display="flex" justifyContent="space-between" mb={0.5}>
               <Typography variant="caption" color="text.secondary" sx={{ fontSize: `${config.baseFontPx - 2}px` }}>Date:</Typography>
@@ -179,11 +176,11 @@ export const QuotationDocument = ({ quotation, companySettings, paperSize = 'A4'
                 {formatDate(quotation.quotation_date)}
               </Typography>
             </Box>
-            {isGst && (
+            {quotation.valid_until && (
               <Box display="flex" justifyContent="space-between" mb={0.5}>
-                <Typography variant="caption" color="text.secondary" sx={{ fontSize: `${config.baseFontPx - 2}px` }}>Place of Supply:</Typography>
+                <Typography variant="caption" color="text.secondary" sx={{ fontSize: `${config.baseFontPx - 2}px` }}>Valid Until:</Typography>
                 <Typography variant="caption" fontWeight={600} sx={{ fontSize: `${config.baseFontPx - 2}px` }}>
-                  {isInterstate ? 'Inter-State' : 'Intra-State (Tamil Nadu - 33)'}
+                  {formatDate(quotation.valid_until)}
                 </Typography>
               </Box>
             )}
@@ -192,11 +189,7 @@ export const QuotationDocument = ({ quotation, companySettings, paperSize = 'A4'
               <Typography
                 variant="caption"
                 fontWeight={800}
-                sx={{
-                  textTransform: 'uppercase',
-                  color: quotation.status === 'converted' ? 'success.main' : quotation.status === 'sent' ? 'info.main' : 'warning.main',
-                  fontSize: `${config.baseFontPx - 2}px`,
-                }}
+                sx={{ textTransform: 'uppercase', color: quotation.status === 'converted' ? 'success.main' : 'primary.main', fontSize: `${config.baseFontPx - 2}px` }}
               >
                 {quotation.status || 'DRAFT'}
               </Typography>
@@ -205,27 +198,33 @@ export const QuotationDocument = ({ quotation, companySettings, paperSize = 'A4'
         </Grid>
       </Grid>
 
-      {/* Line Items Table */}
       <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 1, mb: 2 }}>
         <Table size="small">
           <TableHead sx={{ bgcolor: 'grey.100' }}>
             <TableRow>
               <TableCell width="5%" sx={{ fontWeight: 700, fontSize: `${config.tableFontPx}px` }}>#</TableCell>
-              <TableCell width={isGst ? '40%' : '55%'} sx={{ fontWeight: 700, fontSize: `${config.tableFontPx}px` }}>
+              <TableCell width={isCustomerView ? '55%' : (isGst ? '40%' : '55%')} sx={{ fontWeight: 700, fontSize: `${config.tableFontPx}px` }}>
                 Item / Description
               </TableCell>
-              {isGst && <TableCell width="12%" sx={{ fontWeight: 700, fontSize: `${config.tableFontPx}px` }}>HSN/SAC</TableCell>}
+              {!isCustomerView && isGst && <TableCell width="12%" sx={{ fontWeight: 700, fontSize: `${config.tableFontPx}px` }}>HSN/SAC</TableCell>}
               <TableCell align="right" width="10%" sx={{ fontWeight: 700, fontSize: `${config.tableFontPx}px` }}>Qty</TableCell>
-              <TableCell align="right" width="12%" sx={{ fontWeight: 700, fontSize: `${config.tableFontPx}px` }}>Rate</TableCell>
-              {isGst && <TableCell align="right" width="10%" sx={{ fontWeight: 700, fontSize: `${config.tableFontPx}px` }}>GST %</TableCell>}
-              <TableCell align="right" width="15%" sx={{ fontWeight: 700, fontSize: `${config.tableFontPx}px` }}>Amount</TableCell>
+              <TableCell align="right" width="13%" sx={{ fontWeight: 700, fontSize: `${config.tableFontPx}px` }}>Rate</TableCell>
+              {!isCustomerView && isGst && <TableCell align="right" width="10%" sx={{ fontWeight: 700, fontSize: `${config.tableFontPx}px` }}>GST %</TableCell>}
+              <TableCell align="right" width="15%" sx={{ fontWeight: 700, fontSize: `${config.tableFontPx}px` }}>
+                {isCustomerView ? 'Total' : 'Amount'}
+              </TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
             {items.map((item, index) => {
               const qty = parseFloat(item.quantity) || 0;
               const rate = parseFloat(item.unit_price) || 0;
-              const itemTotal = qty * rate;
+              const itemPreTax = qty * rate;
+              const itemGstRate = isGst ? (parseFloat(item.gst_rate) || 0) : 0;
+              const itemTax = (itemPreTax * itemGstRate) / 100;
+              const itemGrossTotal = itemPreTax + itemTax;
+              const itemGrossRate = qty > 0 ? (itemGrossTotal / qty) : itemGrossTotal;
+
               const prodName = item.product_name || item.description;
               const desc = item.description && item.description !== prodName ? item.description : null;
 
@@ -242,12 +241,14 @@ export const QuotationDocument = ({ quotation, companySettings, paperSize = 'A4'
                       </Typography>
                     )}
                   </TableCell>
-                  {isGst && <TableCell sx={{ fontSize: `${config.tableFontPx}px` }}>{item.hsn_code || '-'}</TableCell>}
+                  {!isCustomerView && isGst && <TableCell sx={{ fontSize: `${config.tableFontPx}px` }}>{item.hsn_code || '-'}</TableCell>}
                   <TableCell align="right" sx={{ fontSize: `${config.tableFontPx}px` }}>{qty}</TableCell>
-                  <TableCell align="right" sx={{ fontSize: `${config.tableFontPx}px` }}>{rate.toFixed(2)}</TableCell>
-                  {isGst && <TableCell align="right" sx={{ fontSize: `${config.tableFontPx}px` }}>{item.gst_rate || 0}%</TableCell>}
+                  <TableCell align="right" sx={{ fontSize: `${config.tableFontPx}px` }}>
+                    {isCustomerView ? itemGrossRate.toFixed(2) : rate.toFixed(2)}
+                  </TableCell>
+                  {!isCustomerView && isGst && <TableCell align="right" sx={{ fontSize: `${config.tableFontPx}px` }}>{item.gst_rate || 0}%</TableCell>}
                   <TableCell align="right" fontWeight={600} sx={{ fontSize: `${config.tableFontPx}px` }}>
-                    {itemTotal.toFixed(2)}
+                    {isCustomerView ? itemGrossTotal.toFixed(2) : itemPreTax.toFixed(2)}
                   </TableCell>
                 </TableRow>
               );
@@ -256,15 +257,16 @@ export const QuotationDocument = ({ quotation, companySettings, paperSize = 'A4'
         </Table>
       </TableContainer>
 
-      {/* Summary Breakdown */}
       <Grid container spacing={2} mb={2}>
         <Grid item xs={6} />
         <Grid item xs={6}>
           <Box border="1px solid" borderColor="divider" borderRadius={1} p={1.5}>
-            <Box display="flex" justifyContent="space-between" mb={0.5}>
-              <Typography variant="caption" color="text.secondary" sx={{ fontSize: `${config.baseFontPx - 2}px` }}>Subtotal:</Typography>
-              <Typography variant="body2" fontWeight={600} sx={{ fontSize: `${config.baseFontPx - 1}px` }}>{formatCurrency(subtotal)}</Typography>
-            </Box>
+            {!isCustomerView && (
+              <Box display="flex" justifyContent="space-between" mb={0.5}>
+                <Typography variant="caption" color="text.secondary" sx={{ fontSize: `${config.baseFontPx - 2}px` }}>Subtotal:</Typography>
+                <Typography variant="body2" fontWeight={600} sx={{ fontSize: `${config.baseFontPx - 1}px` }}>{formatCurrency(subtotal)}</Typography>
+              </Box>
+            )}
 
             {discountAmount > 0 && (
               <Box display="flex" justifyContent="space-between" mb={0.5}>
@@ -273,7 +275,7 @@ export const QuotationDocument = ({ quotation, companySettings, paperSize = 'A4'
               </Box>
             )}
 
-            {isGst && (
+            {!isCustomerView && isGst && (
               <React.Fragment>
                 {isInterstate ? (
                   <Box display="flex" justifyContent="space-between" mb={0.5}>
@@ -303,11 +305,18 @@ export const QuotationDocument = ({ quotation, companySettings, paperSize = 'A4'
                 </Typography>
               </Box>
             )}
+
+            <Divider sx={{ my: 0.75 }} />
+            <Box display="flex" justifyContent="space-between" alignItems="center">
+              <Typography variant="subtitle2" fontWeight={800} sx={{ fontSize: `${config.baseFontPx}px` }}>Total:</Typography>
+              <Typography variant="subtitle2" fontWeight={800} color="primary.main" sx={{ fontSize: `${config.baseFontPx + 1}px` }}>
+                {formatCurrency(grandTotal)}
+              </Typography>
+            </Box>
           </Box>
         </Grid>
       </Grid>
 
-      {/* Bottom Row */}
       <Box display="flex" justifyContent="space-between" alignItems="flex-end" mt={3} pt={1} borderTop="1px solid #e0e0e0">
         <Box maxWidth="60%">
           <Box mb={1}>

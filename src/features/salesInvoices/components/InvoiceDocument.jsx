@@ -21,7 +21,7 @@ const PAPER_CONFIG = {
   A5: { widthMm: 148, heightMm: 210, baseFontPx: 11, tableFontPx: 10.5, padding: 2.5, maxWidth: '600px' },
 };
 
-export const InvoiceDocument = ({ invoice, companySettings, paperSize = 'A4' }) => {
+export const InvoiceDocument = ({ invoice, companySettings, paperSize = 'A4', isCustomerView = true }) => {
   if (!invoice) return null;
 
   const config = PAPER_CONFIG[paperSize] || PAPER_CONFIG.A4;
@@ -98,25 +98,24 @@ export const InvoiceDocument = ({ invoice, companySettings, paperSize = 'A4' }) 
           <Box display="flex" gap={2} mt={0.5} mb={0.5}>
             {companySettings?.phone && (
               <Typography variant="body2" fontWeight={600} sx={{ fontSize: `${config.baseFontPx}px` }}>
-                Phone: {companySettings.phone}
+                Ph: {companySettings.phone}
               </Typography>
             )}
             {companySettings?.email && (
-              <Typography variant="body2" fontWeight={600} sx={{ fontSize: `${config.baseFontPx}px` }}>
+              <Typography variant="body2" sx={{ fontSize: `${config.baseFontPx}px` }}>
                 Email: {companySettings.email}
               </Typography>
             )}
           </Box>
 
-          {/* Address secondary */}
+          {/* Secondary hierarchy: Address & Tax info subtle */}
           {companySettings?.address && (
-            <Typography variant="caption" color="text.secondary" sx={{ whiteSpace: 'pre-line', fontSize: `${config.baseFontPx - 2}px`, display: 'block' }}>
+            <Typography variant="caption" color="text.secondary" display="block" sx={{ fontSize: `${config.baseFontPx - 2}px` }}>
               {companySettings.address}
             </Typography>
           )}
-
-          {companySettings?.gstin && (
-            <Typography variant="body2" fontWeight={700} color="primary" mt={0.5} sx={{ fontSize: `${config.baseFontPx}px` }}>
+          {isGst && companySettings?.gstin && (
+            <Typography variant="caption" color="text.secondary" display="block" sx={{ fontSize: `${config.baseFontPx - 2}px` }}>
               GSTIN: {companySettings.gstin}
             </Typography>
           )}
@@ -127,78 +126,64 @@ export const InvoiceDocument = ({ invoice, companySettings, paperSize = 'A4' }) 
             component="img"
             src={companySettings.logo_url}
             alt="Company Logo"
-            sx={{ maxHeight: paperSize === 'A5' ? 55 : 75, maxWidth: paperSize === 'A5' ? 150 : 200, objectFit: 'contain' }}
+            sx={{ height: config.baseFontPx + 36, maxHeight: 60, objectFit: 'contain' }}
           />
         )}
       </Box>
 
-      <Divider sx={{ borderBottomWidth: 2, borderColor: 'primary.main', my: 1.5 }} />
-
-      {/* Invoice Title */}
-      <Box textAlign="center" mb={2}>
-        <Typography variant="h6" fontWeight={800} sx={{ letterSpacing: 1, textTransform: 'uppercase', fontSize: `${config.baseFontPx + 4}px` }}>
-          {isGst ? 'TAX INVOICE' : 'RETAIL BILL / INVOICE'}
+      {/* Invoice Title & Type */}
+      <Box textAlign="center" my={1.5} pb={1} borderBottom="2px solid #000">
+        <Typography variant="h6" fontWeight={800} sx={{ letterSpacing: 1, fontSize: `${config.baseFontPx + 4}px` }}>
+          {isGst ? 'TAX INVOICE' : 'INVOICE'}
+        </Typography>
+        <Typography variant="caption" color="text.secondary" sx={{ fontSize: `${config.baseFontPx - 2}px` }}>
+          Original for Recipient
         </Typography>
       </Box>
 
-      {/* Meta Box & Customer Info */}
+      {/* Meta Grid: Bill To (Left) & Invoice Details (Right) */}
       <Grid container spacing={2} mb={2}>
-        {/* Bill-To */}
+        {/* Bill To Info */}
         <Grid item xs={7}>
-          <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 1, height: '100%' }}>
-            <Typography variant="caption" color="text.secondary" fontWeight={700} display="block" sx={{ fontSize: `${config.baseFontPx - 3}px` }}>
-              BILLED TO:
+          <Paper variant="outlined" sx={{ p: 1.5, height: '100%', borderRadius: 1 }}>
+            <Typography variant="caption" color="text.secondary" fontWeight={700} display="block" mb={0.5} sx={{ fontSize: `${config.baseFontPx - 2}px` }}>
+              BILL TO:
             </Typography>
             <Typography variant="subtitle2" fontWeight={800} sx={{ fontSize: `${config.baseFontPx}px` }}>
-              {invoice.customer_name || customer.name || 'N/A'}
+              {invoice.customer_name || customer.name || 'Walk-in Customer'}
             </Typography>
-            {(invoice.billing_address || customer.address) && (
-              <Typography variant="body2" sx={{ fontSize: `${config.baseFontPx - 2}px`, whiteSpace: 'pre-line' }}>
-                {invoice.billing_address || customer.address}
-              </Typography>
+            {customer.company_name && (
+              <Typography variant="body2" sx={{ fontSize: `${config.baseFontPx - 1}px` }}>{customer.company_name}</Typography>
             )}
             {customer.phone && (
-              <Typography variant="caption" display="block" sx={{ fontSize: `${config.baseFontPx - 2}px` }}>
-                Phone: {customer.phone}
+              <Typography variant="caption" display="block" sx={{ fontSize: `${config.baseFontPx - 2}px` }}>Phone: {customer.phone}</Typography>
+            )}
+            {customer.billing_address && (
+              <Typography variant="caption" color="text.secondary" display="block" sx={{ fontSize: `${config.baseFontPx - 2}px` }}>
+                {customer.billing_address}
               </Typography>
             )}
-            {(invoice.customer_gstin || customer.gstin) && (
-              <Typography variant="caption" fontWeight={700} display="block" color="primary" sx={{ fontSize: `${config.baseFontPx - 2}px` }}>
-                GSTIN: {invoice.customer_gstin || customer.gstin}
+            {customer.gstin && (
+              <Typography variant="caption" fontWeight={600} display="block" sx={{ fontSize: `${config.baseFontPx - 2}px` }}>
+                GSTIN: {customer.gstin}
               </Typography>
             )}
           </Paper>
         </Grid>
 
-        {/* Invoice Meta */}
+        {/* Invoice Metadata */}
         <Grid item xs={5}>
-          <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 1, height: '100%' }}>
+          <Paper variant="outlined" sx={{ p: 1.5, height: '100%', borderRadius: 1 }}>
             <Box display="flex" justifyContent="space-between" mb={0.5}>
               <Typography variant="caption" color="text.secondary" sx={{ fontSize: `${config.baseFontPx - 2}px` }}>Invoice No:</Typography>
-              <Typography variant="body2" fontWeight={800} sx={{ fontSize: `${config.baseFontPx}px` }}>{invoice.invoice_no}</Typography>
+              <Typography variant="body2" fontWeight={800} color="primary" sx={{ fontSize: `${config.baseFontPx}px` }}>
+                {invoice.invoice_no}
+              </Typography>
             </Box>
             <Box display="flex" justifyContent="space-between" mb={0.5}>
               <Typography variant="caption" color="text.secondary" sx={{ fontSize: `${config.baseFontPx - 2}px` }}>Date:</Typography>
               <Typography variant="body2" fontWeight={700} sx={{ fontSize: `${config.baseFontPx - 1}px` }}>
                 {formatDate(invoice.invoice_date)}
-              </Typography>
-            </Box>
-            {isGst && (
-              <Box display="flex" justifyContent="space-between" mb={0.5}>
-                <Typography variant="caption" color="text.secondary" sx={{ fontSize: `${config.baseFontPx - 2}px` }}>Place of Supply:</Typography>
-                <Typography variant="caption" fontWeight={600} sx={{ fontSize: `${config.baseFontPx - 2}px` }}>
-                  {isInterstate ? 'Inter-State' : 'Intra-State (Tamil Nadu - 33)'}
-                </Typography>
-              </Box>
-            )}
-            <Box display="flex" justifyContent="space-between">
-              <Typography variant="caption" color="text.secondary" sx={{ fontSize: `${config.baseFontPx - 2}px` }}>Payment Status:</Typography>
-              <Typography
-                variant="caption"
-                fontWeight={800}
-                sx={{ textTransform: 'uppercase', color: invoice.status === 'paid' ? 'success.main' : 'error.main', fontSize: `${config.baseFontPx - 2}px` }}
-              >
-                {invoice.status || 'UNPAID'}
               </Typography>
             </Box>
           </Paper>
@@ -211,21 +196,28 @@ export const InvoiceDocument = ({ invoice, companySettings, paperSize = 'A4' }) 
           <TableHead sx={{ bgcolor: 'grey.100' }}>
             <TableRow>
               <TableCell width="5%" sx={{ fontWeight: 700, fontSize: `${config.tableFontPx}px` }}>#</TableCell>
-              <TableCell width={isGst ? '40%' : '55%'} sx={{ fontWeight: 700, fontSize: `${config.tableFontPx}px` }}>
+              <TableCell width={isCustomerView ? '55%' : (isGst ? '40%' : '55%')} sx={{ fontWeight: 700, fontSize: `${config.tableFontPx}px` }}>
                 Item / Description
               </TableCell>
-              {isGst && <TableCell width="12%" sx={{ fontWeight: 700, fontSize: `${config.tableFontPx}px` }}>HSN/SAC</TableCell>}
+              {!isCustomerView && isGst && <TableCell width="12%" sx={{ fontWeight: 700, fontSize: `${config.tableFontPx}px` }}>HSN/SAC</TableCell>}
               <TableCell align="right" width="10%" sx={{ fontWeight: 700, fontSize: `${config.tableFontPx}px` }}>Qty</TableCell>
-              <TableCell align="right" width="12%" sx={{ fontWeight: 700, fontSize: `${config.tableFontPx}px` }}>Rate</TableCell>
-              {isGst && <TableCell align="right" width="10%" sx={{ fontWeight: 700, fontSize: `${config.tableFontPx}px` }}>GST %</TableCell>}
-              <TableCell align="right" width="15%" sx={{ fontWeight: 700, fontSize: `${config.tableFontPx}px` }}>Amount</TableCell>
+              <TableCell align="right" width="13%" sx={{ fontWeight: 700, fontSize: `${config.tableFontPx}px` }}>Rate</TableCell>
+              {!isCustomerView && isGst && <TableCell align="right" width="10%" sx={{ fontWeight: 700, fontSize: `${config.tableFontPx}px` }}>GST %</TableCell>}
+              <TableCell align="right" width="15%" sx={{ fontWeight: 700, fontSize: `${config.tableFontPx}px` }}>
+                {isCustomerView ? 'Total' : 'Amount'}
+              </TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
             {items.map((item, index) => {
               const qty = parseFloat(item.quantity) || 0;
               const rate = parseFloat(item.unit_price) || 0;
-              const itemTotal = qty * rate;
+              const itemPreTax = qty * rate;
+              const itemGstRate = isGst ? (parseFloat(item.gst_rate) || 0) : 0;
+              const itemTax = (itemPreTax * itemGstRate) / 100;
+              const itemGrossTotal = itemPreTax + itemTax;
+              const itemGrossRate = qty > 0 ? (itemGrossTotal / qty) : itemGrossTotal;
+
               const prodName = item.product_name || item.description;
               const desc = item.description && item.description !== prodName ? item.description : null;
 
@@ -242,12 +234,14 @@ export const InvoiceDocument = ({ invoice, companySettings, paperSize = 'A4' }) 
                       </Typography>
                     )}
                   </TableCell>
-                  {isGst && <TableCell sx={{ fontSize: `${config.tableFontPx}px` }}>{item.hsn_code || '-'}</TableCell>}
+                  {!isCustomerView && isGst && <TableCell sx={{ fontSize: `${config.tableFontPx}px` }}>{item.hsn_code || '-'}</TableCell>}
                   <TableCell align="right" sx={{ fontSize: `${config.tableFontPx}px` }}>{qty}</TableCell>
-                  <TableCell align="right" sx={{ fontSize: `${config.tableFontPx}px` }}>{rate.toFixed(2)}</TableCell>
-                  {isGst && <TableCell align="right" sx={{ fontSize: `${config.tableFontPx}px` }}>{item.gst_rate || 0}%</TableCell>}
+                  <TableCell align="right" sx={{ fontSize: `${config.tableFontPx}px` }}>
+                    {isCustomerView ? itemGrossRate.toFixed(2) : rate.toFixed(2)}
+                  </TableCell>
+                  {!isCustomerView && isGst && <TableCell align="right" sx={{ fontSize: `${config.tableFontPx}px` }}>{item.gst_rate || 0}%</TableCell>}
                   <TableCell align="right" fontWeight={600} sx={{ fontSize: `${config.tableFontPx}px` }}>
-                    {itemTotal.toFixed(2)}
+                    {isCustomerView ? itemGrossTotal.toFixed(2) : itemPreTax.toFixed(2)}
                   </TableCell>
                 </TableRow>
               );
@@ -256,15 +250,17 @@ export const InvoiceDocument = ({ invoice, companySettings, paperSize = 'A4' }) 
         </Table>
       </TableContainer>
 
-      {/* Summary Breakdown Table / Grid (Taxable Amount display row removed per Requirement 5) */}
+      {/* Summary Breakdown Table / Grid */}
       <Grid container spacing={2} mb={2}>
         <Grid item xs={6} />
         <Grid item xs={6}>
           <Box border="1px solid" borderColor="divider" borderRadius={1} p={1.5}>
-            <Box display="flex" justifyContent="space-between" mb={0.5}>
-              <Typography variant="caption" color="text.secondary" sx={{ fontSize: `${config.baseFontPx - 2}px` }}>Subtotal:</Typography>
-              <Typography variant="body2" fontWeight={600} sx={{ fontSize: `${config.baseFontPx - 1}px` }}>{formatCurrency(subtotal)}</Typography>
-            </Box>
+            {!isCustomerView && (
+              <Box display="flex" justifyContent="space-between" mb={0.5}>
+                <Typography variant="caption" color="text.secondary" sx={{ fontSize: `${config.baseFontPx - 2}px` }}>Subtotal:</Typography>
+                <Typography variant="body2" fontWeight={600} sx={{ fontSize: `${config.baseFontPx - 1}px` }}>{formatCurrency(subtotal)}</Typography>
+              </Box>
+            )}
 
             {discountAmount > 0 && (
               <Box display="flex" justifyContent="space-between" mb={0.5}>
@@ -273,7 +269,7 @@ export const InvoiceDocument = ({ invoice, companySettings, paperSize = 'A4' }) 
               </Box>
             )}
 
-            {isGst && (
+            {!isCustomerView && isGst && (
               <React.Fragment>
                 {isInterstate ? (
                   <Box display="flex" justifyContent="space-between" mb={0.5}>
@@ -303,6 +299,14 @@ export const InvoiceDocument = ({ invoice, companySettings, paperSize = 'A4' }) 
                 </Typography>
               </Box>
             )}
+
+            <Divider sx={{ my: 0.75 }} />
+            <Box display="flex" justifyContent="space-between" alignItems="center">
+              <Typography variant="subtitle2" fontWeight={800} sx={{ fontSize: `${config.baseFontPx}px` }}>Total:</Typography>
+              <Typography variant="subtitle2" fontWeight={800} color="primary.main" sx={{ fontSize: `${config.baseFontPx + 1}px` }}>
+                {formatCurrency(grandTotal)}
+              </Typography>
+            </Box>
           </Box>
         </Grid>
       </Grid>

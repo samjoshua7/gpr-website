@@ -17,6 +17,8 @@ import {
   MenuItem,
   Paper,
   Snackbar,
+  Checkbox,
+  FormControlLabel,
 } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
 import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
@@ -50,6 +52,7 @@ export const QuotationDetailsDialog = ({ open, onClose, quotationId, onEdit, onC
   const [quotation, setQuotation] = useState(null);
   const [companySettings, setCompanySettings] = useState(null);
   const [paperSize, setPaperSize] = useState('A4');
+  const [customerView, setCustomerView] = useState(true);
   const [loading, setLoading] = useState(false);
   const [downloadingPdf, setDownloadingPdf] = useState(false);
   const [exportingJpg, setExportingJpg] = useState(false);
@@ -308,6 +311,24 @@ export const QuotationDetailsDialog = ({ open, onClose, quotationId, onEdit, onC
               </Tooltip>
             )}
 
+            <FormControlLabel
+              control={
+                <Checkbox
+                  size="small"
+                  checked={customerView}
+                  onChange={(e) => setCustomerView(e.target.checked)}
+                  color="primary"
+                  sx={{ p: 0.5 }}
+                />
+              }
+              label={
+                <Typography variant="caption" fontWeight={700} sx={{ whiteSpace: 'nowrap', userSelect: 'none' }}>
+                  Customer View
+                </Typography>
+              }
+              sx={{ ml: 0.5, mr: 0.5 }}
+            />
+
             <Select
               size="small"
               value={paperSize}
@@ -370,6 +391,7 @@ export const QuotationDetailsDialog = ({ open, onClose, quotationId, onEdit, onC
                     quotation={quotation}
                     companySettings={companySettings}
                     paperSize={paperSize}
+                    isCustomerView={customerView}
                   />
                 </Paper>
               </Grid>
