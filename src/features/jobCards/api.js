@@ -41,7 +41,7 @@ export const getJobCards = async (searchQuery = '', statusFilter = '', forceRefr
         created_at
       )
     `)
-    .order('created_at', { ascending: false });
+    .order('created_at', { ascending: true });
 
   if (statusFilter && statusFilter !== 'all') {
     query = query.eq('status', statusFilter);
