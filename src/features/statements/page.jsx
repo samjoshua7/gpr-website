@@ -297,7 +297,7 @@ export const StatementsPage = () => {
   };
 
   return (
-    <Box sx={{ width: '100%' }}>
+    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       <PageToolbar
         title="Statements & Financial Reports"
         subtitle="Customer statements, ledger balances, and official GST portal GSTR-1 reports"
@@ -309,8 +309,9 @@ export const StatementsPage = () => {
               startIcon={<FileDownloadIcon />}
               onClick={() => handleExportGstr1Excel('all')}
               disabled={exportingGst || gstDatasets.b2b.length + gstDatasets.b2cs.length === 0}
+              sx={{ fontWeight: 700 }}
             >
-              {exportingGst ? 'Generating GSTR-1...' : 'Export GSTR-1 Excel (Upload Ready)'}
+              {exportingGst ? 'Generating GSTR-1...' : 'Export GSTR-1 Excel'}
             </Button>
           ) : (
             <Button
@@ -319,6 +320,7 @@ export const StatementsPage = () => {
               startIcon={<PictureAsPdfIcon />}
               onClick={handleExportPDF}
               disabled={loading || combinedData.length === 0}
+              sx={{ fontWeight: 700 }}
             >
               Export PDF
             </Button>
@@ -326,7 +328,7 @@ export const StatementsPage = () => {
         }
       />
 
-      <Paper sx={{ mb: 3 }}>
+      <Paper variant="outlined" sx={{ mb: 1.5, flexShrink: 0, borderRadius: 1.5 }}>
         <Tabs
           value={tabIndex}
           onChange={handleTabChange}
@@ -334,25 +336,26 @@ export const StatementsPage = () => {
           textColor="primary"
           variant="scrollable"
           scrollButtons="auto"
+          sx={{ minHeight: 38 }}
         >
-          <Tab label="All Transactions" />
-          <Tab label="Customer Statement" />
-          <Tab label="Date Range Statement" />
+          <Tab label="All Transactions" sx={{ minHeight: 38, py: 0.5, fontWeight: 700 }} />
+          <Tab label="Customer Statement" sx={{ minHeight: 38, py: 0.5, fontWeight: 700 }} />
+          <Tab label="Date Range Statement" sx={{ minHeight: 38, py: 0.5, fontWeight: 700 }} />
           <Tab
             icon={<TableChartIcon fontSize="small" />}
             iconPosition="start"
             label="GST Reports (GSTR-1 Portal Ready)"
-            sx={{ fontWeight: 700, color: tabIndex === 3 ? 'success.main' : 'inherit' }}
+            sx={{ minHeight: 38, py: 0.5, fontWeight: 700, color: tabIndex === 3 ? 'success.main' : 'inherit' }}
           />
         </Tabs>
       </Paper>
 
       {/* --- TAB 3: GST REPORTS (GSTR-1 PORTAL READY) --- */}
       {tabIndex === 3 ? (
-        <Box>
+        <Box sx={{ flexGrow: 1, overflowY: 'auto', pr: 0.5 }}>
           {/* Period Filter & Quick Buttons */}
-          <Paper sx={{ p: 2, mb: 3 }}>
-            <Grid container spacing={2} alignItems="center">
+          <Paper variant="outlined" sx={{ p: 1.5, mb: 2, borderRadius: 1.5 }}>
+            <Grid container spacing={1.5} alignItems="center">
               <Grid item xs={12} md={5}>
                 <Box display="flex" gap={1} alignItems="center">
                   <TextField
@@ -396,14 +399,14 @@ export const StatementsPage = () => {
           </Paper>
 
           {/* GST Summary Metric Cards */}
-          <Grid container spacing={2} sx={{ mb: 3 }}>
+          <Grid container spacing={1.5} sx={{ mb: 2 }}>
             <Grid item xs={12} sm={6} md={3}>
-              <Card sx={{ bgcolor: 'grey.50', border: '1px solid', borderColor: 'divider' }}>
-                <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
+              <Card sx={{ bgcolor: 'grey.50', border: '1px solid', borderColor: 'divider', borderRadius: 1.5 }}>
+                <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
                   <Typography variant="caption" color="text.secondary" fontWeight={700} display="block">
                     TOTAL TAXABLE TURNOVER
                   </Typography>
-                  <Typography variant="h5" fontWeight={900} color="primary.main">
+                  <Typography variant="h6" fontWeight={900} color="primary.main">
                     {formatCurrency(gstDatasets.summary.totalTaxable)}
                   </Typography>
                   <Typography variant="caption" color="text.secondary">
@@ -414,12 +417,12 @@ export const StatementsPage = () => {
             </Grid>
 
             <Grid item xs={12} sm={6} md={3}>
-              <Card sx={{ bgcolor: 'grey.50', border: '1px solid', borderColor: 'divider' }}>
-                <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
+              <Card sx={{ bgcolor: 'grey.50', border: '1px solid', borderColor: 'divider', borderRadius: 1.5 }}>
+                <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
                   <Typography variant="caption" color="text.secondary" fontWeight={700} display="block">
                     B2B TAXABLE VALUE (4A)
                   </Typography>
-                  <Typography variant="h5" fontWeight={900} color="success.main">
+                  <Typography variant="h6" fontWeight={900} color="success.main">
                     {formatCurrency(gstDatasets.summary.b2bTaxable)}
                   </Typography>
                   <Typography variant="caption" color="text.secondary">
@@ -430,12 +433,12 @@ export const StatementsPage = () => {
             </Grid>
 
             <Grid item xs={12} sm={6} md={3}>
-              <Card sx={{ bgcolor: 'grey.50', border: '1px solid', borderColor: 'divider' }}>
-                <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
+              <Card sx={{ bgcolor: 'grey.50', border: '1px solid', borderColor: 'divider', borderRadius: 1.5 }}>
+                <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
                   <Typography variant="caption" color="text.secondary" fontWeight={700} display="block">
                     B2C TAXABLE VALUE (7)
                   </Typography>
-                  <Typography variant="h5" fontWeight={900} color="secondary.main">
+                  <Typography variant="h6" fontWeight={900} color="secondary.main">
                     {formatCurrency(gstDatasets.summary.b2cTaxable)}
                   </Typography>
                   <Typography variant="caption" color="text.secondary">
@@ -446,12 +449,12 @@ export const StatementsPage = () => {
             </Grid>
 
             <Grid item xs={12} sm={6} md={3}>
-              <Card sx={{ bgcolor: 'grey.50', border: '1px solid', borderColor: 'divider' }}>
-                <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
+              <Card sx={{ bgcolor: 'grey.50', border: '1px solid', borderColor: 'divider', borderRadius: 1.5 }}>
+                <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
                   <Typography variant="caption" color="text.secondary" fontWeight={700} display="block">
                     TOTAL GST LIABILITY
                   </Typography>
-                  <Typography variant="h5" fontWeight={900} color="error.main">
+                  <Typography variant="h6" fontWeight={900} color="error.main">
                     {formatCurrency(gstDatasets.summary.totalGst)}
                   </Typography>
                   <Typography variant="caption" color="text.secondary">
@@ -463,9 +466,9 @@ export const StatementsPage = () => {
           </Grid>
 
           {/* Export Buttons Bar */}
-          <Paper sx={{ p: 2, mb: 3, display: 'flex', gap: 1.5, flexWrap: 'wrap', alignItems: 'center', bgcolor: '#f8fafc', border: '1px solid #e2e8f0' }}>
+          <Paper variant="outlined" sx={{ p: 1.5, mb: 2, display: 'flex', gap: 1, flexWrap: 'wrap', alignItems: 'center', bgcolor: '#f8fafc', borderRadius: 1.5 }}>
             <Typography variant="subtitle2" fontWeight={700} sx={{ mr: 1 }}>
-              Quick Export to <code>C:\gpr_invoices\accounts\</code>:
+              Export GSTR-1:
             </Typography>
             <Button
               variant="contained"
@@ -474,8 +477,9 @@ export const StatementsPage = () => {
               startIcon={<FileDownloadIcon />}
               onClick={() => handleExportGstr1Excel('all')}
               disabled={exportingGst}
+              sx={{ fontWeight: 700 }}
             >
-              Full GSTR-1 Workbook (.xlsx)
+              Full Workbook (.xlsx)
             </Button>
             <Button
               variant="outlined"
@@ -485,7 +489,7 @@ export const StatementsPage = () => {
               onClick={() => handleExportGstr1Excel('b2b')}
               disabled={exportingGst || gstDatasets.b2b.length === 0}
             >
-              B2B Sheet Only
+              B2B Sheet
             </Button>
             <Button
               variant="outlined"
@@ -495,7 +499,7 @@ export const StatementsPage = () => {
               onClick={() => handleExportGstr1Excel('b2cs')}
               disabled={exportingGst || gstDatasets.b2cs.length === 0}
             >
-              B2C Sheet Only
+              B2C Sheet
             </Button>
             <Button
               variant="outlined"
@@ -505,28 +509,29 @@ export const StatementsPage = () => {
               onClick={() => handleExportGstr1Excel('hsn')}
               disabled={exportingGst || gstDatasets.hsn.length === 0}
             >
-              HSN Summary Only
+              HSN Summary
             </Button>
           </Paper>
 
           {/* GST Sub-Tabs (B2B, B2CS, HSN, DOCS) */}
-          <Paper sx={{ mb: 2 }}>
+          <Paper variant="outlined" sx={{ mb: 1.5, borderRadius: 1.5 }}>
             <Tabs
               value={gstSubTab}
               onChange={(e, v) => setGstSubTab(v)}
               textColor="primary"
               indicatorColor="primary"
+              sx={{ minHeight: 38 }}
             >
-              <Tab label={`B2B Invoices (${gstDatasets.b2b.length})`} />
-              <Tab label={`B2C Small Summary (${gstDatasets.b2cs.length})`} />
-              <Tab label={`HSN Summary (${gstDatasets.hsn.length})`} />
-              <Tab label={`Documents Issued (${gstDatasets.docs.length})`} />
+              <Tab label={`B2B Invoices (${gstDatasets.b2b.length})`} sx={{ minHeight: 38, py: 0.5, fontWeight: 700 }} />
+              <Tab label={`B2C Small (${gstDatasets.b2cs.length})`} sx={{ minHeight: 38, py: 0.5, fontWeight: 700 }} />
+              <Tab label={`HSN Summary (${gstDatasets.hsn.length})`} sx={{ minHeight: 38, py: 0.5, fontWeight: 700 }} />
+              <Tab label={`Documents (${gstDatasets.docs.length})`} sx={{ minHeight: 38, py: 0.5, fontWeight: 700 }} />
             </Tabs>
           </Paper>
 
           {/* Subtab 0: B2B Table */}
           {gstSubTab === 0 && (
-            <TableContainer component={Paper} elevation={1}>
+            <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 1.5, mb: 3 }}>
               <Table size="small">
                 <TableHead sx={{ bgcolor: 'grey.100' }}>
                   <TableRow>
@@ -568,7 +573,7 @@ export const StatementsPage = () => {
 
           {/* Subtab 1: B2CS Table */}
           {gstSubTab === 1 && (
-            <TableContainer component={Paper} elevation={1}>
+            <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 1.5, mb: 3 }}>
               <Table size="small">
                 <TableHead sx={{ bgcolor: 'grey.100' }}>
                   <TableRow>
@@ -604,7 +609,7 @@ export const StatementsPage = () => {
 
           {/* Subtab 2: HSN Summary Table */}
           {gstSubTab === 2 && (
-            <TableContainer component={Paper} elevation={1}>
+            <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 1.5, mb: 3 }}>
               <Table size="small">
                 <TableHead sx={{ bgcolor: 'grey.100' }}>
                   <TableRow>
@@ -648,7 +653,7 @@ export const StatementsPage = () => {
 
           {/* Subtab 3: Documents Issued Table */}
           {gstSubTab === 3 && (
-            <TableContainer component={Paper} elevation={1}>
+            <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 1.5, mb: 3 }}>
               <Table size="small">
                 <TableHead sx={{ bgcolor: 'grey.100' }}>
                   <TableRow>
@@ -676,10 +681,10 @@ export const StatementsPage = () => {
         </Box>
       ) : (
         /* --- STANDARD STATEMENTS TABS (0, 1, 2) --- */
-        <Box>
-          {/* Filters */}
-          <Paper sx={{ p: 2, mb: 3 }}>
-            <Grid container spacing={2} alignItems="center">
+        <Box sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
+          {/* Filters Bar */}
+          <Paper variant="outlined" sx={{ p: 1.5, mb: 1.5, flexShrink: 0, borderRadius: 1.5 }}>
+            <Grid container spacing={1.5} alignItems="center">
               {tabIndex === 1 && (
                 <Grid item xs={12} sm={4}>
                   <Autocomplete
@@ -694,7 +699,7 @@ export const StatementsPage = () => {
 
               {(tabIndex === 0 || tabIndex === 2) && (
                 <>
-                  <Grid item xs={12} sm={3}>
+                  <Grid item xs={12} sm={2.5}>
                     <TextField
                       label="From Date"
                       type="date"
@@ -705,7 +710,7 @@ export const StatementsPage = () => {
                       fullWidth
                     />
                   </Grid>
-                  <Grid item xs={12} sm={3}>
+                  <Grid item xs={12} sm={2.5}>
                     <TextField
                       label="To Date"
                       type="date"
@@ -719,7 +724,7 @@ export const StatementsPage = () => {
                 </>
               )}
 
-              <Grid item xs={12} sm={3}>
+              <Grid item xs={12} sm={2.5}>
                 <FormControl size="small" fullWidth>
                   <InputLabel>Status</InputLabel>
                   <Select
@@ -736,7 +741,7 @@ export const StatementsPage = () => {
                 </FormControl>
               </Grid>
 
-              <Grid item xs={12} sm={3}>
+              <Grid item xs={12} sm={2.5}>
                 <FormControl size="small" fullWidth>
                   <InputLabel>Sort By</InputLabel>
                   <Select
@@ -751,96 +756,99 @@ export const StatementsPage = () => {
                   </Select>
                 </FormControl>
               </Grid>
+
+              <Grid item xs={12} sm={tabIndex === 1 ? 4 : 2}>
+                <SearchInput
+                  value={searchQuery}
+                  onChange={(val) => setSearchQuery(val)}
+                  placeholder="Search Ref No, Customer..."
+                  sx={{ width: '100%' }}
+                />
+              </Grid>
             </Grid>
           </Paper>
 
-          {/* Search Bar */}
-          <Box mb={2}>
-            <SearchInput
-              value={searchQuery}
-              onChange={(val) => setSearchQuery(val)}
-              placeholder="Search by Ref No or Customer Name..."
-            />
-          </Box>
-
           {/* Statement Table */}
-          <TableContainer component={Paper} elevation={1}>
-            <Table size="small">
-              <TableHead sx={{ bgcolor: 'grey.100' }}>
-                <TableRow>
-                  <TableCell><strong>Date</strong></TableCell>
-                  <TableCell><strong>Type</strong></TableCell>
-                  <TableCell><strong>Ref No</strong></TableCell>
-                  <TableCell><strong>Customer</strong></TableCell>
-                  <TableCell><strong>Status</strong></TableCell>
-                  <TableCell align="right"><strong>Amount</strong></TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {loading ? (
-                  Array.from(new Array(5)).map((_, i) => (
-                    <TableRow key={i}>
-                      <TableCell><CircularProgress size={16} /></TableCell>
-                      <TableCell></TableCell>
-                      <TableCell></TableCell>
-                      <TableCell></TableCell>
-                      <TableCell></TableCell>
-                      <TableCell></TableCell>
-                    </TableRow>
-                  ))
-                ) : paginatedData.length === 0 ? (
+          <Paper variant="outlined" sx={{ width: '100%', overflow: 'hidden', flexGrow: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+            <TableContainer sx={{ flexGrow: 1, overflowY: 'auto', minHeight: 0 }}>
+              <Table stickyHeader size="small">
+                <TableHead>
                   <TableRow>
-                    <TableCell colSpan={6} align="center" sx={{ py: 3 }}>
-                      No statement records found for the selected criteria.
-                    </TableCell>
+                    <TableCell sx={{ fontWeight: 700, bgcolor: 'background.default' }}>Date</TableCell>
+                    <TableCell sx={{ fontWeight: 700, bgcolor: 'background.default' }}>Type</TableCell>
+                    <TableCell sx={{ fontWeight: 700, bgcolor: 'background.default' }}>Ref No</TableCell>
+                    <TableCell sx={{ fontWeight: 700, bgcolor: 'background.default' }}>Customer</TableCell>
+                    <TableCell sx={{ fontWeight: 700, bgcolor: 'background.default' }}>Status</TableCell>
+                    <TableCell align="right" sx={{ fontWeight: 700, bgcolor: 'background.default' }}>Amount</TableCell>
                   </TableRow>
-                ) : (
-                  paginatedData.map((row, idx) => (
-                    <TableRow key={`${row.type}-${row.id}-${idx}`} hover>
-                      <TableCell>{formatDate(row.date)}</TableCell>
-                      <TableCell>
-                        <Chip
-                          label={row.type}
-                          size="small"
-                          color={row.type === 'Invoice' ? 'primary' : 'success'}
-                          variant="outlined"
-                        />
-                      </TableCell>
-                      <TableCell sx={{ fontWeight: 600 }}>
-                        <HighlightText text={row.refNo} highlight={searchQuery} />
-                      </TableCell>
-                      <TableCell>
-                        <HighlightText text={row.customerName} highlight={searchQuery} />
-                      </TableCell>
-                      <TableCell>
-                        {row.type === 'Invoice' ? (
-                          <Chip label={row.status} size="small" />
-                        ) : (
-                          <Typography variant="body2">{row.paymentMethod}</Typography>
-                        )}
-                      </TableCell>
-                      <TableCell align="right" sx={{ fontWeight: 'bold', color: row.type === 'Invoice' ? 'inherit' : 'success.main' }}>
-                        {row.type === 'Receipt' ? '+ ' : ''}{formatCurrency(row.amount)}
+                </TableHead>
+                <TableBody>
+                  {loading ? (
+                    Array.from(new Array(5)).map((_, i) => (
+                      <TableRow key={i}>
+                        <TableCell><CircularProgress size={16} /></TableCell>
+                        <TableCell></TableCell>
+                        <TableCell></TableCell>
+                        <TableCell></TableCell>
+                        <TableCell></TableCell>
+                        <TableCell></TableCell>
+                      </TableRow>
+                    ))
+                  ) : paginatedData.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={6} align="center" sx={{ py: 3 }}>
+                        No statement records found for the selected criteria.
                       </TableCell>
                     </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </TableContainer>
+                  ) : (
+                    paginatedData.map((row, idx) => (
+                      <TableRow key={`${row.type}-${row.id}-${idx}`} hover>
+                        <TableCell sx={{ whiteSpace: 'nowrap' }}>{formatDate(row.date)}</TableCell>
+                        <TableCell>
+                          <Chip
+                            label={row.type}
+                            size="small"
+                            color={row.type === 'Invoice' ? 'primary' : 'success'}
+                            variant="outlined"
+                            sx={{ fontWeight: 700, height: 20, fontSize: '0.7rem' }}
+                          />
+                        </TableCell>
+                        <TableCell sx={{ fontWeight: 700 }}>
+                          <HighlightText text={row.refNo} highlight={searchQuery} />
+                        </TableCell>
+                        <TableCell sx={{ fontWeight: 600 }}>
+                          <HighlightText text={row.customerName} highlight={searchQuery} />
+                        </TableCell>
+                        <TableCell>
+                          {row.type === 'Invoice' ? (
+                            <Chip label={row.status} size="small" sx={{ fontWeight: 600, height: 20, fontSize: '0.7rem' }} />
+                          ) : (
+                            <Typography variant="body2">{row.paymentMethod}</Typography>
+                          )}
+                        </TableCell>
+                        <TableCell align="right" sx={{ fontWeight: 'bold', color: row.type === 'Invoice' ? 'inherit' : 'success.main' }}>
+                          {row.type === 'Receipt' ? '+ ' : ''}{formatCurrency(row.amount)}
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </TableContainer>
 
-          {combinedData.length > 0 && (
-            <TablePagination
-              rowsPerPageOptions={[25, 50, 100]}
-              component="div"
-              count={combinedData.length}
-              rowsPerPage={rowsPerPage}
-              page={page}
-              onPageChange={handleChangePage}
-              onRowsPerPageChange={handleChangeRowsPerPage}
-              sx={{ borderTopLeftRadius: 0, borderTopRightRadius: 0 }}
-            />
-          )}
+            {combinedData.length > 0 && (
+              <TablePagination
+                rowsPerPageOptions={[25, 50, 100]}
+                component="div"
+                count={combinedData.length}
+                rowsPerPage={rowsPerPage}
+                page={page}
+                onPageChange={handleChangePage}
+                onRowsPerPageChange={handleChangeRowsPerPage}
+                sx={{ flexShrink: 0, borderTop: '1px solid', borderColor: 'divider' }}
+              />
+            )}
+          </Paper>
         </Box>
       )}
 
@@ -857,3 +865,4 @@ export const StatementsPage = () => {
 };
 
 export default StatementsPage;
+

@@ -117,7 +117,7 @@ export const DashboardPage = () => {
   ];
 
   return (
-    <Box sx={{ p: { xs: 1, sm: 2 } }}>
+    <Box sx={{ height: '100%', overflowY: 'auto', pr: 0.5, pb: 4 }}>
       {/* Welcome Banner */}
       <Paper
         elevation={0}

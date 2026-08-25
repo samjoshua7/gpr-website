@@ -496,12 +496,12 @@ export const JobCardsPage = () => {
   };
 
   return (
-    <Box sx={{ p: 3, height: 'calc(100vh - 64px)', display: 'flex', flexDirection: 'column' }}>
+    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       {/* Header Desk */}
-      <Box sx={{ mb: 3, display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
+      <Box sx={{ mb: 1.5, display: 'flex', gap: 1.5, alignItems: 'center', flexWrap: 'wrap', flexShrink: 0 }}>
         <TextField
           variant="outlined"
-          size="medium"
+          size="small"
           placeholder="Search Job Cards by ID, customer name, description, or invoice..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}

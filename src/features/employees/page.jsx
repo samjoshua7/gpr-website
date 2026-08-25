@@ -190,7 +190,7 @@ export const EmployeesPage = () => {
   };
 
   return (
-    <Box>
+    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       <PageToolbar
         title="Employees"
         searchQuery={searchQuery}
@@ -217,149 +217,152 @@ export const EmployeesPage = () => {
       />
 
       {error && (
-        <Alert severity="error" sx={{ mb: 3 }}>
+        <Alert severity="error" sx={{ mb: 1.5, flexShrink: 0 }}>
           {error}
         </Alert>
       )}
 
-      <TableContainer component={Paper} elevation={0} variant="outlined" sx={{ borderRadius: 2 }}>
-        <Table>
-          <TableHead sx={{ bgcolor: 'action.hover' }}>
-            <TableRow>
-              {headCells.map((headCell) => (
-                <TableCell
-                  key={headCell.id}
-                  align={headCell.align}
-                  sx={{ fontWeight: 'bold' }}
-                  sortDirection={orderBy === headCell.id ? order : false}
-                >
-                  {headCell.disableSort ? (
-                    headCell.label
-                  ) : (
-                    <TableSortLabel
-                      active={orderBy === headCell.id}
-                      direction={orderBy === headCell.id ? order : 'asc'}
-                      onClick={() => handleRequestSort(headCell.id)}
-                    >
-                      {headCell.label}
-                    </TableSortLabel>
-                  )}
-                </TableCell>
-              ))}
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {loading && employees.length === 0 ? (
-              Array.from(new Array(3)).map((_, index) => (
-                <TableRow key={index}>
-                  <TableCell><CircularProgress size={24} /></TableCell>
-                  <TableCell></TableCell>
-                  <TableCell></TableCell>
-                  <TableCell></TableCell>
-                  <TableCell></TableCell>
-                  <TableCell></TableCell>
-                </TableRow>
-              ))
-            ) : paginatedEmployees.length === 0 ? (
+      <Paper variant="outlined" sx={{ width: '100%', overflow: 'hidden', flexGrow: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+        <TableContainer sx={{ flexGrow: 1, overflowY: 'auto', minHeight: 0 }}>
+          <Table stickyHeader size="small">
+            <TableHead>
               <TableRow>
-                <TableCell colSpan={6} align="center" sx={{ py: 3 }}>
-                  <Typography color="text.secondary">No employees found.</Typography>
-                </TableCell>
+                {headCells.map((headCell) => (
+                  <TableCell
+                    key={headCell.id}
+                    align={headCell.align}
+                    sx={{ fontWeight: 700, bgcolor: 'background.default' }}
+                    sortDirection={orderBy === headCell.id ? order : false}
+                  >
+                    {headCell.disableSort ? (
+                      headCell.label
+                    ) : (
+                      <TableSortLabel
+                        active={orderBy === headCell.id}
+                        direction={orderBy === headCell.id ? order : 'asc'}
+                        onClick={() => handleRequestSort(headCell.id)}
+                      >
+                        {headCell.label}
+                      </TableSortLabel>
+                    )}
+                  </TableCell>
+                ))}
               </TableRow>
-            ) : (
-              paginatedEmployees.map((emp) => (
-                <TableRow key={emp.employee_id} hover>
-                  <TableCell sx={{ maxWidth: 200, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: 600 }}>
-                    <Tooltip title={emp.name || ''} arrow placement="top" disableHoverListener={!emp.name || emp.name.length < 25}>
-                      <Typography variant="body2" component="span" sx={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block' }}>
-                        <HighlightText text={emp.name} highlight={searchQuery} />
-                      </Typography>
-                    </Tooltip>
-                  </TableCell>
-                  <TableCell sx={{ maxWidth: 200, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    <Typography variant="body2" sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}><HighlightText text={emp.email} highlight={searchQuery} /></Typography>
-                    <Typography variant="caption" color="text.secondary" sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block' }}><HighlightText text={emp.phone} highlight={searchQuery} /></Typography>
-                  </TableCell>
-                  <TableCell sx={{ whiteSpace: 'nowrap' }}>
-                    <Chip 
-                      label={ROLE_BADGE[emp.role]?.label || emp.role}  
-                      size="small" 
-                      color={ROLE_BADGE[emp.role]?.color || 'primary'}
-                      variant={ROLE_BADGE[emp.role]?.variant || 'outlined'}
-                      sx={{ fontWeight: 700, fontSize: '0.75rem' }}
-                    />
-                  </TableCell>
-                  <TableCell sx={{ maxWidth: 240, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {emp.departments?.length > 0 ? (
-                        emp.departments.map(dept => (
-                          <Chip key={dept} label={dept} size="small" variant="outlined" sx={{ flexShrink: 0 }} />
-                        ))
-                      ) : (
-                        <Typography variant="caption" color="text.secondary">None</Typography>
-                      )}
-                    </Box>
-                  </TableCell>
-                  <TableCell>
-                    <Tooltip title={isStakeholder ? 'Stakeholder read-only view' : 'Toggle Status'}>
-                      <span>
-                        <IconButton
-                          disabled={isStakeholder}
-                          onClick={() => handleToggleStatus(emp.employee_id, emp.active)}
-                          size="small"
-                        >
-                          {emp.active ? <CheckCircleIcon color={isStakeholder ? 'disabled' : 'success'} /> : <CancelIcon color={isStakeholder ? 'disabled' : 'error'} />}
-                        </IconButton>
-                      </span>
-                    </Tooltip>
-                  </TableCell>
-                  <TableCell align="right">
-                    <Tooltip title={isStakeholder ? 'Stakeholder read-only view' : 'Edit'}>
-                      <span>
-                        <IconButton
-                          color="primary"
-                          disabled={isStakeholder}
-                          onClick={() => handleEdit(emp)}
-                          size="small"
-                          sx={isStakeholder ? { color: 'text.disabled' } : {}}
-                        >
-                          <EditIcon fontSize="small" />
-                        </IconButton>
-                      </span>
-                    </Tooltip>
-                    <Tooltip title={isStakeholder ? 'Stakeholder read-only view' : 'Delete'}>
-                      <span>
-                        <IconButton
-                          color="error"
-                          disabled={isStakeholder}
-                          onClick={() => handleDelete(emp.employee_id)}
-                          size="small"
-                          sx={isStakeholder ? { color: 'text.disabled' } : {}}
-                        >
-                          <DeleteIcon fontSize="small" />
-                        </IconButton>
-                      </span>
-                    </Tooltip>
+            </TableHead>
+            <TableBody>
+              {loading && employees.length === 0 ? (
+                Array.from(new Array(3)).map((_, index) => (
+                  <TableRow key={index}>
+                    <TableCell><CircularProgress size={24} /></TableCell>
+                    <TableCell></TableCell>
+                    <TableCell></TableCell>
+                    <TableCell></TableCell>
+                    <TableCell></TableCell>
+                    <TableCell></TableCell>
+                  </TableRow>
+                ))
+              ) : paginatedEmployees.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={6} align="center" sx={{ py: 3 }}>
+                    <Typography color="text.secondary">No employees found.</Typography>
                   </TableCell>
                 </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </TableContainer>
+              ) : (
+                paginatedEmployees.map((emp) => (
+                  <TableRow key={emp.employee_id} hover>
+                    <TableCell sx={{ maxWidth: 200, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: 600 }}>
+                      <Tooltip title={emp.name || ''} arrow placement="top" disableHoverListener={!emp.name || emp.name.length < 25}>
+                        <Typography variant="body2" component="span" sx={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block' }}>
+                          <HighlightText text={emp.name} highlight={searchQuery} />
+                        </Typography>
+                      </Tooltip>
+                    </TableCell>
+                    <TableCell sx={{ maxWidth: 200, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      <Typography variant="body2" sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}><HighlightText text={emp.email} highlight={searchQuery} /></Typography>
+                      <Typography variant="caption" color="text.secondary" sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block' }}><HighlightText text={emp.phone} highlight={searchQuery} /></Typography>
+                    </TableCell>
+                    <TableCell sx={{ whiteSpace: 'nowrap' }}>
+                      <Chip 
+                        label={ROLE_BADGE[emp.role]?.label || emp.role}  
+                        size="small" 
+                        color={ROLE_BADGE[emp.role]?.color || 'primary'}
+                        variant={ROLE_BADGE[emp.role]?.variant || 'outlined'}
+                        sx={{ fontWeight: 700, fontSize: '0.75rem' }}
+                      />
+                    </TableCell>
+                    <TableCell sx={{ maxWidth: 240, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {emp.departments?.length > 0 ? (
+                          emp.departments.map(dept => (
+                            <Chip key={dept} label={dept} size="small" variant="outlined" sx={{ flexShrink: 0 }} />
+                          ))
+                        ) : (
+                          <Typography variant="caption" color="text.secondary">None</Typography>
+                        )}
+                      </Box>
+                    </TableCell>
+                    <TableCell>
+                      <Tooltip title={isStakeholder ? 'Stakeholder read-only view' : 'Toggle Status'}>
+                        <span>
+                          <IconButton
+                            disabled={isStakeholder}
+                            onClick={() => handleToggleStatus(emp.employee_id, emp.active)}
+                            size="small"
+                          >
+                            {emp.active ? <CheckCircleIcon color={isStakeholder ? 'disabled' : 'success'} /> : <CancelIcon color={isStakeholder ? 'disabled' : 'error'} />}
+                          </IconButton>
+                        </span>
+                      </Tooltip>
+                    </TableCell>
+                    <TableCell align="right">
+                      <Tooltip title={isStakeholder ? 'Stakeholder read-only view' : 'Edit'}>
+                        <span>
+                          <IconButton
+                            color="primary"
+                            disabled={isStakeholder}
+                            onClick={() => handleEdit(emp)}
+                            size="small"
+                            sx={isStakeholder ? { color: 'text.disabled' } : {}}
+                          >
+                            <EditIcon fontSize="small" />
+                          </IconButton>
+                        </span>
+                      </Tooltip>
+                      <Tooltip title={isStakeholder ? 'Stakeholder read-only view' : 'Delete'}>
+                        <span>
+                          <IconButton
+                            color="error"
+                            disabled={isStakeholder}
+                            onClick={() => handleDelete(emp.employee_id)}
+                            size="small"
+                            sx={isStakeholder ? { color: 'text.disabled' } : {}}
+                          >
+                            <DeleteIcon fontSize="small" />
+                          </IconButton>
+                        </span>
+                      </Tooltip>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </TableContainer>
 
-      {employees.length > 0 && (
-        <TablePagination
-          rowsPerPageOptions={[25, 50, 100]}
-          component="div"
-          count={processedEmployees.length}
-          rowsPerPage={rowsPerPage}
-          page={page}
-          onPageChange={handleChangePage}
-          onRowsPerPageChange={handleChangeRowsPerPage}
-          sx={{ borderTopLeftRadius: 0, borderTopRightRadius: 0 }}
-        />
-      )}
+        {employees.length > 0 && (
+          <TablePagination
+            rowsPerPageOptions={[25, 50, 100]}
+            component="div"
+            count={processedEmployees.length}
+            rowsPerPage={rowsPerPage}
+            page={page}
+            onPageChange={handleChangePage}
+            onRowsPerPageChange={handleChangeRowsPerPage}
+            sx={{ flexShrink: 0, borderTop: '1px solid', borderColor: 'divider' }}
+          />
+        )}
+      </Paper>
+
 
       <EmployeeDialog
         open={dialogOpen}

@@ -222,7 +222,7 @@ export const InventoryPage = () => {
   };
 
   return (
-    <Box sx={{ p: 3 }}>
+    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       <PageToolbar
         title="Inventory Catalog & Ledger"
         subtitle="Monitor printing stocks (papers, plates, inks) and manage reorder warnings in real-time."
@@ -230,21 +230,21 @@ export const InventoryPage = () => {
         onSearchChange={setSearchQuery}
         searchPlaceholder="Search by product name or HSN code..."
         actions={
-          <Button variant="contained" startIcon={<AddIcon />} onClick={handleAddClick}>
+          <Button variant="contained" startIcon={<AddIcon />} onClick={handleAddClick} sx={{ fontWeight: 700 }}>
             Add Catalog Product
           </Button>
         }
       />
 
       {error && (
-        <Alert severity="error" sx={{ mb: 3 }}>
+        <Alert severity="error" sx={{ mb: 1.5, flexShrink: 0 }}>
           {error}
         </Alert>
       )}
 
       {/* Catalog Table */}
       {loading && items.length === 0 ? (
-        <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', py: 8 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', flexGrow: 1 }}>
           <CircularProgress />
         </Box>
       ) : items.length === 0 ? (
@@ -252,121 +252,122 @@ export const InventoryPage = () => {
           <Typography color="text.secondary">No inventory products found.</Typography>
         </Paper>
       ) : (
-        <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 2 }}>
-          <Table>
-            <TableHead sx={{ bgcolor: 'action.hover' }}>
-              <TableRow>
-                {headCells.map((headCell) => (
-                  <TableCell
-                    key={headCell.id}
-                    align={headCell.align}
-                    sx={{ fontWeight: 700 }}
-                    sortDirection={orderBy === headCell.id ? order : false}
-                  >
-                    {headCell.disableSort ? (
-                      headCell.label
-                    ) : (
-                      <TableSortLabel
-                        active={orderBy === headCell.id}
-                        direction={orderBy === headCell.id ? order : 'asc'}
-                        onClick={() => handleRequestSort(headCell.id)}
-                      >
-                        {headCell.label}
-                      </TableSortLabel>
-                    )}
-                  </TableCell>
-                ))}
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {paginatedItems.map((item) => {
-                const stock = parseFloat(item.current_stock || 0);
-                const limit = parseFloat(item.reorder_level || 0);
-                const isLow = stock <= limit;
+        <Paper variant="outlined" sx={{ width: '100%', overflow: 'hidden', flexGrow: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+          <TableContainer sx={{ flexGrow: 1, overflowY: 'auto', minHeight: 0 }}>
+            <Table stickyHeader size="small">
+              <TableHead>
+                <TableRow>
+                  {headCells.map((headCell) => (
+                    <TableCell
+                      key={headCell.id}
+                      align={headCell.align}
+                      sx={{ fontWeight: 700, bgcolor: 'background.default' }}
+                      sortDirection={orderBy === headCell.id ? order : false}
+                    >
+                      {headCell.disableSort ? (
+                        headCell.label
+                      ) : (
+                        <TableSortLabel
+                          active={orderBy === headCell.id}
+                          direction={orderBy === headCell.id ? order : 'asc'}
+                          onClick={() => handleRequestSort(headCell.id)}
+                        >
+                          {headCell.label}
+                        </TableSortLabel>
+                      )}
+                    </TableCell>
+                  ))}
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {paginatedItems.map((item) => {
+                  const stock = parseFloat(item.current_stock || 0);
+                  const limit = parseFloat(item.reorder_level || 0);
+                  const isLow = stock <= limit;
 
-                return (
-                  <TableRow key={item.item_id} hover>
-                    <TableCell sx={{ maxWidth: 240, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: 600 }}>
-                      <Tooltip title={item.name || ''} arrow placement="top" disableHoverListener={!item.name || item.name.length < 25}>
-                        <Typography variant="body2" component="span" sx={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block' }}>
-                          <HighlightText text={item.name} highlight={searchQuery} />
-                        </Typography>
-                      </Tooltip>
-                    </TableCell>
-                    <TableCell sx={{ whiteSpace: 'nowrap' }}>{item.unit}</TableCell>
-                    <TableCell sx={{ whiteSpace: 'nowrap', fontWeight: 500 }}>
-                      <HighlightText text={item.hsn_code || '—'} highlight={searchQuery} />
-                    </TableCell>
-                    <TableCell sx={{ whiteSpace: 'nowrap' }}>
-                      {item.tax_rates ? `${item.tax_rates.tax_name} (${item.tax_rates.percentage}%)` : 'Exempt (0%)'}
-                    </TableCell>
-                    <TableCell align="right" sx={{ fontWeight: 600 }}>
-                      {formatCurrency(item.unit_price)}
-                    </TableCell>
-                    <TableCell align="right" color="text.secondary">
-                      {item.reorder_level}
-                    </TableCell>
-                    <TableCell align="right" sx={{ fontWeight: 700, color: isLow ? 'error.main' : 'text.primary' }}>
-                      {stock.toFixed(2)}
-                    </TableCell>
-                    <TableCell align="center">
-                      <Chip
-                        label={isLow ? 'LOW STOCK' : 'IN STOCK'}
-                        color={isLow ? 'error' : 'success'}
-                        size="small"
-                        sx={{ fontWeight: 800, fontSize: '0.7rem' }}
-                      />
-                    </TableCell>
-                    <TableCell align="center">
-                      <Box sx={{ display: 'flex', justifyContent: 'center', gap: 1 }}>
-                        <Tooltip title="Post Stock Adjustment">
-                          <IconButton
-                            color="primary"
-                            onClick={() => handleAdjustClick(item)}
-                            size="small"
-                          >
-                            <StorageIcon fontSize="small" />
-                          </IconButton>
+                  return (
+                    <TableRow key={item.item_id} hover>
+                      <TableCell sx={{ maxWidth: 240, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: 600 }}>
+                        <Tooltip title={item.name || ''} arrow placement="top" disableHoverListener={!item.name || item.name.length < 25}>
+                          <Typography variant="body2" component="span" sx={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block' }}>
+                            <HighlightText text={item.name} highlight={searchQuery} />
+                          </Typography>
                         </Tooltip>
-                        <Tooltip title="Edit Product">
-                          <IconButton
-                            onClick={() => handleEditClick(item)}
-                            size="small"
-                          >
-                            <EditIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                        <Tooltip title="Delete Product">
-                          <IconButton
-                            color="error"
-                            onClick={() => handleDeleteClick(item)}
-                            size="small"
-                          >
-                            <DeleteIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                      </Box>
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-          </TableBody>
-          </Table>
-        </TableContainer>
+                      </TableCell>
+                      <TableCell sx={{ whiteSpace: 'nowrap' }}>{item.unit}</TableCell>
+                      <TableCell sx={{ whiteSpace: 'nowrap', fontWeight: 500 }}>
+                        <HighlightText text={item.hsn_code || '—'} highlight={searchQuery} />
+                      </TableCell>
+                      <TableCell sx={{ whiteSpace: 'nowrap' }}>
+                        {item.tax_rates ? `${item.tax_rates.tax_name} (${item.tax_rates.percentage}%)` : 'Exempt (0%)'}
+                      </TableCell>
+                      <TableCell align="right" sx={{ fontWeight: 600 }}>
+                        {formatCurrency(item.unit_price)}
+                      </TableCell>
+                      <TableCell align="right" color="text.secondary">
+                        {item.reorder_level}
+                      </TableCell>
+                      <TableCell align="right" sx={{ fontWeight: 700, color: isLow ? 'error.main' : 'text.primary' }}>
+                        {stock.toFixed(2)}
+                      </TableCell>
+                      <TableCell align="center">
+                        <Chip
+                          label={isLow ? 'LOW STOCK' : 'IN STOCK'}
+                          color={isLow ? 'error' : 'success'}
+                          size="small"
+                          sx={{ fontWeight: 800, fontSize: '0.7rem' }}
+                        />
+                      </TableCell>
+                      <TableCell align="center">
+                        <Box sx={{ display: 'flex', justifyContent: 'center', gap: 1 }}>
+                          <Tooltip title="Post Stock Adjustment">
+                            <IconButton
+                              color="primary"
+                              onClick={() => handleAdjustClick(item)}
+                              size="small"
+                            >
+                              <StorageIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                          <Tooltip title="Edit Product">
+                            <IconButton
+                              onClick={() => handleEditClick(item)}
+                              size="small"
+                            >
+                              <EditIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                          <Tooltip title="Delete Product">
+                            <IconButton
+                              color="error"
+                              onClick={() => handleDeleteClick(item)}
+                              size="small"
+                            >
+                              <DeleteIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                        </Box>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+            </TableBody>
+            </Table>
+          </TableContainer>
+
+          <TablePagination
+            rowsPerPageOptions={[25, 50, 100]}
+            component="div"
+            count={processedItems.length}
+            rowsPerPage={rowsPerPage}
+            page={page}
+            onPageChange={handleChangePage}
+            onRowsPerPageChange={handleChangeRowsPerPage}
+            sx={{ flexShrink: 0, borderTop: '1px solid', borderColor: 'divider' }}
+          />
+        </Paper>
       )}
 
-      {items.length > 0 && (
-        <TablePagination
-          rowsPerPageOptions={[25, 50, 100]}
-          component="div"
-          count={processedItems.length}
-          rowsPerPage={rowsPerPage}
-          page={page}
-          onPageChange={handleChangePage}
-          onRowsPerPageChange={handleChangeRowsPerPage}
-          sx={{ borderTopLeftRadius: 0, borderTopRightRadius: 0 }}
-        />
-      )}
 
       {/* Catalog Dialog */}
       <ItemDialog

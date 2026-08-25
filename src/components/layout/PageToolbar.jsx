@@ -9,13 +9,16 @@ export const PageToolbar = ({
   onSearchChange,
   searchPlaceholder = 'Search...',
   actions,
+  action,
   children,
 }) => {
+  const actionItems = actions || action;
+
   return (
-    <Box sx={{ mb: 3 }}>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
+    <Box sx={{ mb: 1.5, flexShrink: 0 }}>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 1.5, flexWrap: 'wrap' }}>
         <Box>
-          <Typography variant="h5" sx={{ fontWeight: 800, color: 'text.primary' }}>
+          <Typography variant="h5" sx={{ fontWeight: 800, color: 'text.primary', fontSize: { xs: '1.25rem', sm: '1.5rem' }, lineHeight: 1.2 }}>
             {title}
           </Typography>
           {subtitle && (
@@ -25,16 +28,16 @@ export const PageToolbar = ({
           )}
         </Box>
 
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
           {onSearchChange && (
             <SearchInput
               placeholder={searchPlaceholder}
               value={searchQuery}
               onChange={onSearchChange}
-              sx={{ minWidth: 260, bgcolor: 'background.paper', borderRadius: 2 }}
+              sx={{ minWidth: { xs: 200, sm: 260 }, bgcolor: 'background.paper', borderRadius: 1.5 }}
             />
           )}
-          {actions}
+          {actionItems}
           {children}
         </Box>
       </Box>
@@ -43,3 +46,4 @@ export const PageToolbar = ({
 };
 
 export default PageToolbar;
+

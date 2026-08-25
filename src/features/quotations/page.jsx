@@ -204,7 +204,7 @@ export const QuotationsPage = () => {
   }, [sortedQuotations, page, rowsPerPage]);
 
   return (
-    <Box>
+    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       <PageToolbar
         title="Quotations"
         searchQuery={searchQuery}
@@ -235,26 +235,26 @@ export const QuotationsPage = () => {
       />
 
       {error && (
-        <Alert severity="error" sx={{ mb: 2 }}>
+        <Alert severity="error" sx={{ mb: 1.5, flexShrink: 0 }}>
           {error}
         </Alert>
       )}
 
       {loading ? (
-        <Box display="flex" justifyContent="center" p={4}>
+        <Box display="flex" justifyContent="center" alignItems="center" flexGrow={1}>
           <CircularProgress />
         </Box>
       ) : (
-        <Paper variant="outlined">
-          <TableContainer>
-            <Table size="small">
-              <TableHead sx={{ bgcolor: 'action.hover' }}>
+        <Paper variant="outlined" sx={{ width: '100%', overflow: 'hidden', flexGrow: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+          <TableContainer sx={{ flexGrow: 1, overflowY: 'auto', minHeight: 0 }}>
+            <Table stickyHeader size="small">
+              <TableHead>
                 <TableRow>
                   {headCells.map((headCell) => (
                     <TableCell
                       key={headCell.id}
                       align={headCell.align}
-                      sx={{ fontWeight: 700 }}
+                      sx={{ fontWeight: 700, bgcolor: 'background.default' }}
                     >
                       {headCell.disableSort ? (
                         headCell.label
@@ -391,9 +391,11 @@ export const QuotationsPage = () => {
             page={page}
             onPageChange={handlePageChange}
             onRowsPerPageChange={handleRowsPerPageChange}
+            sx={{ flexShrink: 0, borderTop: '1px solid', borderColor: 'divider' }}
           />
         </Paper>
       )}
+
 
       {/* Dialogs */}
       <InvoiceDialog

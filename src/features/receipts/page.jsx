@@ -223,7 +223,7 @@ export const ReceiptsPage = () => {
   };
 
   return (
-    <Box sx={{ p: 3 }}>
+    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       <PageToolbar
         title="Customer Receipts"
         subtitle="Manage payments from customer accounts and invoices. Outstanding invoice balances sync in real-time."
@@ -231,21 +231,21 @@ export const ReceiptsPage = () => {
         onSearchChange={setSearchQuery}
         searchPlaceholder="Search by customer name, mode, or linked invoice..."
         actions={
-          <Button variant="contained" startIcon={<AddIcon />} onClick={handleAddClick}>
+          <Button variant="contained" startIcon={<AddIcon />} onClick={handleAddClick} sx={{ fontWeight: 700 }}>
             Record Payment
           </Button>
         }
       />
 
       {error && (
-        <Alert severity="error" sx={{ mb: 3 }}>
+        <Alert severity="error" sx={{ mb: 1.5, flexShrink: 0 }}>
           {error}
         </Alert>
       )}
 
       {/* Receipts Table */}
       {loading && receipts.length === 0 ? (
-        <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', py: 8 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', flexGrow: 1 }}>
           <CircularProgress />
         </Box>
       ) : receipts.length === 0 ? (
@@ -253,108 +253,109 @@ export const ReceiptsPage = () => {
           <Typography color="text.secondary">No customer receipts found.</Typography>
         </Paper>
       ) : (
-        <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 2 }}>
-          <Table>
-            <TableHead sx={{ bgcolor: 'action.hover' }}>
-              <TableRow>
-                {headCells.map((headCell) => (
-                  <TableCell
-                    key={headCell.id}
-                    align={headCell.align}
-                    sx={{ fontWeight: 700 }}
-                    sortDirection={orderBy === headCell.id ? order : false}
-                  >
-                    {headCell.disableSort ? (
-                      headCell.label
-                    ) : (
-                      <TableSortLabel
-                        active={orderBy === headCell.id}
-                        direction={orderBy === headCell.id ? order : 'asc'}
-                        onClick={() => handleRequestSort(headCell.id)}
-                      >
-                        {headCell.label}
-                      </TableSortLabel>
-                    )}
-                  </TableCell>
-                ))}
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {paginatedReceipts.map((receipt) => (
-                <TableRow key={receipt.receipt_id} hover>
-                  <TableCell sx={{ whiteSpace: 'nowrap' }}>{formatDate(receipt.receipt_date)}</TableCell>
-                  <TableCell sx={{ maxWidth: 240, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: 600 }}>
-                    <Tooltip title={receipt.customers?.name || ''} arrow placement="top" disableHoverListener={!receipt.customers?.name || receipt.customers.name.length < 25}>
-                      <Typography variant="body2" component="span" sx={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block' }}>
-                        <HighlightText text={receipt.customers?.name} highlight={searchQuery} />
-                      </Typography>
-                    </Tooltip>
-                  </TableCell>
-                  <TableCell>
-                    <Chip
-                      label={<HighlightText text={MODE_MAP[receipt.mode]?.label || receipt.mode} highlight={searchQuery} />}
-                      color={MODE_MAP[receipt.mode]?.color || 'default'}
-                      size="small"
-                      sx={{ fontWeight: 700, textTransform: 'capitalize' }}
-                    />
-                  </TableCell>
-                  <TableCell sx={{ fontWeight: 500 }}>
-                    {receipt.sales_invoices ? (
-                      <Chip
-                        label={<HighlightText text={`#${receipt.sales_invoices.invoice_no}`} highlight={searchQuery} />}
-                        size="small"
-                        variant="outlined"
-                      />
-                    ) : (
-                      <Chip label="Advance / Account" size="small" color="secondary" variant="outlined" />
-                    )}
-                  </TableCell>
-                  <TableCell align="right" sx={{ fontWeight: 700 }}>
-                    {formatCurrency(receipt.amount)}
-                  </TableCell>
-                  <TableCell align="center">
-                    <Box sx={{ display: 'flex', justifyContent: 'center', gap: 0.5 }}>
-                      <Tooltip title="View Receipt Details">
-                        <IconButton size="small" color="primary" onClick={() => handleViewClick(receipt)}>
-                          <VisibilityIcon fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
-                      <Tooltip title="Edit Receipt">
-                        <IconButton size="small" color="info" onClick={() => handleEditClick(receipt)}>
-                          <EditIcon fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
-                      <Tooltip title="Clone Receipt">
-                        <IconButton size="small" color="default" onClick={() => handleCloneClick(receipt)}>
-                          <ContentCopyIcon fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
-                      <Tooltip title="Delete Receipt">
-                        <IconButton size="small" color="error" onClick={() => handleDeleteClick(receipt)}>
-                          <DeleteIcon fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
-                    </Box>
-                  </TableCell>
+        <Paper variant="outlined" sx={{ width: '100%', overflow: 'hidden', flexGrow: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+          <TableContainer sx={{ flexGrow: 1, overflowY: 'auto', minHeight: 0 }}>
+            <Table stickyHeader size="small">
+              <TableHead>
+                <TableRow>
+                  {headCells.map((headCell) => (
+                    <TableCell
+                      key={headCell.id}
+                      align={headCell.align}
+                      sx={{ fontWeight: 700, bgcolor: 'background.default' }}
+                      sortDirection={orderBy === headCell.id ? order : false}
+                    >
+                      {headCell.disableSort ? (
+                        headCell.label
+                      ) : (
+                        <TableSortLabel
+                          active={orderBy === headCell.id}
+                          direction={orderBy === headCell.id ? order : 'asc'}
+                          onClick={() => handleRequestSort(headCell.id)}
+                        >
+                          {headCell.label}
+                        </TableSortLabel>
+                      )}
+                    </TableCell>
+                  ))}
                 </TableRow>
-              ))}
-          </TableBody>
-          </Table>
-        </TableContainer>
+              </TableHead>
+              <TableBody>
+                {paginatedReceipts.map((receipt) => (
+                  <TableRow key={receipt.receipt_id} hover>
+                    <TableCell sx={{ whiteSpace: 'nowrap' }}>{formatDate(receipt.receipt_date)}</TableCell>
+                    <TableCell sx={{ maxWidth: 240, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: 600 }}>
+                      <Tooltip title={receipt.customers?.name || ''} arrow placement="top" disableHoverListener={!receipt.customers?.name || receipt.customers.name.length < 25}>
+                        <Typography variant="body2" component="span" sx={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block' }}>
+                          <HighlightText text={receipt.customers?.name} highlight={searchQuery} />
+                        </Typography>
+                      </Tooltip>
+                    </TableCell>
+                    <TableCell>
+                      <Chip
+                        label={<HighlightText text={MODE_MAP[receipt.mode]?.label || receipt.mode} highlight={searchQuery} />}
+                        color={MODE_MAP[receipt.mode]?.color || 'default'}
+                        size="small"
+                        sx={{ fontWeight: 700, textTransform: 'capitalize' }}
+                      />
+                    </TableCell>
+                    <TableCell sx={{ fontWeight: 500 }}>
+                      {receipt.sales_invoices ? (
+                        <Chip
+                          label={<HighlightText text={`#${receipt.sales_invoices.invoice_no}`} highlight={searchQuery} />}
+                          size="small"
+                          variant="outlined"
+                        />
+                      ) : (
+                        <Chip label="Advance / Account" size="small" color="secondary" variant="outlined" />
+                      )}
+                    </TableCell>
+                    <TableCell align="right" sx={{ fontWeight: 700 }}>
+                      {formatCurrency(receipt.amount)}
+                    </TableCell>
+                    <TableCell align="center">
+                      <Box sx={{ display: 'flex', justifyContent: 'center', gap: 0.5 }}>
+                        <Tooltip title="View Receipt Details">
+                          <IconButton size="small" color="primary" onClick={() => handleViewClick(receipt)}>
+                            <VisibilityIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                        <Tooltip title="Edit Receipt">
+                          <IconButton size="small" color="info" onClick={() => handleEditClick(receipt)}>
+                            <EditIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                        <Tooltip title="Clone Receipt">
+                          <IconButton size="small" color="default" onClick={() => handleCloneClick(receipt)}>
+                            <ContentCopyIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                        <Tooltip title="Delete Receipt">
+                          <IconButton size="small" color="error" onClick={() => handleDeleteClick(receipt)}>
+                            <DeleteIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      </Box>
+                    </TableCell>
+                  </TableRow>
+                ))}
+            </TableBody>
+            </Table>
+          </TableContainer>
+          
+          <TablePagination
+            rowsPerPageOptions={[25, 50, 100]}
+            component="div"
+            count={processedReceipts.length}
+            rowsPerPage={rowsPerPage}
+            page={page}
+            onPageChange={handleChangePage}
+            onRowsPerPageChange={handleChangeRowsPerPage}
+            sx={{ flexShrink: 0, borderTop: '1px solid', borderColor: 'divider' }}
+          />
+        </Paper>
       )}
-      
-      {receipts.length > 0 && (
-        <TablePagination
-          rowsPerPageOptions={[25, 50, 100]}
-          component="div"
-          count={processedReceipts.length}
-          rowsPerPage={rowsPerPage}
-          page={page}
-          onPageChange={handleChangePage}
-          onRowsPerPageChange={handleChangeRowsPerPage}
-          sx={{ borderTopLeftRadius: 0, borderTopRightRadius: 0 }}
-        />
-      )}
+
 
       {/* Record/Edit receipt modal */}
       <ReceiptDialog

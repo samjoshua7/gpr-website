@@ -450,7 +450,7 @@ export const SalesInvoicesPage = () => {
   };
 
   return (
-    <Box sx={{ p: { xs: 1, sm: 3 } }}>
+    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       <PageToolbar
         title="Sales Invoices"
         searchQuery={searchQuery}
@@ -466,6 +466,7 @@ export const SalesInvoicesPage = () => {
                 disabled={isStakeholder}
                 sx={{
                   whiteSpace: 'nowrap',
+                  fontWeight: 700,
                   ...(isStakeholder ? { color: 'text.disabled', bgcolor: 'action.disabledBackground' } : {}),
                 }}
               >
@@ -477,9 +478,8 @@ export const SalesInvoicesPage = () => {
       />
 
       {/* Tabs */}
-      <Box sx={{ mb: 3 }}>
-
-        <Paper sx={{ borderRadius: 2, overflow: 'hidden' }}>
+      <Box sx={{ mb: 1.5, flexShrink: 0 }}>
+        <Paper variant="outlined" sx={{ borderRadius: 1.5, overflow: 'hidden' }}>
           <Tabs
             value={statusFilter}
             onChange={(e, val) => setStatusFilter(val)}
@@ -487,159 +487,163 @@ export const SalesInvoicesPage = () => {
             textColor="primary"
             variant="scrollable"
             scrollButtons="auto"
+            sx={{ minHeight: 38 }}
           >
-            <Tab label="All Invoices" value="all" />
-            <Tab label="Unpaid" value="unpaid" />
-            <Tab label="Partial" value="partial" />
-            <Tab label="Paid" value="paid" />
-            <Tab label="Void" value="void" />
+            <Tab label="All Invoices" value="all" sx={{ minHeight: 38, py: 0.5, fontWeight: 700 }} />
+            <Tab label="Unpaid" value="unpaid" sx={{ minHeight: 38, py: 0.5, fontWeight: 700 }} />
+            <Tab label="Partial" value="partial" sx={{ minHeight: 38, py: 0.5, fontWeight: 700 }} />
+            <Tab label="Paid" value="paid" sx={{ minHeight: 38, py: 0.5, fontWeight: 700 }} />
+            <Tab label="Void" value="void" sx={{ minHeight: 38, py: 0.5, fontWeight: 700 }} />
           </Tabs>
         </Paper>
       </Box>
 
       {error && (
-        <Alert severity="error" sx={{ mb: 3 }}>
+        <Alert severity="error" sx={{ mb: 1.5, flexShrink: 0 }}>
           {error}
         </Alert>
       )}
 
       {/* Grid Table */}
-      <TableContainer component={Paper} sx={{ borderRadius: 3, overflow: 'hidden' }}>
-        <Table>
-          <TableHead sx={{ bgcolor: 'rgba(0, 0, 0, 0.03)' }}>
-            <TableRow>
-              {headCells.map((headCell) => (
-                <TableCell
-                  key={headCell.id}
-                  align={headCell.align}
-                  sx={{ fontWeight: 700 }}
-                  sortDirection={orderBy === headCell.id ? order : false}
-                >
-                  {headCell.disableSort ? (
-                    headCell.label
-                  ) : (
-                    <TableSortLabel
-                      active={orderBy === headCell.id}
-                      direction={orderBy === headCell.id ? order : 'asc'}
-                      onClick={() => handleRequestSort(headCell.id)}
-                    >
-                      {headCell.label}
-                    </TableSortLabel>
-                  )}
-                </TableCell>
-              ))}
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {loading && invoices.length === 0 ? (
-              Array.from(new Array(5)).map((_, index) => (
-                <TableRow key={index}>
-                  <TableCell><Skeleton width="50%" /></TableCell>
-                  <TableCell><Skeleton width="60%" /></TableCell>
-                  <TableCell><Skeleton width="70%" /></TableCell>
-                  <TableCell align="right"><Skeleton width="40%" sx={{ ml: 'auto' }} /></TableCell>
-                  <TableCell align="center"><Skeleton width="60%" sx={{ mx: 'auto' }} /></TableCell>
-                  <TableCell align="center"><Skeleton width="60%" sx={{ mx: 'auto' }} /></TableCell>
-                </TableRow>
-              ))
-            ) : paginatedInvoices.length === 0 ? (
+      <Paper variant="outlined" sx={{ width: '100%', overflow: 'hidden', flexGrow: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+        <TableContainer sx={{ flexGrow: 1, overflowY: 'auto', minHeight: 0 }}>
+          <Table stickyHeader size="small">
+            <TableHead>
               <TableRow>
-                <TableCell colSpan={6} align="center" sx={{ py: 6 }}>
-                  <Typography variant="body1" color="text.secondary">
-                    No invoices found. Click "Create Invoice" to record sales billing.
-                  </Typography>
-                </TableCell>
+                {headCells.map((headCell) => (
+                  <TableCell
+                    key={headCell.id}
+                    align={headCell.align}
+                    sx={{ fontWeight: 700, bgcolor: 'background.default' }}
+                    sortDirection={orderBy === headCell.id ? order : false}
+                  >
+                    {headCell.disableSort ? (
+                      headCell.label
+                    ) : (
+                      <TableSortLabel
+                        active={orderBy === headCell.id}
+                        direction={orderBy === headCell.id ? order : 'asc'}
+                        onClick={() => handleRequestSort(headCell.id)}
+                      >
+                        {headCell.label}
+                      </TableSortLabel>
+                    )}
+                  </TableCell>
+                ))}
               </TableRow>
-            ) : (
-              paginatedInvoices.map((inv) => (
-                <TableRow key={inv.invoice_id} hover>
-                  <TableCell sx={{ whiteSpace: 'nowrap' }}>{formatDate(inv.invoice_date)}</TableCell>
-                  <TableCell sx={{ whiteSpace: 'nowrap' }}>
-                    {(() => {
-                      const shortNo = getShortInvoiceNo(inv.invoice_no);
-                      const progressInfo = getProgressInfo(inv, workflow);
-                      return (
-                        <Box display="flex" alignItems="center" gap={0.75}>
-                          <Tooltip title={`Full Invoice No: ${inv.invoice_no}`} arrow placement="top">
-                            <Typography
-                              variant="body2"
-                              sx={{
-                                fontWeight: 700,
-                                color: 'primary.main',
-                                cursor: 'pointer',
-                                whiteSpace: 'nowrap',
-                              }}
-                              onClick={() => handleViewClick(inv)}
-                            >
-                              <HighlightText text={shortNo} highlight={searchQuery} />
-                            </Typography>
-                          </Tooltip>
-                          <Chip
-                            label={inv.invoice_type === 'GST' ? 'GST' : 'Non-GST'}
-                            size="small"
-                            variant="outlined"
-                            color={inv.invoice_type === 'GST' ? 'primary' : 'default'}
-                            sx={{ height: 18, fontSize: '0.65rem' }}
-                          />
-                          {progressInfo && (
-                            <Tooltip title={progressInfo.tooltip} arrow placement="top">
-                              <Chip
-                                label={`${progressInfo.percent}%`}
-                                size="small"
-                                color={progressInfo.color}
-                                variant={progressInfo.variant}
-                                sx={{ height: 18, fontSize: '0.65rem', fontWeight: 700 }}
-                              />
-                            </Tooltip>
-                          )}
-                        </Box>
-                      );
-                    })()}
-                  </TableCell>
-                  <TableCell sx={{ fontWeight: 600, maxWidth: 220, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    <Tooltip title={inv.customers?.name || ''} arrow placement="top" disableHoverListener={!inv.customers?.name || inv.customers.name.length < 25}>
-                      <Typography variant="body2" component="span" sx={{ fontWeight: 600, display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        <HighlightText text={inv.customers?.name || '—'} highlight={searchQuery} />
-                      </Typography>
-                    </Tooltip>
-                  </TableCell>
-                  <TableCell align="right" sx={{ fontWeight: 700, whiteSpace: 'nowrap' }}>
-                    {formatCurrency(inv.total_amount)}
-                  </TableCell>
-                  <TableCell align="right" sx={{ fontWeight: 600, whiteSpace: 'nowrap', color: inv.amount_paid > 0 ? 'success.main' : 'text.secondary' }}>
-                    {formatCurrency(inv.amount_paid)}
-                  </TableCell>
-                  <TableCell align="center" sx={{ whiteSpace: 'nowrap' }}>
-                    <Chip
-                      label={STATUS_MAP[inv.status]?.label || inv.status}
-                      color={STATUS_MAP[inv.status]?.color || 'default'}
-                      size="small"
-                      sx={{ fontWeight: 600, height: 22, fontSize: '0.75rem', minWidth: 70 }}
-                    />
-                  </TableCell>
-                  <TableCell align="center" sx={{ whiteSpace: 'nowrap' }}>
-                    <Tooltip title="View Details">
-                      <IconButton color="info" onClick={() => handleViewClick(inv)} size="small">
-                        <VisibilityIcon fontSize="small" />
-                      </IconButton>
-                    </Tooltip>
+            </TableHead>
+            <TableBody>
+              {loading && invoices.length === 0 ? (
+                Array.from(new Array(5)).map((_, index) => (
+                  <TableRow key={index}>
+                    <TableCell><Skeleton width="50%" /></TableCell>
+                    <TableCell><Skeleton width="60%" /></TableCell>
+                    <TableCell><Skeleton width="70%" /></TableCell>
+                    <TableCell align="right"><Skeleton width="40%" sx={{ ml: 'auto' }} /></TableCell>
+                    <TableCell align="center"><Skeleton width="60%" sx={{ mx: 'auto' }} /></TableCell>
+                    <TableCell align="center"><Skeleton width="60%" sx={{ mx: 'auto' }} /></TableCell>
+                  </TableRow>
+                ))
+              ) : paginatedInvoices.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={6} align="center" sx={{ py: 6 }}>
+                    <Typography variant="body1" color="text.secondary">
+                      No invoices found. Click "Create Invoice" to record sales billing.
+                    </Typography>
                   </TableCell>
                 </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </TableContainer>
-      <TablePagination
-        rowsPerPageOptions={[25, 50, 100]}
-        component="div"
-        count={processedInvoices.length}
-        rowsPerPage={rowsPerPage}
-        page={page}
-        onPageChange={handleChangePage}
-        onRowsPerPageChange={handleChangeRowsPerPage}
-        sx={{ borderTopLeftRadius: 0, borderTopRightRadius: 0 }}
-      />
+              ) : (
+                paginatedInvoices.map((inv) => (
+                  <TableRow key={inv.invoice_id} hover>
+                    <TableCell sx={{ whiteSpace: 'nowrap' }}>{formatDate(inv.invoice_date)}</TableCell>
+                    <TableCell sx={{ whiteSpace: 'nowrap' }}>
+                      {(() => {
+                        const shortNo = getShortInvoiceNo(inv.invoice_no);
+                        const progressInfo = getProgressInfo(inv, workflow);
+                        return (
+                          <Box display="flex" alignItems="center" gap={0.75}>
+                            <Tooltip title={`Full Invoice No: ${inv.invoice_no}`} arrow placement="top">
+                              <Typography
+                                variant="body2"
+                                sx={{
+                                  fontWeight: 700,
+                                  color: 'primary.main',
+                                  cursor: 'pointer',
+                                  whiteSpace: 'nowrap',
+                                }}
+                                onClick={() => handleViewClick(inv)}
+                              >
+                                <HighlightText text={shortNo} highlight={searchQuery} />
+                              </Typography>
+                            </Tooltip>
+                            <Chip
+                              label={inv.invoice_type === 'GST' ? 'GST' : 'Non-GST'}
+                              size="small"
+                              variant="outlined"
+                              color={inv.invoice_type === 'GST' ? 'primary' : 'default'}
+                              sx={{ height: 18, fontSize: '0.65rem' }}
+                            />
+                            {progressInfo && (
+                              <Tooltip title={progressInfo.tooltip} arrow placement="top">
+                                <Chip
+                                  label={`${progressInfo.percent}%`}
+                                  size="small"
+                                  color={progressInfo.color}
+                                  variant={progressInfo.variant}
+                                  sx={{ height: 18, fontSize: '0.65rem', fontWeight: 700 }}
+                                />
+                              </Tooltip>
+                            )}
+                          </Box>
+                        );
+                      })()}
+                    </TableCell>
+                    <TableCell sx={{ fontWeight: 600, maxWidth: 220, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      <Tooltip title={inv.customers?.name || ''} arrow placement="top" disableHoverListener={!inv.customers?.name || inv.customers.name.length < 25}>
+                        <Typography variant="body2" component="span" sx={{ fontWeight: 600, display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          <HighlightText text={inv.customers?.name || '—'} highlight={searchQuery} />
+                        </Typography>
+                      </Tooltip>
+                    </TableCell>
+                    <TableCell align="right" sx={{ fontWeight: 700, whiteSpace: 'nowrap' }}>
+                      {formatCurrency(inv.total_amount)}
+                    </TableCell>
+                    <TableCell align="right" sx={{ fontWeight: 600, whiteSpace: 'nowrap', color: inv.amount_paid > 0 ? 'success.main' : 'text.secondary' }}>
+                      {formatCurrency(inv.amount_paid)}
+                    </TableCell>
+                    <TableCell align="center" sx={{ whiteSpace: 'nowrap' }}>
+                      <Chip
+                        label={STATUS_MAP[inv.status]?.label || inv.status}
+                        color={STATUS_MAP[inv.status]?.color || 'default'}
+                        size="small"
+                        sx={{ fontWeight: 600, height: 22, fontSize: '0.75rem', minWidth: 70 }}
+                      />
+                    </TableCell>
+                    <TableCell align="center" sx={{ whiteSpace: 'nowrap' }}>
+                      <Tooltip title="View Details">
+                        <IconButton color="info" onClick={() => handleViewClick(inv)} size="small">
+                          <VisibilityIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </TableContainer>
+        <TablePagination
+          rowsPerPageOptions={[25, 50, 100]}
+          component="div"
+          count={processedInvoices.length}
+          rowsPerPage={rowsPerPage}
+          page={page}
+          onPageChange={handleChangePage}
+          onRowsPerPageChange={handleChangeRowsPerPage}
+          sx={{ flexShrink: 0, borderTop: '1px solid', borderColor: 'divider' }}
+        />
+      </Paper>
+
 
       {/* Details Viewer */}
       <InvoiceDetailsDialog

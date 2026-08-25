@@ -228,7 +228,7 @@ export const CustomersPage = () => {
   };
 
   return (
-    <Box sx={{ p: { xs: 1, sm: 2 }, height: '100%', display: 'flex', flexDirection: 'column' }}>
+    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       
       <PageToolbar
         title="Customer Directory"
@@ -269,12 +269,12 @@ export const CustomersPage = () => {
       />
 
       {error && (
-        <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>
+        <Alert severity="error" sx={{ mb: 1.5, flexShrink: 0 }}>{error}</Alert>
       )}
 
       {/* 2 & 3. DATA TABLE WITH SORTING & PAGINATION */}
-      <Paper sx={{ width: '100%', overflow: 'hidden', flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
-        <TableContainer sx={{ flexGrow: 1, maxHeight: 'calc(100vh - 180px)' }}>
+      <Paper variant="outlined" sx={{ width: '100%', overflow: 'hidden', flexGrow: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+        <TableContainer sx={{ flexGrow: 1, overflowY: 'auto', minHeight: 0 }}>
           <Table stickyHeader size="small">
             <TableHead>
               <TableRow>
@@ -416,8 +416,10 @@ export const CustomersPage = () => {
           page={page}
           onPageChange={handleChangePage}
           onRowsPerPageChange={handleChangeRowsPerPage}
+          sx={{ flexShrink: 0, borderTop: '1px solid', borderColor: 'divider' }}
         />
       </Paper>
+
 
       {/* Add / Edit Dialog */}
       <CustomerDialog

@@ -335,42 +335,67 @@ export const SettingsPage = () => {
   }
 
   return (
-    <Box>
-      <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-        <Typography variant="h4" fontWeight={800} color="primary">
-          Company Settings
-        </Typography>
+    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      {/* Pinned / Sticky Top Action Bar */}
+      <Box
+        sx={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          pb: 1.5,
+          mb: 1.5,
+          borderBottom: '1px solid',
+          borderColor: 'divider',
+          flexShrink: 0,
+          gap: 2,
+          flexWrap: 'wrap',
+        }}
+      >
+        <Box>
+          <Typography variant="h5" fontWeight={800} color="primary" sx={{ fontSize: { xs: '1.25rem', sm: '1.5rem' }, lineHeight: 1.2 }}>
+            Company Settings
+          </Typography>
+          <Typography variant="caption" color="text.secondary">
+            Configure company branding, invoice preferences, UPI payment destinations, and production workflow steps.
+          </Typography>
+        </Box>
         <Tooltip title={isStakeholder ? 'Stakeholder read-only view' : ''}>
           <span>
             <Button
               variant="contained"
-              startIcon={saving ? <CircularProgress size={20} color="inherit" /> : <SaveIcon />}
+              size="medium"
+              startIcon={saving ? <CircularProgress size={18} color="inherit" /> : <SaveIcon />}
               onClick={handleSave}
               disabled={isStakeholder || saving}
               sx={{
-                fontWeight: 'bold',
+                fontWeight: 800,
+                px: 2.5,
+                boxShadow: 2,
                 ...(isStakeholder ? { color: 'text.disabled', bgcolor: 'action.disabledBackground' } : {}),
               }}
             >
-              Save Settings
+              {saving ? 'Saving...' : 'Save Settings'}
             </Button>
           </span>
         </Tooltip>
       </Box>
 
-      {error && <Alert severity="error" sx={{ mb: 3 }}>{error}</Alert>}
-      {success && <Alert severity="success" sx={{ mb: 3 }}>{success}</Alert>}
+      {/* Scrollable Form Body */}
+      <Box sx={{ flexGrow: 1, overflowY: 'auto', pr: 0.5, pb: 4 }}>
+        {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+        {success && <Alert severity="success" sx={{ mb: 2 }}>{success}</Alert>}
 
-      <BrandingUpload
-        settings={settings}
-        onChange={handleChange}
-        isSuperAdmin={isSuperAdmin}
-      />
+        <BrandingUpload
+          settings={settings}
+          onChange={handleChange}
+          isSuperAdmin={isSuperAdmin}
+        />
 
-      <Grid container spacing={3}>
-        <Grid item xs={12} md={6}>
-          <Paper elevation={0} variant="outlined" sx={{ p: 3, borderRadius: 2 }}>
-            <Typography variant="h6" fontWeight={700} mb={2}>General Info</Typography>
+        <Grid container spacing={2.5}>
+          <Grid item xs={12} md={6}>
+            <Paper elevation={0} variant="outlined" sx={{ p: 2.5, borderRadius: 2 }}>
+              <Typography variant="h6" fontWeight={700} mb={2}>General Info</Typography>
+
             <Grid container spacing={2}>
               <Grid item xs={12}>
                 <TextField
@@ -874,8 +899,11 @@ export const SettingsPage = () => {
           </Paper>
         </Grid>
       </Grid>
+    </Box>
+
 
       {/* Edit/Rename Department Dialog */}
+
       <Dialog open={editDeptOpen} onClose={() => !editDeptLoading && setEditDeptOpen(false)} maxWidth="xs" fullWidth>
         <DialogTitle sx={{ fontWeight: 700 }}>Rename Department</DialogTitle>
         <DialogContent>
