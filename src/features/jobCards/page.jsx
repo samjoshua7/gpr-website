@@ -56,6 +56,7 @@ import JobCardDialog from './components/JobCardDialog';
 import JobCardDetailsModal from './components/JobCardDetailsModal';
 import InvoiceDialog from '../salesInvoices/components/InvoiceDialog';
 import InvoiceDetailsDialog from '../salesInvoices/components/InvoiceDetailsDialog';
+import { deleteSalesInvoice, voidSalesInvoice } from '../salesInvoices/api';
 import { checkReferences } from '../../lib/referenceChecker';
 import CannotDeleteDialog from '../../components/feedback/CannotDeleteDialog';
 import { useAuth } from '../../hooks/useAuth';
@@ -249,6 +250,20 @@ export const JobCardsPage = () => {
   const [invoiceViewId, setInvoiceViewId] = useState(null);
   const [invoiceViewOpen, setInvoiceViewOpen] = useState(false);
 
+  // Invoice management actions from Job Card
+  const [invoiceToEditFromJob, setInvoiceToEditFromJob] = useState(null);
+  const [invoiceEditDialogOpen, setInvoiceEditDialogOpen] = useState(false);
+  const [invoiceToDeleteFromJob, setInvoiceToDeleteFromJob] = useState(null);
+  const [deleteInvoiceDialogOpen, setDeleteInvoiceDialogOpen] = useState(false);
+  const [deleteInvoiceLoading, setDeleteInvoiceLoading] = useState(false);
+  const [deleteInvoiceError, setDeleteInvoiceError] = useState(null);
+  const [invoiceToVoidFromJob, setInvoiceToVoidFromJob] = useState(null);
+  const [voidInvoiceDialogOpen, setVoidInvoiceDialogOpen] = useState(false);
+  const [voidInvoiceLoading, setVoidInvoiceLoading] = useState(false);
+  const [voidInvoiceError, setVoidInvoiceError] = useState(null);
+  const [cannotDeleteInvoiceOpen, setCannotDeleteInvoiceOpen] = useState(false);
+  const [invoiceDependencyDetails, setInvoiceDependencyDetails] = useState([]);
+
   // Delete State
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [jobToDelete, setJobToDelete] = useState(null);
@@ -280,8 +295,17 @@ export const JobCardsPage = () => {
     const maxOffset = trackWidth - thumbWidth;
 
     // Swiper translation range
-    const minTranslate = swiper.minTranslate ? swiper.minTranslate() : 0;
-    const maxTranslate = swiper.maxTranslate ? swiper.maxTranslate() : 0;
+    let minTranslate = 0;
+    let maxTranslate = 0;
+    try {
+      if (swiper.snapGrid && swiper.snapGrid.length > 0) {
+        minTranslate = typeof swiper.minTranslate === 'function' ? swiper.minTranslate() : 0;
+        maxTranslate = typeof swiper.maxTranslate === 'function' ? swiper.maxTranslate() : 0;
+      }
+    } catch {
+      minTranslate = 0;
+      maxTranslate = 0;
+    }
     const totalScrollable = minTranslate - maxTranslate; // positive number
 
     let progress = 0;
@@ -413,6 +437,76 @@ export const JobCardsPage = () => {
   const handleViewInvoice = (invoiceId) => {
     setInvoiceViewId(invoiceId);
     setInvoiceViewOpen(true);
+  };
+
+  // Edit invoice from invoice details popup
+  const handleEditInvoiceFromJob = (invoice) => {
+    setInvoiceToEditFromJob(invoice);
+    setInvoiceEditDialogOpen(true);
+  };
+
+  // Delete invoice from invoice details popup
+  const handleDeleteInvoiceFromJob = async (invoice) => {
+    try {
+      const res = await checkReferences('sales_invoices', invoice.invoice_id);
+      if (res.hasReferences) {
+        setInvoiceToDeleteFromJob(invoice);
+        setInvoiceDependencyDetails(res.details);
+        setCannotDeleteInvoiceOpen(true);
+      } else {
+        setInvoiceToDeleteFromJob(invoice);
+        setDeleteInvoiceError(null);
+        setDeleteInvoiceDialogOpen(true);
+      }
+    } catch (err) {
+      console.error(err);
+      setError('Failed to check dependencies for invoice deletion.');
+    }
+  };
+
+  const handleConfirmDeleteInvoice = async () => {
+    if (!invoiceToDeleteFromJob) return;
+    setDeleteInvoiceLoading(true);
+    setDeleteInvoiceError(null);
+    try {
+      await deleteSalesInvoice(invoiceToDeleteFromJob.invoice_id);
+      setDeleteInvoiceDialogOpen(false);
+      setInvoiceToDeleteFromJob(null);
+      setInvoiceViewOpen(false);
+      setInvoiceViewId(null);
+      await fetchKanbanBoardData();
+    } catch (err) {
+      console.error(err);
+      setDeleteInvoiceError(err.message || 'Failed to delete invoice.');
+    } finally {
+      setDeleteInvoiceLoading(false);
+    }
+  };
+
+  // Void invoice from invoice details popup
+  const handleVoidInvoiceFromJob = (invoice) => {
+    setInvoiceToVoidFromJob(invoice);
+    setVoidInvoiceError(null);
+    setVoidInvoiceDialogOpen(true);
+  };
+
+  const handleConfirmVoidInvoice = async () => {
+    if (!invoiceToVoidFromJob) return;
+    setVoidInvoiceLoading(true);
+    setVoidInvoiceError(null);
+    try {
+      await voidSalesInvoice(invoiceToVoidFromJob.invoice_id);
+      setVoidInvoiceDialogOpen(false);
+      setInvoiceToVoidFromJob(null);
+      setInvoiceViewOpen(false);
+      setInvoiceViewId(null);
+      await fetchKanbanBoardData();
+    } catch (err) {
+      console.error(err);
+      setVoidInvoiceError(err.message || 'Failed to void invoice.');
+    } finally {
+      setVoidInvoiceLoading(false);
+    }
   };
 
   // Move task to next workflow step
@@ -1325,9 +1419,85 @@ export const JobCardsPage = () => {
         onClose={() => {
           setInvoiceViewOpen(false);
           setInvoiceViewId(null);
+          fetchKanbanBoardData();
         }}
         invoiceId={invoiceViewId}
+        onEdit={handleEditInvoiceFromJob}
+        onVoid={handleVoidInvoiceFromJob}
+        onDelete={handleDeleteInvoiceFromJob}
       />
+
+      {/* In-Place Invoice Editor Dialog when editing from Job Card */}
+      <InvoiceDialog
+        open={invoiceEditDialogOpen}
+        onClose={() => {
+          setInvoiceEditDialogOpen(false);
+          setInvoiceToEditFromJob(null);
+        }}
+        editInvoice={invoiceToEditFromJob}
+        onSaveSuccess={() => {
+          setInvoiceEditDialogOpen(false);
+          setInvoiceToEditFromJob(null);
+          fetchKanbanBoardData();
+        }}
+      />
+
+      {/* Cannot Delete Invoice Safeguard Dialog */}
+      <CannotDeleteDialog
+        open={cannotDeleteInvoiceOpen}
+        onClose={() => setCannotDeleteInvoiceOpen(false)}
+        recordName={invoiceToDeleteFromJob?.invoice_no}
+        recordType="sales invoice"
+        details={invoiceDependencyDetails}
+      />
+
+      {/* Delete Invoice Confirmation Dialog */}
+      <Dialog open={deleteInvoiceDialogOpen} onClose={() => !deleteInvoiceLoading && setDeleteInvoiceDialogOpen(false)}>
+        <DialogTitle sx={{ fontWeight: 700 }}>Confirm Invoice Deletion</DialogTitle>
+        <DialogContent>
+          {deleteInvoiceError && (
+            <Alert severity="error" sx={{ mb: 2 }}>
+              {deleteInvoiceError}
+            </Alert>
+          )}
+          <DialogContentText>
+            Are you sure you want to delete invoice <strong>{invoiceToDeleteFromJob?.invoice_no}</strong>?
+            This will remove the invoice and reset this job card to unbilled. This action cannot be undone.
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions sx={{ p: 2.5 }}>
+          <Button onClick={() => setDeleteInvoiceDialogOpen(false)} disabled={deleteInvoiceLoading} color="inherit">
+            Cancel
+          </Button>
+          <Button onClick={handleConfirmDeleteInvoice} color="error" variant="contained" disabled={deleteInvoiceLoading}>
+            {deleteInvoiceLoading ? 'Deleting...' : 'Delete Invoice'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Void Invoice Confirmation Dialog */}
+      <Dialog open={voidInvoiceDialogOpen} onClose={() => !voidInvoiceLoading && setVoidInvoiceDialogOpen(false)}>
+        <DialogTitle sx={{ fontWeight: 700 }}>Void Invoice</DialogTitle>
+        <DialogContent>
+          {voidInvoiceError && (
+            <Alert severity="error" sx={{ mb: 2 }}>
+              {voidInvoiceError}
+            </Alert>
+          )}
+          <DialogContentText>
+            Are you sure you want to void invoice <strong>{invoiceToVoidFromJob?.invoice_no}</strong>?
+            Its status will be updated to void, and it will remain in records for accounting safety audits.
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions sx={{ p: 2.5 }}>
+          <Button onClick={() => setVoidInvoiceDialogOpen(false)} disabled={voidInvoiceLoading} color="inherit">
+            Cancel
+          </Button>
+          <Button onClick={handleConfirmVoidInvoice} color="warning" variant="contained" disabled={voidInvoiceLoading}>
+            {voidInvoiceLoading ? 'Voiding...' : 'Void Invoice'}
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       {/* Deletion Check Dialog */}
       <CannotDeleteDialog

@@ -650,7 +650,7 @@ export const SalesInvoicesPage = () => {
         open={detailsOpen}
         onClose={() => {
           setDetailsOpen(false);
-          loadData(true);
+          fetchInvoices(statusFilter);
         }}
         invoiceId={selectedInvoiceId}
         onEdit={handleEditClick}

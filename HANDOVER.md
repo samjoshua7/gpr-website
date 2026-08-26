@@ -1,44 +1,66 @@
-# Handover Summary — Invoice Defaults, Sequence Loading, Customer View Reset & Item Description Display
+# Handover Summary — Chip ReferenceError Fix, Invoice Deletion Lifecycle, & Job Card Popup Actions
 
 ## 1. Objective
-1. Fix invoice sequence number stuck at `'Loading...'` in the Create Invoice dialog and default invoice type to `GST` for all customers.
-2. Ensure Customer View is always checked by default whenever an invoice or quotation is opened or reopened (no state retention across records).
-3. Display only the manually entered description on line items in Customer View, hiding the catalog item name header.
+1. Fix runtime crash `ReferenceError: Chip is not defined` occurring on the Customer Ledger page.
+2. Fix invoice delete option failure and missing delete, void, and edit buttons in the Job Card invoice view popup.
+3. Synchronize cache invalidation between Sales Invoices and Job Cards so deleting/voiding an invoice immediately updates the Job Card from `[BILLED]` to `[NOT BILLED]`.
+4. Add guardrails in `InvoiceDetailsDialog` to gracefully disable Delete on finalized (`paid`, `partial`) and `void` invoices with informative tooltips rather than triggering database exceptions.
 
 ## 2. Decisions Made
-1. **Invoice Number & Default GST**:
-   - Initialized `invoiceType` state to `'GST'` in `InvoiceDialog.jsx`.
-   - In `initData()`, immediately called `getNextInvoiceNumber('GST')` / `getNextQuotationNumber('GST')` for fresh records (`!activeEditRecord`) so the number is populated instantly on dialog open.
-   - Removed the automatic downgrade to `NON_GST` when selecting a customer without a GSTIN; non-GSTIN customers now default to `GST` (as `B2C`).
-2. **Customer View Reset**:
-   - Added `setCustomerView(true)` inside the `useEffect` hook listening to `[open, invoiceId]` in `InvoiceDetailsDialog.jsx` and `[quotationId, open]` in `QuotationDetailsDialog.jsx`.
-   - Guaranteed that reopening the same record or switching between records always starts with Customer View checked.
-3. **Item Description in Customer View**:
-   - In `InvoiceDocument.jsx` and `QuotationDocument.jsx`, line item descriptions in Customer View now display only `item.description || item.product_name` with `whiteSpace: 'pre-line'`, without the bold `product_name` header above it.
-   - Table column header displays `"Description"` in Customer View and `"Item / Description"` in Office View.
+1. **Customer Ledger Fix**:
+   - Added `Chip` to the `@mui/material` import in `CustomerLedgerPage.jsx`.
+   - Wired `onDelete` and `onVoid` handlers into `InvoiceDetailsDialog` inside `CustomerLedgerPage.jsx` with confirmation modals and dependency audits.
+2. **Job Card Invoice View Popup**:
+   - Passed `onEdit`, `onVoid`, and `onDelete` handlers to `<InvoiceDetailsDialog />` in `src/features/jobCards/page.jsx`.
+   - Added delete and void confirmation dialogs plus `CannotDeleteDialog` reference safeguard for invoices inside `jobCards/page.jsx`.
+   - Upon invoice deletion/void, immediately calls `deleteSalesInvoice` / `voidSalesInvoice` and triggers `fetchKanbanBoardData()`.
+3. **Invoice Deletion Lifecycle & Cache Repair**:
+   - In `src/features/salesInvoices/api.js`, removed the query `job_cards.update({ invoice_id: null })` targeting a non-existent column.
+   - Updated converted quotations upon invoice deletion: sets `converted_invoice_id = null` and resets quotation status to `'sent'` so the quotation can be re-converted or edited.
+   - Added `invalidateJobCardsCache()` to `deleteSalesInvoice`, `voidSalesInvoice`, `createSalesInvoice`, and `updateSalesInvoice` so the 5-minute client cache for job cards is instantly refreshed.
+4. **Action Button Guardrails in `InvoiceDetailsDialog`**:
+   - Disabled Delete on `paid` or `partial` invoices with tooltip: `"Invoices with payments cannot be deleted. Void them instead"`.
+   - Disabled Delete on `void` invoices with tooltip: `"Void invoices are retained for audit records and cannot be deleted"`.
+   - Disabled Edit on `void` invoices with tooltip: `"Void invoices cannot be edited"`.
+5. **RLS Migration for Line Items**:
+   - Created `supabase/migrations/031_align_invoice_items_rls.sql` to extend `sales_invoice_items` and `production_tasks` RLS to the `ACCOUNTS` role.
 
 ## 3. Files Modified
-- `src/features/salesInvoices/components/InvoiceDialog.jsx`: Defaults to GST, generates initial sequence number on open, and avoids auto-downgrading to NON_GST.
-- `src/features/salesInvoices/components/InvoiceDetailsDialog.jsx`: Resets `customerView` to `true` on open.
-- `src/features/quotations/components/QuotationDetailsDialog.jsx`: Resets `customerView` to `true` on open.
-- `src/features/salesInvoices/components/InvoiceDocument.jsx`: Renders only manual description in Customer View.
-- `src/features/quotations/components/QuotationDocument.jsx`: Renders only manual description in Customer View.
+- `src/features/customers/CustomerLedgerPage.jsx`: Added missing `Chip` import, wired invoice delete and void handlers and confirmation dialogs.
+- `src/features/jobCards/page.jsx`: Wired `onDelete`, `onVoid`, and `onEdit` to `InvoiceDetailsDialog`, added confirmation and safeguard dialogs.
+- `src/features/salesInvoices/page.jsx`: Fixed ReferenceError by replacing non-existent `loadData(true)` with `fetchInvoices(statusFilter)` in `onClose` of `InvoiceDetailsDialog`.
+- `src/features/salesInvoices/api.js`: Imported `invalidateJobCardsCache`, fixed `deleteSalesInvoice` quotation reset, removed non-existent column query, and added multi-module cache invalidation.
+- `src/features/salesInvoices/components/InvoiceDetailsDialog.jsx`: Added status guardrails and tooltips for Edit, Void, and Delete.
+- `supabase/migrations/031_align_invoice_items_rls.sql`: [NEW] Migration to align RLS for `sales_invoice_items` and `production_tasks`.
 
 ## 4. Database Changes & SQL Migrations
-- None for this task (pure frontend UI & state logic).
+- **Migration 031**: `supabase/migrations/031_align_invoice_items_rls.sql` (Pending user execution in Supabase SQL editor):
+  ```sql
+  DROP POLICY IF EXISTS "SUPER_ADMIN & STAFF full access on sales_invoice_items" ON public.sales_invoice_items;
+  CREATE POLICY "SUPER_ADMIN, ACCOUNTS & STAFF full access on sales_invoice_items" ON public.sales_invoice_items 
+      FOR ALL TO authenticated USING ((select public.get_auth_role()) IN ('SUPER_ADMIN', 'ACCOUNTS', 'STAFF'));
+
+  DROP POLICY IF EXISTS "SUPER_ADMIN & STAFF full access on production_tasks" ON public.production_tasks;
+  CREATE POLICY "SUPER_ADMIN, ACCOUNTS & STAFF full access on production_tasks" ON public.production_tasks 
+      FOR ALL TO authenticated USING ((select public.get_auth_role()) IN ('SUPER_ADMIN', 'ACCOUNTS', 'STAFF'));
+
+  NOTIFY pgrst, 'reload';
+  ```
 
 ## 5. APIs Changed
-- None.
+- `deleteSalesInvoice` in `src/features/salesInvoices/api.js`:
+  - Purges `jobCardsCache` and `taskProgressCache` in addition to invoices and customers.
+  - Reverts quotation status to `'sent'` when detached.
 
 ## 6. Components Added
-- None (modified existing dialog and document components).
+- None (updated existing page and dialog components).
 
 ## 7. Remaining TODOs (Priority Order)
-1. Verify PDF generation and JPG export reflect the clean description layout in Customer View.
-2. Confirm user feedback on GST default behavior across existing draft invoices.
+1. Run `npm run build` in terminal to confirm build passes cleanly.
+2. Execute migration `031_align_invoice_items_rls.sql` in Supabase SQL editor to ensure `ACCOUNTS` staff have full RLS permissions on invoice items.
 
 ## 8. Known Risks
-- None.
+- Finalized documents (`paid`/`partial`) cannot be hard-deleted due to the PostgreSQL `trg_prevent_invoice_hard_delete` trigger, which enforces the constitution's financial auditability rule. The UI now gracefully communicates this to the user via disabled button tooltips.
 
 ## 9. Exact Next Task for Following Coding Agent
-- Test creating a new invoice, selecting various customers (with and without GSTIN), and verifying document printing in Customer View.
+- Test end-to-end flow: create an invoice from a Job Card, open "View Invoice" from Job Cards, delete the invoice, and verify the card turns back to `[NOT BILLED]` without page reload.

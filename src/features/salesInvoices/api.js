@@ -1,5 +1,5 @@
 import { supabase } from '../../lib/supabaseClient';
-import { advanceJobProductionTaskOnInvoice } from '../jobCards/api';
+import { advanceJobProductionTaskOnInvoice, invalidateJobCardsCache } from '../jobCards/api';
 import { invalidateCustomersCache } from '../customers/api';
 
 let cachedSalesInvoices = null;
@@ -310,6 +310,8 @@ export const createSalesInvoice = async (invoiceData, lineItems) => {
 
   invalidateSalesInvoicesCache();
   invalidateCustomersCache();
+  invalidateJobCardsCache();
+  invalidateTaskProgressCache();
   return { ...invoice, autoCreatedJob };
 };
 
@@ -379,6 +381,8 @@ export const updateSalesInvoice = async (invoiceId, invoiceData, lineItems) => {
 
   invalidateSalesInvoicesCache();
   invalidateCustomersCache();
+  invalidateJobCardsCache();
+  invalidateTaskProgressCache();
   return invoice;
 };
 
@@ -396,6 +400,8 @@ export const voidSalesInvoice = async (id) => {
 
   invalidateSalesInvoicesCache();
   invalidateCustomersCache();
+  invalidateJobCardsCache();
+  invalidateTaskProgressCache();
   return data;
 };
 
@@ -410,19 +416,13 @@ export const deleteSalesInvoice = async (id) => {
     console.warn('Notice: Issue deleting invoice line items:', itemsError.message);
   }
 
-  // 2. Unlink any converted quotations
+  // 2. Unlink any converted quotations and revert status to sent so they can be reused
   await supabase
     .from('quotations')
-    .update({ converted_invoice_id: null })
+    .update({ converted_invoice_id: null, status: 'sent' })
     .eq('converted_invoice_id', id);
 
-  // 3. Unlink any job cards
-  await supabase
-    .from('job_cards')
-    .update({ invoice_id: null })
-    .eq('invoice_id', id);
-
-  // 4. Delete parent invoice
+  // 3. Delete parent invoice
   const { error } = await supabase
     .from('sales_invoices')
     .delete()
@@ -434,6 +434,8 @@ export const deleteSalesInvoice = async (id) => {
 
   invalidateSalesInvoicesCache();
   invalidateCustomersCache();
+  invalidateJobCardsCache();
+  invalidateTaskProgressCache();
   return true;
 };
 

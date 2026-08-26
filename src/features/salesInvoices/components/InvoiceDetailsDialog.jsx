@@ -368,56 +368,83 @@ export const InvoiceDetailsDialog = ({
                 </span>
               </Tooltip>
             )}
-            {onEdit && (
-              <Tooltip title={isStakeholder ? 'Stakeholder read-only view' : 'Edit Invoice'}>
-                <span>
-                  <IconButton
-                    size="small"
-                    disabled={isStakeholder}
-                    onClick={() => onEdit && onEdit(invoice)}
-                    sx={isStakeholder ? { color: 'text.disabled' } : {}}
-                  >
-                    <EditIcon fontSize="small" />
-                  </IconButton>
-                </span>
-              </Tooltip>
-            )}
-            {onVoid && (
-              <Tooltip title={isStakeholder ? 'Stakeholder read-only view' : (invoice.status === 'void' ? 'Already Void' : 'Void Invoice')}>
-                <span>
-                  <IconButton
-                    size="small"
-                    color="warning"
-                    disabled={isStakeholder || invoice.status === 'void'}
-                    onClick={() => {
-                      onClose();
-                      onVoid(invoice);
-                    }}
-                    sx={isStakeholder ? { color: 'text.disabled' } : {}}
-                  >
-                    <BlockIcon fontSize="small" />
-                  </IconButton>
-                </span>
-              </Tooltip>
-            )}
-            {onDelete && (
-              <Tooltip title={isStakeholder ? 'Stakeholder read-only view' : 'Delete Invoice'}>
-                <span>
-                  <IconButton
-                    size="small"
-                    color="error"
-                    disabled={isStakeholder}
-                    onClick={() => {
-                      onClose();
-                      onDelete(invoice);
-                    }}
-                    sx={isStakeholder ? { color: 'text.disabled' } : {}}
-                  >
-                    <DeleteIcon fontSize="small" />
-                  </IconButton>
-                </span>
-              </Tooltip>
-            )}
+            {onEdit && (() => {
+              const isEditDisabled = isStakeholder || invoice.status === 'void';
+              const editTooltip = isStakeholder
+                ? 'Stakeholder read-only view'
+                : invoice.status === 'void'
+                ? 'Void invoices cannot be edited'
+                : 'Edit Invoice';
+              return (
+                <Tooltip title={editTooltip}>
+                  <span>
+                    <IconButton
+                      size="small"
+                      disabled={isEditDisabled}
+                      onClick={() => onEdit && onEdit(invoice)}
+                      sx={isEditDisabled ? { color: 'text.disabled' } : {}}
+                    >
+                      <EditIcon fontSize="small" />
+                    </IconButton>
+                  </span>
+                </Tooltip>
+              );
+            })()}
+            {onVoid && (() => {
+              const isVoidDisabled = isStakeholder || invoice.status === 'void';
+              const voidTooltip = isStakeholder
+                ? 'Stakeholder read-only view'
+                : invoice.status === 'void'
+                ? 'Already Void'
+                : 'Void Invoice';
+              return (
+                <Tooltip title={voidTooltip}>
+                  <span>
+                    <IconButton
+                      size="small"
+                      color="warning"
+                      disabled={isVoidDisabled}
+                      onClick={() => {
+                        onClose();
+                        onVoid(invoice);
+                      }}
+                      sx={isVoidDisabled ? { color: 'text.disabled' } : {}}
+                    >
+                      <BlockIcon fontSize="small" />
+                    </IconButton>
+                  </span>
+                </Tooltip>
+              );
+            })()}
+            {onDelete && (() => {
+              const isFinalizedOrVoid = invoice.status === 'paid' || invoice.status === 'partial' || invoice.status === 'void';
+              const isDeleteDisabled = isStakeholder || isFinalizedOrVoid;
+              const deleteTooltip = isStakeholder
+                ? 'Stakeholder read-only view'
+                : invoice.status === 'void'
+                ? 'Void invoices are retained for audit records and cannot be deleted'
+                : (invoice.status === 'paid' || invoice.status === 'partial')
+                ? 'Invoices with payments cannot be deleted. Void them instead'
+                : 'Delete Invoice';
+              return (
+                <Tooltip title={deleteTooltip}>
+                  <span>
+                    <IconButton
+                      size="small"
+                      color="error"
+                      disabled={isDeleteDisabled}
+                      onClick={() => {
+                        onClose();
+                        onDelete(invoice);
+                      }}
+                      sx={isDeleteDisabled ? { color: 'text.disabled' } : {}}
+                    >
+                      <DeleteIcon fontSize="small" />
+                    </IconButton>
+                  </span>
+                </Tooltip>
+              );
+            })()}
 
             <FormControlLabel
               control={

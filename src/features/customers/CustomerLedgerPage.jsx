@@ -16,6 +16,12 @@ import {
   CircularProgress,
   Alert,
   Tooltip,
+  Chip,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogContentText,
+  DialogActions,
 } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import VisibilityIcon from '@mui/icons-material/Visibility';
@@ -27,7 +33,7 @@ import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
 import RequestQuoteIcon from '@mui/icons-material/RequestQuote';
 
 import { getCustomerById } from './api';
-import { getInvoicesByCustomer, getInvoiceById } from '../salesInvoices/api';
+import { getInvoicesByCustomer, getInvoiceById, deleteSalesInvoice, voidSalesInvoice } from '../salesInvoices/api';
 import { getReceiptsByCustomer } from '../receipts/api';
 import { getQuotationsByCustomer } from '../quotations/api';
 import InvoiceDetailsDialog from '../salesInvoices/components/InvoiceDetailsDialog';
@@ -36,6 +42,8 @@ import ReceiptDialog from '../receipts/components/ReceiptDialog';
 import QuotationDetailsDialog from '../quotations/components/QuotationDetailsDialog';
 import { formatDate } from '../../lib/formatDate';
 import { useGprError } from '../../app/providers/ErrorProvider';
+import { checkReferences } from '../../lib/referenceChecker';
+import CannotDeleteDialog from '../../components/feedback/CannotDeleteDialog';
 
 const formatCurrency = (amount) => {
   return new Intl.NumberFormat('en-IN', {
@@ -66,6 +74,19 @@ export const CustomerLedgerPage = () => {
 
   const [selectedQuotationId, setSelectedQuotationId] = useState(null);
   const [quotationDetailsOpen, setQuotationDetailsOpen] = useState(false);
+
+  // Invoice delete and void state
+  const [invoiceToDelete, setInvoiceToDelete] = useState(null);
+  const [deleteInvoiceOpen, setDeleteInvoiceOpen] = useState(false);
+  const [deleteInvoiceLoading, setDeleteInvoiceLoading] = useState(false);
+  const [deleteInvoiceError, setDeleteInvoiceError] = useState(null);
+  const [cannotDeleteInvoiceOpen, setCannotDeleteInvoiceOpen] = useState(false);
+  const [invoiceDependencyDetails, setInvoiceDependencyDetails] = useState([]);
+
+  const [invoiceToVoid, setInvoiceToVoid] = useState(null);
+  const [voidInvoiceOpen, setVoidInvoiceOpen] = useState(false);
+  const [voidInvoiceLoading, setVoidInvoiceLoading] = useState(false);
+  const [voidInvoiceError, setVoidInvoiceError] = useState(null);
 
   const fetchLedgerData = useCallback(async () => {
     setLoading(true);
@@ -174,6 +195,66 @@ export const CustomerLedgerPage = () => {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleDeleteInvoice = async (invoice) => {
+    try {
+      const res = await checkReferences('sales_invoices', invoice.invoice_id);
+      if (res.hasReferences) {
+        setInvoiceToDelete(invoice);
+        setInvoiceDependencyDetails(res.details);
+        setCannotDeleteInvoiceOpen(true);
+      } else {
+        setInvoiceToDelete(invoice);
+        setDeleteInvoiceError(null);
+        setDeleteInvoiceOpen(true);
+      }
+    } catch (err) {
+      console.error(err);
+      setError('Failed to check dependencies for invoice deletion.');
+    }
+  };
+
+  const handleConfirmDeleteInvoice = async () => {
+    if (!invoiceToDelete) return;
+    setDeleteInvoiceLoading(true);
+    setDeleteInvoiceError(null);
+    try {
+      await deleteSalesInvoice(invoiceToDelete.invoice_id);
+      setDeleteInvoiceOpen(false);
+      setInvoiceToDelete(null);
+      setInvoiceDetailsOpen(false);
+      fetchLedgerData();
+    } catch (err) {
+      console.error(err);
+      setDeleteInvoiceError(err.message || 'Failed to delete invoice.');
+    } finally {
+      setDeleteInvoiceLoading(false);
+    }
+  };
+
+  const handleVoidInvoice = (invoice) => {
+    setInvoiceToVoid(invoice);
+    setVoidInvoiceError(null);
+    setVoidInvoiceOpen(true);
+  };
+
+  const handleConfirmVoidInvoice = async () => {
+    if (!invoiceToVoid) return;
+    setVoidInvoiceLoading(true);
+    setVoidInvoiceError(null);
+    try {
+      await voidSalesInvoice(invoiceToVoid.invoice_id);
+      setVoidInvoiceOpen(false);
+      setInvoiceToVoid(null);
+      setInvoiceDetailsOpen(false);
+      fetchLedgerData();
+    } catch (err) {
+      console.error(err);
+      setVoidInvoiceError(err.message || 'Failed to void invoice.');
+    } finally {
+      setVoidInvoiceLoading(false);
     }
   };
 
@@ -512,7 +593,66 @@ export const CustomerLedgerPage = () => {
         }}
         invoiceId={selectedInvoiceId}
         onEdit={(invoice) => handleEditInvoice(invoice)}
+        onVoid={handleVoidInvoice}
+        onDelete={handleDeleteInvoice}
       />
+
+      {/* Cannot Delete Invoice Safeguard Dialog */}
+      <CannotDeleteDialog
+        open={cannotDeleteInvoiceOpen}
+        onClose={() => setCannotDeleteInvoiceOpen(false)}
+        recordName={invoiceToDelete?.invoice_no}
+        recordType="sales invoice"
+        details={invoiceDependencyDetails}
+      />
+
+      {/* Delete Invoice Confirmation Dialog */}
+      <Dialog open={deleteInvoiceOpen} onClose={() => !deleteInvoiceLoading && setDeleteInvoiceOpen(false)}>
+        <DialogTitle sx={{ fontWeight: 700 }}>Confirm Invoice Deletion</DialogTitle>
+        <DialogContent>
+          {deleteInvoiceError && (
+            <Alert severity="error" sx={{ mb: 2 }}>
+              {deleteInvoiceError}
+            </Alert>
+          )}
+          <DialogContentText>
+            Are you sure you want to delete invoice <strong>{invoiceToDelete?.invoice_no}</strong>?
+            This action cannot be undone.
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions sx={{ p: 2.5 }}>
+          <Button onClick={() => setDeleteInvoiceOpen(false)} disabled={deleteInvoiceLoading} color="inherit">
+            Cancel
+          </Button>
+          <Button onClick={handleConfirmDeleteInvoice} color="error" variant="contained" disabled={deleteInvoiceLoading}>
+            {deleteInvoiceLoading ? 'Deleting...' : 'Delete Invoice'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Void Invoice Confirmation Dialog */}
+      <Dialog open={voidInvoiceOpen} onClose={() => !voidInvoiceLoading && setVoidInvoiceOpen(false)}>
+        <DialogTitle sx={{ fontWeight: 700 }}>Void Invoice</DialogTitle>
+        <DialogContent>
+          {voidInvoiceError && (
+            <Alert severity="error" sx={{ mb: 2 }}>
+              {voidInvoiceError}
+            </Alert>
+          )}
+          <DialogContentText>
+            Are you sure you want to void invoice <strong>{invoiceToVoid?.invoice_no}</strong>?
+            Its status will be updated to void, and it will remain in records for accounting safety audits.
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions sx={{ p: 2.5 }}>
+          <Button onClick={() => setVoidInvoiceOpen(false)} disabled={voidInvoiceLoading} color="inherit">
+            Cancel
+          </Button>
+          <Button onClick={handleConfirmVoidInvoice} color="warning" variant="contained" disabled={voidInvoiceLoading}>
+            {voidInvoiceLoading ? 'Voiding...' : 'Void Invoice'}
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       {/* In-Place Invoice Editor / Creator Dialog */}
       <InvoiceDialog
