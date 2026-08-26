@@ -22,6 +22,7 @@ import {
   DialogContent,
   DialogContentText,
   DialogActions,
+  Skeleton,
 } from '@mui/material';
 
 import AddIcon from '@mui/icons-material/Add';
@@ -38,6 +39,7 @@ import { getReceipts, deleteReceipt } from './api';
 import ReceiptDialog from './components/ReceiptDialog';
 import ReceiptDetailsDialog from './components/ReceiptDetailsDialog';
 import { formatDate } from '../../lib/formatDate';
+import { formatCurrency } from '../../lib/formatCurrency';
 
 const MODE_MAP = {
   cash: { label: 'Cash', color: 'success' },
@@ -55,12 +57,7 @@ const headCells = [
   { id: 'actions', label: 'Action', align: 'center', disableSort: true }
 ];
 
-const currencyFormatter = new Intl.NumberFormat('en-IN', {
-  style: 'currency',
-  currency: 'INR',
-});
 
-const formatCurrency = (amount) => currencyFormatter.format(amount || 0);
 
 export const ReceiptsPage = () => {
   const location = useLocation();
@@ -89,17 +86,17 @@ export const ReceiptsPage = () => {
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [deleteError, setDeleteError] = useState(null);
 
-  const fetchReceipts = useCallback(async () => {
-    setLoading(true);
+  const fetchReceipts = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     setError(null);
     try {
       const data = await getReceipts();
-      setReceipts(data);
+      setReceipts(data || []);
     } catch (err) {
       console.error(err);
       setError('Failed to load receipts.');
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, []);
 
@@ -196,7 +193,7 @@ export const ReceiptsPage = () => {
   };
 
   const handleSaveSuccess = () => {
-    fetchReceipts();
+    fetchReceipts(true);
   };
 
   const handleDeleteClick = (receipt) => {
@@ -213,7 +210,7 @@ export const ReceiptsPage = () => {
       await deleteReceipt(receiptToDelete.receipt_id);
       setDeleteOpen(false);
       setReceiptToDelete(null);
-      fetchReceipts();
+      fetchReceipts(true);
     } catch (err) {
       console.error(err);
       setDeleteError(err.message || 'Failed to delete receipt.');
@@ -281,7 +278,27 @@ export const ReceiptsPage = () => {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {paginatedReceipts.map((receipt) => (
+                {loading && receipts.length === 0 ? (
+                  Array.from(new Array(5)).map((_, index) => (
+                    <TableRow key={`skeleton-${index}`}>
+                      <TableCell><Skeleton width="50%" /></TableCell>
+                      <TableCell><Skeleton width="70%" /></TableCell>
+                      <TableCell><Skeleton width="40%" /></TableCell>
+                      <TableCell><Skeleton width="40%" /></TableCell>
+                      <TableCell align="right"><Skeleton width="40%" sx={{ ml: 'auto' }} /></TableCell>
+                      <TableCell align="center"><Skeleton width="60%" sx={{ mx: 'auto' }} /></TableCell>
+                    </TableRow>
+                  ))
+                ) : paginatedReceipts.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={6} align="center" sx={{ py: 6 }}>
+                      <Typography variant="body1" color="text.secondary">
+                        No receipts found. Click "Add Receipt" to record payment.
+                      </Typography>
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  paginatedReceipts.map((receipt) => (
                   <TableRow key={receipt.receipt_id} hover>
                     <TableCell sx={{ whiteSpace: 'nowrap' }}>{formatDate(receipt.receipt_date)}</TableCell>
                     <TableCell sx={{ maxWidth: 240, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: 600 }}>
@@ -338,8 +355,9 @@ export const ReceiptsPage = () => {
                       </Box>
                     </TableCell>
                   </TableRow>
-                ))}
-            </TableBody>
+                ))
+              )}
+              </TableBody>
             </Table>
           </TableContainer>
           

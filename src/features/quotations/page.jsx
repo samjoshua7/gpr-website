@@ -23,6 +23,7 @@ import {
   TablePagination,
   TableSortLabel,
   Tooltip,
+  Skeleton,
 } from '@mui/material';
 
 import AddIcon from '@mui/icons-material/Add';
@@ -38,6 +39,7 @@ import InvoiceDialog from '../salesInvoices/components/InvoiceDialog';
 import QuotationDetailsDialog from './components/QuotationDetailsDialog';
 
 import { formatDate } from '../../lib/formatDate';
+import { formatCurrency } from '../../lib/formatCurrency';
 import { useAuth } from '../../hooks/useAuth';
 
 const STATUS_MAP = {
@@ -57,12 +59,7 @@ const headCells = [
   { id: 'actions', label: 'Actions', align: 'center', disableSort: true },
 ];
 
-const currencyFormatter = new Intl.NumberFormat('en-IN', {
-  style: 'currency',
-  currency: 'INR',
-});
 
-const formatCurrency = (amount) => currencyFormatter.format(amount || 0);
 
 export const QuotationsPage = () => {
   const navigate = useNavigate();
@@ -92,19 +89,19 @@ export const QuotationsPage = () => {
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [deleteError, setDeleteError] = useState(null);
 
-  const fetchQuotationsData = useCallback(async () => {
-    setLoading(true);
+  const fetchQuotationsData = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     setError(null);
     try {
-      const data = await getQuotations(searchQuery, statusFilter, true);
-      setQuotations(data);
+      const data = await getQuotations('', statusFilter, true);
+      setQuotations(data || []);
     } catch (err) {
       console.error('Failed to fetch quotations:', err);
       setError(err.message || 'Failed to load quotations');
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
-  }, [searchQuery, statusFilter]);
+  }, [statusFilter]);
 
   useEffect(() => {
     fetchQuotationsData();
@@ -174,7 +171,7 @@ export const QuotationsPage = () => {
       await deleteQuotation(quotationToDelete.quotation_id);
       setDeleteOpen(false);
       setQuotationToDelete(null);
-      fetchQuotationsData();
+      fetchQuotationsData(true);
     } catch (err) {
       console.error('Failed to delete quotation:', err);
       setDeleteError(err.message || 'Failed to delete quotation');
@@ -184,7 +181,18 @@ export const QuotationsPage = () => {
   };
 
   const sortedQuotations = React.useMemo(() => {
-    return [...quotations].sort((a, b) => {
+    let result = [...quotations];
+
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase().trim();
+      result = result.filter((item) => {
+        const qNo = (item.quotation_no || '').toLowerCase();
+        const cName = (item.customer_name || item.customers?.name || '').toLowerCase();
+        return qNo.includes(q) || cName.includes(q);
+      });
+    }
+
+    return result.sort((a, b) => {
       let aVal = a[orderBy];
       let bVal = b[orderBy];
 
@@ -193,11 +201,14 @@ export const QuotationsPage = () => {
         bVal = b.customer_name || b.customers?.name || '';
       }
 
+      if (typeof aVal === 'string') aVal = aVal.toLowerCase();
+      if (typeof bVal === 'string') bVal = bVal.toLowerCase();
+
       if (aVal < bVal) return order === 'asc' ? -1 : 1;
       if (aVal > bVal) return order === 'asc' ? 1 : -1;
       return 0;
     });
-  }, [quotations, orderBy, order]);
+  }, [quotations, searchQuery, orderBy, order]);
 
   const paginatedQuotations = React.useMemo(() => {
     return sortedQuotations.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
@@ -272,9 +283,21 @@ export const QuotationsPage = () => {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {paginatedQuotations.length === 0 ? (
+                {loading && quotations.length === 0 ? (
+                  Array.from(new Array(5)).map((_, index) => (
+                    <TableRow key={`skeleton-${index}`}>
+                      <TableCell><Skeleton width="60%" /></TableCell>
+                      <TableCell><Skeleton width="40%" /></TableCell>
+                      <TableCell><Skeleton width="70%" /></TableCell>
+                      <TableCell><Skeleton width="40%" /></TableCell>
+                      <TableCell align="center"><Skeleton width="50%" sx={{ mx: 'auto' }} /></TableCell>
+                      <TableCell align="right"><Skeleton width="40%" sx={{ ml: 'auto' }} /></TableCell>
+                      <TableCell align="center"><Skeleton width="60%" sx={{ mx: 'auto' }} /></TableCell>
+                    </TableRow>
+                  ))
+                ) : paginatedQuotations.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} align="center" sx={{ py: 3 }}>
+                    <TableCell colSpan={7} align="center" sx={{ py: 6 }}>
                       <Typography color="text.secondary">No quotations found.</Typography>
                     </TableCell>
                   </TableRow>

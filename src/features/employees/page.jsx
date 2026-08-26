@@ -15,6 +15,12 @@ import {
   Tooltip,
   CircularProgress,
   Alert,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogContentText,
+  DialogActions,
+  Skeleton,
 } from '@mui/material';
 import { TablePagination, TableSortLabel, Stack } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
@@ -65,21 +71,27 @@ export const EmployeesPage = () => {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState(null);
 
-  const loadData = async () => {
+  // Delete Dialog state
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [employeeToDelete, setEmployeeToDelete] = useState(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [deleteError, setDeleteError] = useState(null);
+
+  const loadData = async (silent = false) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       setError(null);
       const [empData, settingsData] = await Promise.all([
         getEmployees(),
         getCompanySettings()
       ]);
-      setEmployees(empData);
+      setEmployees(empData || []);
       setCompanySettings(settingsData);
     } catch (err) {
       console.error(err);
       setError(err.message || 'Failed to load employees data');
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
@@ -166,26 +178,38 @@ export const EmployeesPage = () => {
       await createEmployee(formData);
     }
     setDialogOpen(false);
-    loadData();
+    loadData(true);
   };
 
-  const handleDelete = async (id) => {
-    if (window.confirm('Are you sure you want to delete this employee?')) {
-      try {
-        await deleteEmployee(id);
-        loadData();
-      } catch (err) {
-        alert(err.message || 'Failed to delete employee.');
-      }
+  const handleDeleteClick = (employee) => {
+    setEmployeeToDelete(employee);
+    setDeleteError(null);
+    setDeleteOpen(true);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!employeeToDelete) return;
+    setDeleteLoading(true);
+    setDeleteError(null);
+    try {
+      await deleteEmployee(employeeToDelete.employee_id);
+      setDeleteOpen(false);
+      setEmployeeToDelete(null);
+      loadData(true);
+    } catch (err) {
+      console.error(err);
+      setDeleteError(err.message || 'Failed to delete employee.');
+    } finally {
+      setDeleteLoading(false);
     }
   };
 
   const handleToggleStatus = async (id, currentStatus) => {
     try {
       await toggleEmployeeStatus(id, !currentStatus);
-      loadData();
+      loadData(true);
     } catch (err) {
-      alert(err.message || 'Failed to update employee status.');
+      setError(err.message || 'Failed to update employee status.');
     }
   };
 
@@ -251,19 +275,19 @@ export const EmployeesPage = () => {
             </TableHead>
             <TableBody>
               {loading && employees.length === 0 ? (
-                Array.from(new Array(3)).map((_, index) => (
-                  <TableRow key={index}>
-                    <TableCell><CircularProgress size={24} /></TableCell>
-                    <TableCell></TableCell>
-                    <TableCell></TableCell>
-                    <TableCell></TableCell>
-                    <TableCell></TableCell>
-                    <TableCell></TableCell>
+                Array.from(new Array(5)).map((_, index) => (
+                  <TableRow key={`skeleton-${index}`}>
+                    <TableCell><Skeleton width="60%" /></TableCell>
+                    <TableCell><Skeleton width="80%" /></TableCell>
+                    <TableCell><Skeleton width="40%" /></TableCell>
+                    <TableCell><Skeleton width="60%" /></TableCell>
+                    <TableCell><Skeleton width="30%" /></TableCell>
+                    <TableCell align="right"><Skeleton width="40%" sx={{ ml: 'auto' }} /></TableCell>
                   </TableRow>
                 ))
               ) : paginatedEmployees.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} align="center" sx={{ py: 3 }}>
+                  <TableCell colSpan={6} align="center" sx={{ py: 6 }}>
                     <Typography color="text.secondary">No employees found.</Typography>
                   </TableCell>
                 </TableRow>
@@ -333,7 +357,7 @@ export const EmployeesPage = () => {
                           <IconButton
                             color="error"
                             disabled={isStakeholder}
-                            onClick={() => handleDelete(emp.employee_id)}
+                            onClick={() => handleDeleteClick(emp)}
                             size="small"
                             sx={isStakeholder ? { color: 'text.disabled' } : {}}
                           >
@@ -371,6 +395,34 @@ export const EmployeesPage = () => {
         initialData={editingEmployee}
         companySettings={companySettings}
       />
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={deleteOpen} onClose={() => !deleteLoading && setDeleteOpen(false)}>
+        <DialogTitle sx={{ fontWeight: 700 }}>Confirm Employee Deletion</DialogTitle>
+        <DialogContent>
+          {deleteError && (
+            <Alert severity="error" sx={{ mb: 2 }}>
+              {deleteError}
+            </Alert>
+          )}
+          <DialogContentText>
+            Are you sure you want to delete employee <strong>{employeeToDelete?.name}</strong> ({employeeToDelete?.email})? This action cannot be undone.
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions sx={{ p: 2.5 }}>
+          <Button onClick={() => setDeleteOpen(false)} disabled={deleteLoading} color="inherit">
+            Cancel
+          </Button>
+          <Button
+            onClick={handleDeleteConfirm}
+            color="error"
+            variant="contained"
+            disabled={deleteLoading}
+          >
+            {deleteLoading ? 'Deleting...' : 'Delete Employee'}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };

@@ -77,7 +77,11 @@ export const router = createBrowserRouter([
       },
       {
         path: 'jobs',
-        element: <JobCardsPage />,
+        element: (
+          <AuthGuard allowedRoles={['SUPER_ADMIN', 'ACCOUNTS', 'STAFF', 'STAKEHOLDER']}>
+            <JobCardsPage />
+          </AuthGuard>
+        ),
       },
       {
         path: 'quotations',

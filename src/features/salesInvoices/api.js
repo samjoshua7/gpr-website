@@ -491,21 +491,7 @@ export const getCustomerOutstandingBalance = async (customerId) => {
   return openingBalance + totalSales - totalReceipts;
 };
 
-/**
- * Queries active company settings
- */
-export const getCompanySettings = async () => {
-  const { data, error } = await supabase
-    .from('company_settings')
-    .select('*')
-    .limit(1);
-
-  if (error) {
-    throw new Error(error.message);
-  }
-
-  return data?.[0] || null;
-};
+export { getCompanySettings } from '../settings/api';
 
 /**
  * Queries items catalog with joined tax rates for selection

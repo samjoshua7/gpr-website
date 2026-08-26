@@ -105,42 +105,42 @@ export const checkReferences = async (type, id) => {
     return { hasReferences: false, details: [] };
   }
 
-  const details = [];
-  let hasReferences = false;
+  const results = await Promise.all(
+    rules.map(async (rule) => {
+      try {
+        const { data, error, count } = await supabase
+          .from(rule.table)
+          .select(rule.displayField, { count: 'exact' })
+          .eq(rule.foreignKey, id);
 
-  for (const rule of rules) {
-    try {
-      // Query count and a few sample records
-      const { data, error, count } = await supabase
-        .from(rule.table)
-        .select(rule.displayField, { count: 'exact' })
-        .eq(rule.foreignKey, id);
+        if (error) {
+          console.error(`Error checking dependency in ${rule.table}:`, error.message);
+          return null;
+        }
 
-      if (error) {
-        console.error(`Error checking dependency in ${rule.table}:`, error.message);
-        continue;
+        if (count > 0) {
+          const examples = (data || []).slice(0, 3).map((row) => {
+            const rawValue = row[rule.displayField];
+            return rule.formatLabel ? rule.formatLabel(rawValue) : rawValue;
+          });
+
+          return {
+            label: rule.label,
+            count: count,
+            examples: examples,
+          };
+        }
+      } catch (err) {
+        console.error(`Failed querying references in ${rule.table}:`, err);
       }
+      return null;
+    })
+  );
 
-      if (count > 0) {
-        hasReferences = true;
-        const examples = data.slice(0, 3).map((row) => {
-          const rawValue = row[rule.displayField];
-          return rule.formatLabel ? rule.formatLabel(rawValue) : rawValue;
-        });
-
-        details.push({
-          label: rule.label,
-          count: count,
-          examples: examples,
-        });
-      }
-    } catch (err) {
-      console.error(`Failed querying references in ${rule.table}:`, err);
-    }
-  }
+  const validDetails = results.filter(Boolean);
 
   return {
-    hasReferences,
-    details,
+    hasReferences: validDetails.length > 0,
+    details: validDetails,
   };
 };

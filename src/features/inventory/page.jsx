@@ -22,6 +22,7 @@ import {
   DialogContentText,
   DialogActions,
   Tooltip,
+  Skeleton,
 } from '@mui/material';
 
 import AddIcon from '@mui/icons-material/Add';
@@ -38,6 +39,7 @@ import ItemDialog from './components/ItemDialog';
 import StockAdjustmentDialog from './components/StockAdjustmentDialog';
 import { checkReferences } from '../../lib/referenceChecker';
 import CannotDeleteDialog from '../../components/feedback/CannotDeleteDialog';
+import { formatCurrency } from '../../lib/formatCurrency';
 
 const headCells = [
   { id: 'name', label: 'Product Name', align: 'left' },
@@ -51,12 +53,7 @@ const headCells = [
   { id: 'actions', label: 'Actions', align: 'center', disableSort: true }
 ];
 
-const currencyFormatter = new Intl.NumberFormat('en-IN', {
-  style: 'currency',
-  currency: 'INR',
-});
 
-const formatCurrency = (amount) => currencyFormatter.format(amount || 0);
 
 export const InventoryPage = () => {
   const [items, setItems] = useState([]);
@@ -86,17 +83,17 @@ export const InventoryPage = () => {
   const [cannotDeleteOpen, setCannotDeleteOpen] = useState(false);
   const [dependencyDetails, setDependencyDetails] = useState([]);
 
-  const fetchItems = useCallback(async () => {
-    setLoading(true);
+  const fetchItems = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     setError(null);
     try {
       const data = await getItems();
-      setItems(data);
+      setItems(data || []);
     } catch (err) {
       console.error(err);
       setError('Failed to fetch inventory catalog list.');
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, []);
 
@@ -180,7 +177,6 @@ export const InventoryPage = () => {
   };
 
   const handleDeleteClick = async (item) => {
-    setLoading(true);
     try {
       const res = await checkReferences('items', item.item_id);
       if (res.hasReferences) {
@@ -195,8 +191,6 @@ export const InventoryPage = () => {
     } catch (err) {
       console.error(err);
       setError('Failed to run database dependency checks.');
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -208,7 +202,7 @@ export const InventoryPage = () => {
       await deleteItem(itemToDelete.item_id);
       setDeleteOpen(false);
       setItemToDelete(null);
-      fetchItems();
+      fetchItems(true);
     } catch (err) {
       console.error(err);
       setDeleteError(err.message || 'Failed to delete product.');
@@ -218,7 +212,7 @@ export const InventoryPage = () => {
   };
 
   const handleSaveSuccess = () => {
-    fetchItems();
+    fetchItems(true);
   };
 
   return (
@@ -280,7 +274,30 @@ export const InventoryPage = () => {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {paginatedItems.map((item) => {
+                {loading && items.length === 0 ? (
+                  Array.from(new Array(5)).map((_, index) => (
+                    <TableRow key={`skeleton-${index}`}>
+                      <TableCell><Skeleton width="60%" /></TableCell>
+                      <TableCell><Skeleton width="40%" /></TableCell>
+                      <TableCell><Skeleton width="40%" /></TableCell>
+                      <TableCell><Skeleton width="40%" /></TableCell>
+                      <TableCell align="right"><Skeleton width="30%" sx={{ ml: 'auto' }} /></TableCell>
+                      <TableCell align="right"><Skeleton width="30%" sx={{ ml: 'auto' }} /></TableCell>
+                      <TableCell align="right"><Skeleton width="30%" sx={{ ml: 'auto' }} /></TableCell>
+                      <TableCell align="center"><Skeleton width="50%" sx={{ mx: 'auto' }} /></TableCell>
+                      <TableCell align="center"><Skeleton width="50%" sx={{ mx: 'auto' }} /></TableCell>
+                    </TableRow>
+                  ))
+                ) : paginatedItems.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={9} align="center" sx={{ py: 6 }}>
+                      <Typography variant="body1" color="text.secondary">
+                        No inventory items found. Click "Add Product" to register new catalog materials.
+                      </Typography>
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  paginatedItems.map((item) => {
                   const stock = parseFloat(item.current_stock || 0);
                   const limit = parseFloat(item.reorder_level || 0);
                   const isLow = stock <= limit;
@@ -350,7 +367,8 @@ export const InventoryPage = () => {
                       </TableCell>
                     </TableRow>
                   );
-                })}
+                })
+              )}
             </TableBody>
             </Table>
           </TableContainer>

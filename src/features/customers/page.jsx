@@ -45,6 +45,7 @@ import CannotDeleteDialog from '../../components/feedback/CannotDeleteDialog';
 import { SearchInput } from '../../components/ui/SearchInput';
 import { HighlightText } from '../../components/ui/HighlightText';
 import { formatDate } from '../../lib/formatDate';
+import { formatCurrency } from '../../lib/formatCurrency';
 import { useAuth } from '../../hooks/useAuth';
 
 const headCells = [
@@ -55,14 +56,6 @@ const headCells = [
   { id: 'outstanding_balance', label: 'Outstanding Balance', align: 'right' },
   { id: 'actions', label: 'Actions', align: 'center', disableSort: true }
 ];
-
-// Formatting helpers (hoisted to avoid recreating on every render)
-const currencyFormatter = new Intl.NumberFormat('en-IN', {
-  style: 'currency',
-  currency: 'INR',
-});
-
-const formatCurrency = (amount) => currencyFormatter.format(amount || 0);
 
 export const CustomersPage = () => {
   const navigate = useNavigate();
@@ -96,18 +89,18 @@ export const CustomersPage = () => {
   const [dependencyDetails, setDependencyDetails] = useState([]);
 
   // 1. Initial Fetch
-  const fetchCustomers = useCallback(async (force = true) => {
-    setLoading(true);
+  const fetchCustomers = useCallback(async (force = true, silent = false) => {
+    if (!silent) setLoading(true);
     setError(null);
     try {
       // Fetch all customers with fresh balances
       const data = await getCustomers('', force);
-      setAllCustomers(data);
+      setAllCustomers(data || []);
     } catch (err) {
       console.error(err);
       setError(err.message || 'Failed to load customers.');
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, []);
 
@@ -214,7 +207,7 @@ export const CustomersPage = () => {
       await deleteCustomer(customerToDelete.customer_id);
       setDeleteOpen(false);
       setCustomerToDelete(null);
-      fetchCustomers(); // Refresh list only on modification
+      fetchCustomers(true, true); // Refresh list silently on modification
     } catch (err) {
       console.error(err);
       setDeleteError(err.message || 'Failed to delete customer. Ensure they have no linked jobs/invoices.');
@@ -224,7 +217,7 @@ export const CustomersPage = () => {
   };
 
   const handleDataChanged = () => {
-    fetchCustomers();
+    fetchCustomers(true, true);
   };
 
   return (

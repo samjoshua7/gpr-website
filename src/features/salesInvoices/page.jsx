@@ -47,6 +47,7 @@ import { SearchInput } from '../../components/ui/SearchInput';
 import { HighlightText } from '../../components/ui/HighlightText';
 import { TablePagination, TableSortLabel, Stack } from '@mui/material';
 import { formatDate } from '../../lib/formatDate';
+import { formatCurrency } from '../../lib/formatCurrency';
 import { useGprError } from '../../app/providers/ErrorProvider';
 import { useAuth } from '../../hooks/useAuth';
 
@@ -66,13 +67,6 @@ const headCells = [
   { id: 'status', label: 'Payment Status', align: 'center' },
   { id: 'actions', label: 'Actions', align: 'center', disableSort: true },
 ];
-
-const currencyFormatter = new Intl.NumberFormat('en-IN', {
-  style: 'currency',
-  currency: 'INR',
-});
-
-const formatCurrency = (amount) => currencyFormatter.format(amount || 0);
 
 const getShortInvoiceNo = (fullNo) => {
   if (!fullNo) return '';
@@ -193,22 +187,22 @@ export const SalesInvoicesPage = () => {
     setCreateOpen(true);
   };
 
-  const fetchInvoices = useCallback(async (filter) => {
-    setLoading(true);
+  const fetchInvoices = useCallback(async (filter, silent = false) => {
+    if (!silent) setLoading(true);
     setError(null);
     try {
       const data = await getSalesInvoices('', filter);
-      setInvoices(data);
+      setInvoices(data || []);
     } catch (err) {
       console.error(err);
       setError(err.message || 'Failed to load invoices.');
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    fetchInvoices(statusFilter);
+    fetchInvoices(statusFilter, invoices.length > 0);
   }, [statusFilter, fetchInvoices]);
 
   const processedInvoices = React.useMemo(() => {
@@ -255,15 +249,20 @@ export const SalesInvoicesPage = () => {
     return processedInvoices.slice(start, start + rowsPerPage);
   }, [processedInvoices, page, rowsPerPage]);
 
+  const paginatedInvoiceIds = React.useMemo(() => {
+    return paginatedInvoices.map((inv) => inv.invoice_id).join(',');
+  }, [paginatedInvoices]);
+
   useEffect(() => {
     const loadTaskProgress = async () => {
       if (!paginatedInvoices || paginatedInvoices.length === 0) return;
       const ids = paginatedInvoices.map((inv) => inv.invoice_id);
       try {
-        const [progressData, settings] = await Promise.all([
-          getInvoiceTaskProgress(ids),
-          getCompanySettings(),
-        ]);
+        const promises = [getInvoiceTaskProgress(ids)];
+        if (!workflow.length) {
+          promises.push(getCompanySettings());
+        }
+        const [progressData, settings] = await Promise.all(promises);
         setTaskProgressMap((prev) => ({ ...prev, ...progressData }));
         if (settings?.production_workflow) {
           setWorkflow(settings.production_workflow);
@@ -274,7 +273,7 @@ export const SalesInvoicesPage = () => {
     };
 
     loadTaskProgress();
-  }, [paginatedInvoices]);
+  }, [paginatedInvoiceIds]);
 
   useEffect(() => {
     setPage(0);
@@ -351,7 +350,7 @@ export const SalesInvoicesPage = () => {
       setNotificationMessage(`Job Card ${jcNum} was automatically created and linked for Invoice ${savedResult.invoice_no}.`);
       setNotificationOpen(true);
     }
-    fetchInvoices(statusFilter);
+    fetchInvoices(statusFilter, true);
   };
 
   const handleVoidConfirm = async () => {
@@ -362,7 +361,7 @@ export const SalesInvoicesPage = () => {
       await voidSalesInvoice(invoiceToVoid.invoice_id);
       setVoidOpen(false);
       setInvoiceToVoid(null);
-      fetchInvoices(statusFilter);
+      fetchInvoices(statusFilter, true);
     } catch (err) {
       console.error(err);
       setVoidError(err.message || 'Failed to void invoice.');
@@ -396,8 +395,6 @@ export const SalesInvoicesPage = () => {
       return;
     }
 
-    // 2. Query references in database (e.g. linked receipts)
-    setLoading(true);
     try {
       const res = await checkReferences('sales_invoices', invoice.invoice_id);
       if (res.hasReferences) {
@@ -417,8 +414,6 @@ export const SalesInvoicesPage = () => {
         actionContext: `Checking dependencies for Invoice #${invoice?.invoice_no}`,
         payload: { invoice_id: invoice?.invoice_id, invoice_no: invoice?.invoice_no },
       });
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -430,7 +425,7 @@ export const SalesInvoicesPage = () => {
       await deleteSalesInvoice(invoiceToDelete.invoice_id);
       setDeleteOpen(false);
       setInvoiceToDelete(null);
-      fetchInvoices(statusFilter);
+      fetchInvoices(statusFilter, true);
     } catch (err) {
       console.error(err);
       setDeleteError(err.message || 'Failed to delete invoice.');
@@ -650,7 +645,6 @@ export const SalesInvoicesPage = () => {
         open={detailsOpen}
         onClose={() => {
           setDetailsOpen(false);
-          fetchInvoices(statusFilter);
         }}
         invoiceId={selectedInvoiceId}
         onEdit={handleEditClick}

@@ -43,6 +43,14 @@ import {
 
 import { getDashboardData } from './api';
 
+const currencyFormatter = new Intl.NumberFormat('en-IN', {
+  style: 'currency',
+  currency: 'INR',
+  maximumFractionDigits: 0,
+});
+
+const formatCurrency = (amt) => currencyFormatter.format(amt || 0);
+
 export const DashboardPage = () => {
   const { profile } = useAuth();
   const navigate = useNavigate();
@@ -74,8 +82,6 @@ export const DashboardPage = () => {
     loadDashboard();
   }, []);
 
-  const formatCurrency = (amt) =>
-    new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(amt || 0);
 
   const STAT_CARDS = [
     {

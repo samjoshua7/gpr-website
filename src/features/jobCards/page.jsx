@@ -322,8 +322,8 @@ export const JobCardsPage = () => {
   }, []);
 
 
-  const fetchKanbanBoardData = useCallback(async () => {
-    setLoading(true);
+  const fetchKanbanBoardData = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     setError(null);
     try {
       const [jobsData, settingsData, customersData] = await Promise.all([
@@ -340,7 +340,7 @@ export const JobCardsPage = () => {
       console.error(err);
       setError('Failed to fetch Kanban board components.');
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, []);
 
@@ -380,7 +380,6 @@ export const JobCardsPage = () => {
       return;
     }
 
-    setLoading(true);
     try {
       const res = await checkReferences('job_cards', job.job_id);
       if (res.hasReferences) {
@@ -395,8 +394,6 @@ export const JobCardsPage = () => {
     } catch (err) {
       console.error(err);
       setError('Failed to run database reference checks.');
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -408,7 +405,7 @@ export const JobCardsPage = () => {
       await deleteJobCard(jobToDelete.job_id);
       setDeleteOpen(false);
       setJobToDelete(null);
-      fetchKanbanBoardData();
+      fetchKanbanBoardData(true);
     } catch (err) {
       console.error(err);
       setDeleteError(err.message || 'Failed to delete job card.');
@@ -418,7 +415,7 @@ export const JobCardsPage = () => {
   };
 
   const handleSaveSuccess = () => {
-    fetchKanbanBoardData();
+    fetchKanbanBoardData(true);
   };
 
   // Card details modal popup
@@ -474,7 +471,7 @@ export const JobCardsPage = () => {
       setInvoiceToDeleteFromJob(null);
       setInvoiceViewOpen(false);
       setInvoiceViewId(null);
-      await fetchKanbanBoardData();
+      await fetchKanbanBoardData(true);
     } catch (err) {
       console.error(err);
       setDeleteInvoiceError(err.message || 'Failed to delete invoice.');
@@ -500,7 +497,7 @@ export const JobCardsPage = () => {
       setInvoiceToVoidFromJob(null);
       setInvoiceViewOpen(false);
       setInvoiceViewId(null);
-      await fetchKanbanBoardData();
+      await fetchKanbanBoardData(true);
     } catch (err) {
       console.error(err);
       setVoidInvoiceError(err.message || 'Failed to void invoice.');
@@ -643,8 +640,6 @@ export const JobCardsPage = () => {
     setSortBy('fcfs');
   };
 
-  const sensors = null; // DndKit removed — Swiper now owns all pointer/touch events
-
   // Sync scrollbar thumb after data loads (slides change count after fetch)
   useEffect(() => {
     if (!loading && swiperRef.current) {
@@ -658,8 +653,6 @@ export const JobCardsPage = () => {
       return () => cancelAnimationFrame(raf1);
     }
   }, [loading, visibleWorkflow.length, syncScrollbar]);
-
-  const handleDragEnd = () => {}; // DndKit removed — kept as stub to avoid refactoring call sites
 
   return (
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
@@ -1007,7 +1000,7 @@ export const JobCardsPage = () => {
                         {stepName}
                       </Typography>
                       <Chip
-                        label={loading ? '...' : colCards.length}
+                        label={loading && jobs.length === 0 ? '...' : colCards.length}
                         size="small"
                         sx={{
                           fontWeight: 700,
@@ -1021,7 +1014,7 @@ export const JobCardsPage = () => {
 
                     {/* Cards List container with fixed height and edge scroll indicators */}
                     <ColumnCardList colCardsCount={colCards.length}>
-                      {loading ? (
+                      {(loading && jobs.length === 0) ? (
                         Array.from(new Array(3)).map((_, i) => (
                           <Card key={i} variant="outlined" sx={{ borderRadius: 2 }}>
                             <CardContent sx={{ p: 2 }}>
@@ -1341,7 +1334,7 @@ export const JobCardsPage = () => {
               <Typography variant="body2" color="text.secondary">
                 • <strong>Quick Arrow Buttons:</strong> Click the <code>[→]</code> button on any card to immediately advance it to the next department, or <code>[←]</code> to move it back.
                 <br />
-                • <strong>Drag & Drop:</strong> Drag any card to drop it directly into any target department column.
+                • <strong>Card Details:</strong> Click any card to view full job specifications, linked invoices, and status history.
               </Typography>
             </Paper>
 
@@ -1385,7 +1378,7 @@ export const JobCardsPage = () => {
         onDelete={(job) => handleDeleteClick(job)}
         onCreateInvoice={(job) => handleCreateInvoiceFromJob(job)}
         onViewInvoice={(invoiceId) => handleViewInvoice(invoiceId)}
-        onRefresh={fetchKanbanBoardData}
+        onRefresh={() => fetchKanbanBoardData(true)}
         userRole={profile?.role}
         workflow={workflow}
       />
@@ -1409,7 +1402,7 @@ export const JobCardsPage = () => {
         onSaveSuccess={() => {
           setInvoiceDialogOpen(false);
           setKickoffJobForInvoice(null);
-          fetchKanbanBoardData();
+          fetchKanbanBoardData(true);
         }}
       />
 
@@ -1419,7 +1412,6 @@ export const JobCardsPage = () => {
         onClose={() => {
           setInvoiceViewOpen(false);
           setInvoiceViewId(null);
-          fetchKanbanBoardData();
         }}
         invoiceId={invoiceViewId}
         onEdit={handleEditInvoiceFromJob}
