@@ -89,13 +89,21 @@ export const EmployeeDialog = ({ open, onClose, onSave, initialData, companySett
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!formData.name.trim() || !formData.email.trim()) {
+    const trimmedName = formData.name.trim();
+    const normalizedEmail = formData.email.trim().toLowerCase();
+
+    if (!trimmedName || !normalizedEmail) {
       setError('Name and Email are required.');
       return;
     }
 
     try {
-      await onSave(formData);
+      await onSave({
+        ...formData,
+        name: trimmedName,
+        email: normalizedEmail,
+        phone: formData.phone ? formData.phone.trim() : '',
+      });
     } catch (err) {
       setError(err.message || 'Failed to save employee.');
     }

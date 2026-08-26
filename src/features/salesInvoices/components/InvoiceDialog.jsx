@@ -90,7 +90,7 @@ export const InvoiceDialog = ({
   const [shippingAddress, setShippingAddress] = useState('');
   const [customerGstin, setCustomerGstin] = useState('');
 
-  const [invoiceType, setInvoiceType] = useState('NON_GST');
+  const [invoiceType, setInvoiceType] = useState('GST');
   const [customerType, setCustomerType] = useState('B2C');
   const isGstInvoice = invoiceType === 'GST';
   const [isIntraState, setIsIntraState] = useState(true);
@@ -240,35 +240,48 @@ export const InvoiceDialog = ({
               }))
             );
           }
-        } else if (preselectedJob) {
-          if (preselectedJob.customer_id) {
-            const matched = customerList.find((c) => c.customer_id === preselectedJob.customer_id);
-            if (matched) {
-              handleCustomerChange(null, matched);
-            }
+        } else {
+          // New record - generate initial sequence number for default GST type
+          try {
+            const nextNo = initialIsQuotation
+              ? await getNextQuotationNumber('GST')
+              : await getNextInvoiceNumber('GST');
+            setInvoiceNo(nextNo);
+          } catch (err) {
+            console.error('Failed to generate initial sequence number:', err);
+            setInvoiceNo('ERR-GEN');
           }
-          const jcPrefix = preselectedJob.job_number ? `JC-${String(preselectedJob.job_number).padStart(4, '0')}: ` : '';
-          setNotes(`${jcPrefix}${preselectedJob.description || ''} (Office use only)`);
-          setLineItems([
-            {
-              item_id: null,
-              product_name: preselectedJob.description || 'Print Order',
-              description: preselectedJob.description || '',
-              quantity: (preselectedJob.quantity || 1).toString(),
-              unit: 'sheet',
-              unit_price: '0.00',
-              discount_amount: '0.00',
-              tax_rate_id: '',
-              gst_rate: 0,
-              tax_amount: 0,
-              hsn_code: '',
-              amount: 0,
-            },
-          ]);
-        } else if (preselectedCustomer) {
-          const custId = preselectedCustomer.customer_id || preselectedCustomer.id;
-          const matched = customerList.find((c) => c.customer_id === custId) || preselectedCustomer;
-          handleCustomerChange(null, matched);
+
+          if (preselectedJob) {
+            if (preselectedJob.customer_id) {
+              const matched = customerList.find((c) => c.customer_id === preselectedJob.customer_id);
+              if (matched) {
+                handleCustomerChange(null, matched);
+              }
+            }
+            const jcPrefix = preselectedJob.job_number ? `JC-${String(preselectedJob.job_number).padStart(4, '0')}: ` : '';
+            setNotes(`${jcPrefix}${preselectedJob.description || ''} (Office use only)`);
+            setLineItems([
+              {
+                item_id: null,
+                product_name: preselectedJob.description || 'Print Order',
+                description: preselectedJob.description || '',
+                quantity: (preselectedJob.quantity || 1).toString(),
+                unit: 'sheet',
+                unit_price: '0.00',
+                discount_amount: '0.00',
+                tax_rate_id: '',
+                gst_rate: 0,
+                tax_amount: 0,
+                hsn_code: '',
+                amount: 0,
+              },
+            ]);
+          } else if (preselectedCustomer) {
+            const custId = preselectedCustomer.customer_id || preselectedCustomer.id;
+            const matched = customerList.find((c) => c.customer_id === custId) || preselectedCustomer;
+            handleCustomerChange(null, matched);
+          }
         }
       } catch (err) {
         console.error('Failed to initialize dialog data:', err);
@@ -286,7 +299,7 @@ export const InvoiceDialog = ({
       setShippingSameAsBilling(true);
       setShippingAddress('');
       setCustomerGstin('');
-      setInvoiceType('NON_GST');
+      setInvoiceType('GST');
       setCustomerType('B2C');
       setIsIntraState(true);
       setInvoiceNo('Loading...');
@@ -374,20 +387,15 @@ export const InvoiceDialog = ({
     const custGstinVal = newValue.gstin || '';
     setCustomerGstin(custGstinVal);
 
-    // Auto-toggle GST Invoice if customer has registered GSTIN
-    let targetType = invoiceType;
+    // Auto-set Customer Type based on GSTIN; preserve GST as default for all customers
     if (custGstinVal.trim().length > 0) {
-      targetType = 'GST';
-      setInvoiceType('GST');
       setCustomerType('B2B');
-    } else if (!activeEditRecord) {
-      targetType = 'NON_GST';
-      setInvoiceType('NON_GST');
+      if (invoiceType !== 'GST') {
+        setInvoiceType('GST');
+        await updateInvoiceNumberForType('GST');
+      }
+    } else {
       setCustomerType('B2C');
-    }
-
-    if (targetType !== invoiceType) {
-      await updateInvoiceNumberForType(targetType);
     }
 
     try {

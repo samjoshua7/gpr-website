@@ -37,7 +37,7 @@ export const AuthProvider = ({ children }) => {
       return;
     }
 
-    const email = currentSession.user.email;
+    const email = currentSession.user.email ? currentSession.user.email.trim().toLowerCase() : '';
     const userId = currentSession.user.id;
 
     // Check refs to see if the user profile is already cached
@@ -55,18 +55,31 @@ export const AuthProvider = ({ children }) => {
     }
 
     try {
-      const { data: userData, error: userError } = await supabase
-        .from('users')
-        .select('*')
-        .eq('email', email)
-        .maybeSingle();
+      // 1. Try atomic RPC sync which links employee to public.users and resolves roles safely
+      let userData = null;
+      let empData = null;
 
-      // Fetch employee record for role and department assignments
-      const { data: empData, error: empError } = await supabase
-        .from('employees')
-        .select('*')
-        .eq('email', email)
-        .maybeSingle();
+      const { data: rpcData, error: rpcError } = await supabase.rpc('sync_user_profile');
+
+      if (!rpcError && rpcData) {
+        userData = rpcData;
+      } else {
+        if (rpcError) {
+          console.warn('sync_user_profile RPC failed or not deployed, falling back to direct queries:', rpcError.message);
+        }
+
+        // Direct query fallback with case-insensitive matching
+        const [userRes, empRes] = await Promise.all([
+          supabase.from('users').select('*').ilike('email', email).maybeSingle(),
+          supabase.from('employees').select('*').ilike('email', email).maybeSingle(),
+        ]);
+
+        if (userRes.error) console.error('Error fetching user profile:', userRes.error);
+        if (empRes.error) console.error('Error fetching employee record:', empRes.error);
+
+        userData = userRes.data;
+        empData = empRes.data;
+      }
 
       if (!userData && !empData) {
         setAuthError('Access Denied. Your email is not registered in the system.');
@@ -85,7 +98,7 @@ export const AuthProvider = ({ children }) => {
         } else {
           const mergedProfile = {
             id: userData?.id || empData?.employee_id || userId,
-            email,
+            email: (userData?.email || empData?.email || email).toLowerCase(),
             role: empData?.role || userData?.role || 'STAFF',
             departments: empData?.departments || userData?.departments || [],
             name: empData?.name || userData?.name || currentSession.user.user_metadata?.full_name || 'User',

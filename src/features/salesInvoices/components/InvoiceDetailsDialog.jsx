@@ -192,6 +192,7 @@ export const InvoiceDetailsDialog = ({
 
   useEffect(() => {
     if (open && invoiceId) {
+      setCustomerView(true);
       fetchInvoiceDetails();
     } else {
       setInvoice(null);

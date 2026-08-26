@@ -26,9 +26,14 @@ export const getEmployees = async (forceRefresh = false) => {
 };
 
 export const createEmployee = async (payload) => {
+  const sanitizedPayload = {
+    ...payload,
+    ...(payload.email ? { email: payload.email.trim().toLowerCase() } : {}),
+  };
+
   const { data, error } = await supabase
     .from('employees')
-    .insert([payload])
+    .insert([sanitizedPayload])
     .select()
     .single();
     
@@ -38,9 +43,14 @@ export const createEmployee = async (payload) => {
 };
 
 export const updateEmployee = async (id, payload) => {
+  const sanitizedPayload = {
+    ...payload,
+    ...(payload.email ? { email: payload.email.trim().toLowerCase() } : {}),
+  };
+
   const { data, error } = await supabase
     .from('employees')
-    .update(payload)
+    .update(sanitizedPayload)
     .eq('employee_id', id)
     .select()
     .single();

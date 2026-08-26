@@ -1,24 +1,44 @@
-# Handover Summary — Invoice Summary Total & Customer View (Gross Billing)
+# Handover Summary — Invoice Defaults, Sequence Loading, Customer View Reset & Item Description Display
 
 ## 1. Objective
-1. Add a bold Total row inside the summary amount split-up box for Sales Invoices and Quotations.
-2. Implement a default-checked "Customer View" toggle that displays inclusive gross rates (`line_total / qty`) and totals, hiding HSN/SAC, GST %, and pre-tax amounts across screen views, printouts, PDF exports, JPG exports, and WhatsApp shares.
+1. Fix invoice sequence number stuck at `'Loading...'` in the Create Invoice dialog and default invoice type to `GST` for all customers.
+2. Ensure Customer View is always checked by default whenever an invoice or quotation is opened or reopened (no state retention across records).
+3. Display only the manually entered description on line items in Customer View, hiding the catalog item name header.
 
-## 2. Key Decisions & Implementation
-- **Gross Rate & Line Total Calculations**:
-  - `itemTax = (qty * unit_price * gst_rate) / 100`
-  - `itemGrossTotal = (qty * unit_price) + itemTax`
-  - `itemGrossRate = itemGrossTotal / qty`
-- **Dynamic DOM Rendering**:
-  - `isCustomerView` updates `#printable-invoice-container` and `#printable-quotation-container` in real time, guaranteeing that `window.print()`, `generateInvoicePdf`, and `generateInvoiceJpg` snapshot the selected format.
-- **Summary Box Bold Total**:
-  - Added a divider and bold `Total: ₹X,XXX.00` row inside the breakdown box.
+## 2. Decisions Made
+1. **Invoice Number & Default GST**:
+   - Initialized `invoiceType` state to `'GST'` in `InvoiceDialog.jsx`.
+   - In `initData()`, immediately called `getNextInvoiceNumber('GST')` / `getNextQuotationNumber('GST')` for fresh records (`!activeEditRecord`) so the number is populated instantly on dialog open.
+   - Removed the automatic downgrade to `NON_GST` when selecting a customer without a GSTIN; non-GSTIN customers now default to `GST` (as `B2C`).
+2. **Customer View Reset**:
+   - Added `setCustomerView(true)` inside the `useEffect` hook listening to `[open, invoiceId]` in `InvoiceDetailsDialog.jsx` and `[quotationId, open]` in `QuotationDetailsDialog.jsx`.
+   - Guaranteed that reopening the same record or switching between records always starts with Customer View checked.
+3. **Item Description in Customer View**:
+   - In `InvoiceDocument.jsx` and `QuotationDocument.jsx`, line item descriptions in Customer View now display only `item.description || item.product_name` with `whiteSpace: 'pre-line'`, without the bold `product_name` header above it.
+   - Table column header displays `"Description"` in Customer View and `"Item / Description"` in Office View.
 
 ## 3. Files Modified
-- `src/features/salesInvoices/components/InvoiceDocument.jsx`
-- `src/features/salesInvoices/components/InvoiceDetailsDialog.jsx`
-- `src/features/quotations/components/QuotationDocument.jsx`
-- `src/features/quotations/components/QuotationDetailsDialog.jsx`
+- `src/features/salesInvoices/components/InvoiceDialog.jsx`: Defaults to GST, generates initial sequence number on open, and avoids auto-downgrading to NON_GST.
+- `src/features/salesInvoices/components/InvoiceDetailsDialog.jsx`: Resets `customerView` to `true` on open.
+- `src/features/quotations/components/QuotationDetailsDialog.jsx`: Resets `customerView` to `true` on open.
+- `src/features/salesInvoices/components/InvoiceDocument.jsx`: Renders only manual description in Customer View.
+- `src/features/quotations/components/QuotationDocument.jsx`: Renders only manual description in Customer View.
 
-## 4. Next Task for Following Agent
-- Support custom print layouts (e.g. 3-inch thermal receipts) if requested.
+## 4. Database Changes & SQL Migrations
+- None for this task (pure frontend UI & state logic).
+
+## 5. APIs Changed
+- None.
+
+## 6. Components Added
+- None (modified existing dialog and document components).
+
+## 7. Remaining TODOs (Priority Order)
+1. Verify PDF generation and JPG export reflect the clean description layout in Customer View.
+2. Confirm user feedback on GST default behavior across existing draft invoices.
+
+## 8. Known Risks
+- None.
+
+## 9. Exact Next Task for Following Coding Agent
+- Test creating a new invoice, selecting various customers (with and without GSTIN), and verifying document printing in Customer View.

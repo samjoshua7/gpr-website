@@ -227,7 +227,7 @@ export const InvoiceDocument = ({ invoice, companySettings, paperSize = 'A4', is
             <TableRow>
               <TableCell width="5%" sx={{ py: config.cellPaddingY, px: config.cellPaddingX, fontWeight: 700, fontSize: `${config.tableFontPx}px` }}>#</TableCell>
               <TableCell width={isCustomerView ? '55%' : (isGst ? '40%' : '55%')} sx={{ py: config.cellPaddingY, px: config.cellPaddingX, fontWeight: 700, fontSize: `${config.tableFontPx}px` }}>
-                Item / Description
+                {isCustomerView ? 'Description' : 'Item / Description'}
               </TableCell>
               {!isCustomerView && isGst && <TableCell width="12%" sx={{ py: config.cellPaddingY, px: config.cellPaddingX, fontWeight: 700, fontSize: `${config.tableFontPx}px` }}>HSN/SAC</TableCell>}
               <TableCell align="right" width="10%" sx={{ py: config.cellPaddingY, px: config.cellPaddingX, fontWeight: 700, fontSize: `${config.tableFontPx}px` }}>Qty</TableCell>
@@ -250,18 +250,27 @@ export const InvoiceDocument = ({ invoice, companySettings, paperSize = 'A4', is
 
               const prodName = item.product_name || item.description;
               const desc = item.description && item.description !== prodName ? item.description : null;
+              const customerDescription = item.description || item.product_name;
 
               return (
                 <TableRow key={index}>
                   <TableCell sx={{ py: config.cellPaddingY, px: config.cellPaddingX, fontSize: `${config.tableFontPx}px` }}>{index + 1}</TableCell>
                   <TableCell sx={{ py: config.cellPaddingY, px: config.cellPaddingX }}>
-                    <Typography variant="body2" fontWeight={700} sx={{ fontSize: `${config.tableFontPx}px`, lineHeight: 1.2 }}>
-                      {prodName}
-                    </Typography>
-                    {desc && (
-                      <Typography variant="caption" color="text.secondary" display="block" sx={{ fontSize: `${config.tableFontPx - 1.5}px`, lineHeight: 1.1 }}>
-                        {desc}
+                    {isCustomerView ? (
+                      <Typography variant="body2" fontWeight={600} sx={{ fontSize: `${config.tableFontPx}px`, lineHeight: 1.25, whiteSpace: 'pre-line' }}>
+                        {customerDescription}
                       </Typography>
+                    ) : (
+                      <React.Fragment>
+                        <Typography variant="body2" fontWeight={700} sx={{ fontSize: `${config.tableFontPx}px`, lineHeight: 1.2 }}>
+                          {prodName}
+                        </Typography>
+                        {desc && (
+                          <Typography variant="caption" color="text.secondary" display="block" sx={{ fontSize: `${config.tableFontPx - 1.5}px`, lineHeight: 1.1, whiteSpace: 'pre-line' }}>
+                            {desc}
+                          </Typography>
+                        )}
+                      </React.Fragment>
                     )}
                   </TableCell>
                   {!isCustomerView && isGst && <TableCell sx={{ py: config.cellPaddingY, px: config.cellPaddingX, fontSize: `${config.tableFontPx}px` }}>{item.hsn_code || '-'}</TableCell>}

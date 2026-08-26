@@ -199,6 +199,7 @@ export const QuotationDetailsDialog = ({ open, onClose, quotationId, onEdit, onC
 
   useEffect(() => {
     if (open && quotationId) {
+      setCustomerView(true);
       loadDetails();
     } else {
       setQuotation(null);
