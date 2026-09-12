@@ -2,14 +2,18 @@ import { supabase } from '../../lib/supabaseClient';
 
 let cachedCustomers = null;
 let lastFetchTime = null;
+let cacheGeneration = 0;
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
+export const getCachedCustomers = () => cachedCustomers;
+
 export const invalidateCustomersCache = () => {
-  cachedCustomers = null;
+  cacheGeneration++;
   lastFetchTime = null;
 };
 
 export const getCustomers = async (searchQuery = '', forceRefresh = false) => {
+  const fetchGen = cacheGeneration;
   if (!forceRefresh && cachedCustomers && !searchQuery && lastFetchTime && (Date.now() - lastFetchTime < CACHE_TTL)) {
     return cachedCustomers;
   }
@@ -31,8 +35,10 @@ export const getCustomers = async (searchQuery = '', forceRefresh = false) => {
   }
 
   if (!searchQuery.trim()) {
-    cachedCustomers = data;
-    lastFetchTime = Date.now();
+    if (cacheGeneration === fetchGen) {
+      cachedCustomers = data;
+      lastFetchTime = Date.now();
+    }
   }
 
   return data;

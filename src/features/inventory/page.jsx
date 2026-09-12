@@ -34,7 +34,7 @@ import { SearchInput } from '../../components/ui/SearchInput';
 import PageToolbar from '../../components/layout/PageToolbar';
 import { HighlightText } from '../../components/ui/HighlightText';
 
-import { getItems, deleteItem } from './api';
+import { getItems, getCachedItems, deleteItem } from './api';
 import ItemDialog from './components/ItemDialog';
 import StockAdjustmentDialog from './components/StockAdjustmentDialog';
 import { checkReferences } from '../../lib/referenceChecker';
@@ -56,9 +56,9 @@ const headCells = [
 
 
 export const InventoryPage = () => {
-  const [items, setItems] = useState([]);
+  const [items, setItems] = useState(() => getCachedItems() || []);
   const [searchQuery, setSearchQuery] = useState('');
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => !getCachedItems());
   const [error, setError] = useState(null);
 
   const [page, setPage] = useState(0);
@@ -98,7 +98,8 @@ export const InventoryPage = () => {
   }, []);
 
   useEffect(() => {
-    fetchItems();
+    const hasCached = items.length > 0;
+    fetchItems(hasCached);
   }, [fetchItems]);
 
   const processedItems = React.useMemo(() => {

@@ -5,13 +5,17 @@ import { invalidateStatementDataCache } from '../statements/api';
 
 let cachedReceipts = null;
 let lastFetchTimeReceipts = null;
+let cacheGenerationReceipts = 0;
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
+export const getCachedReceipts = () => cachedReceipts;
+
 export const invalidateReceiptsCache = () => {
-  cachedReceipts = null;
+  cacheGenerationReceipts++;
   lastFetchTimeReceipts = null;
 };
 export const getReceipts = async (searchQuery = '', forceRefresh = false) => {
+  const fetchGen = cacheGenerationReceipts;
   if (!forceRefresh && cachedReceipts && !searchQuery && lastFetchTimeReceipts && (Date.now() - lastFetchTimeReceipts < CACHE_TTL)) {
     return cachedReceipts;
   }
@@ -37,8 +41,10 @@ export const getReceipts = async (searchQuery = '', forceRefresh = false) => {
   }
 
   if (!searchQuery.trim()) {
-    cachedReceipts = data || [];
-    lastFetchTimeReceipts = Date.now();
+    if (cacheGenerationReceipts === fetchGen) {
+      cachedReceipts = data || [];
+      lastFetchTimeReceipts = Date.now();
+    }
   }
 
   return data || [];

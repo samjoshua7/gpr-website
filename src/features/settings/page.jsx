@@ -48,6 +48,7 @@ import BadgeIcon from '@mui/icons-material/Badge';
 
 import {
   getCompanySettings,
+  getCachedCompanySettings,
   updateCompanySettings,
   getJobCardsCountByDepartment,
   reassignJobCardsDepartment,
@@ -67,10 +68,10 @@ export const SettingsPage = () => {
   const isSuperAdmin = profile?.role === 'SUPER_ADMIN';
   const isStakeholder = profile?.role === 'STAKEHOLDER';
 
-  const [settings, setSettings] = useState(null);
+  const [settings, setSettings] = useState(() => getCachedCompanySettings() || null);
   const [storageFolderName, setStorageFolderName] = useState(null);
 
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => !getCachedCompanySettings());
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
@@ -94,9 +95,9 @@ export const SettingsPage = () => {
   const [deleteDeptLoading, setDeleteDeptLoading] = useState(false);
   const [deleteDeptError, setDeleteDeptError] = useState(null);
 
-  const loadData = async () => {
+  const loadData = async (silent = false) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       setError(null);
 
       // Check saved directory handle
@@ -129,12 +130,13 @@ export const SettingsPage = () => {
       console.error(err);
       setError(err.message || 'Failed to load settings');
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
   useEffect(() => {
-    loadData();
+    const hasCached = !!getCachedCompanySettings();
+    loadData(hasCached);
   }, []);
 
   const handleChooseStorageFolder = async () => {

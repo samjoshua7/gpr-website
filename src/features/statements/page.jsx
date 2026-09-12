@@ -34,7 +34,7 @@ import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
 import BusinessIcon from '@mui/icons-material/Business';
 import PersonIcon from '@mui/icons-material/Person';
 import CategoryIcon from '@mui/icons-material/Category';
-import { getStatementData } from './api';
+import { getStatementData, getCachedStatementData } from './api';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
 import { SearchInput } from '../../components/ui/SearchInput';
@@ -54,13 +54,12 @@ const formatCurrency = (amount) => currencyFormatter.format(amount || 0);
 export const StatementsPage = () => {
   const [tabIndex, setTabIndex] = useState(0);
   const [gstSubTab, setGstSubTab] = useState(0); // 0: b2b, 1: b2cs, 2: hsn, 3: docs
-  const [loading, setLoading] = useState(true);
+  const [invoices, setInvoices] = useState(() => getCachedStatementData()?.invoices || []);
+  const [receipts, setReceipts] = useState(() => getCachedStatementData()?.receipts || []);
+  const [customers, setCustomers] = useState(() => getCachedStatementData()?.customers || []);
+  const [companySettings, setCompanySettings] = useState(() => getCachedStatementData()?.companySettings || null);
+  const [loading, setLoading] = useState(() => !getCachedStatementData());
   const [error, setError] = useState(null);
-
-  const [invoices, setInvoices] = useState([]);
-  const [receipts, setReceipts] = useState([]);
-  const [customers, setCustomers] = useState([]);
-  const [companySettings, setCompanySettings] = useState(null);
 
   const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [startDate, setStartDate] = useState('');
@@ -76,11 +75,11 @@ export const StatementsPage = () => {
   const [toastOpen, setToastOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
 
-  const loadData = async () => {
+  const loadData = async (force = false, silent = false) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       setError(null);
-      const data = await getStatementData();
+      const data = await getStatementData(force);
       setInvoices(data.invoices || []);
       setReceipts(data.receipts || []);
       setCustomers(data.customers || []);
@@ -89,12 +88,13 @@ export const StatementsPage = () => {
       console.error(err);
       setError(err.message || 'Failed to load statements data');
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
   useEffect(() => {
-    loadData();
+    const hasCached = invoices.length > 0;
+    loadData(false, hasCached);
   }, []);
 
   const handleTabChange = (e, newIndex) => {
@@ -783,7 +783,7 @@ export const StatementsPage = () => {
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {loading ? (
+                  {loading && invoices.length === 0 ? (
                     Array.from(new Array(5)).map((_, i) => (
                       <TableRow key={i}>
                         <TableCell><CircularProgress size={16} /></TableCell>

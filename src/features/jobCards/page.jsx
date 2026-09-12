@@ -24,13 +24,11 @@ import {
   InputLabel,
   Paper,
   Badge,
-  Collapse,
 } from '@mui/material';
 
 import AddIcon from '@mui/icons-material/Add';
 import SearchIcon from '@mui/icons-material/Search';
 import ClearIcon from '@mui/icons-material/Clear';
-import FilterListIcon from '@mui/icons-material/FilterList';
 import TuneIcon from '@mui/icons-material/Tune';
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
@@ -49,9 +47,9 @@ import 'swiper/css/navigation';
 
 import { formatDate } from '../../lib/formatDate';
 import { HighlightText } from '../../components/ui/HighlightText';
-import { getJobCards, deleteJobCard, updateJobStatus } from './api';
-import { getCompanySettings } from '../settings/api';
-import { getCustomers } from '../customers/api';
+import { getJobCards, getCachedJobCards, deleteJobCard, updateJobStatus } from './api';
+import { getCompanySettings, getCachedCompanySettings } from '../settings/api';
+import { getCustomers, getCachedCustomers } from '../customers/api';
 import JobCardDialog from './components/JobCardDialog';
 import JobCardDetailsModal from './components/JobCardDetailsModal';
 import InvoiceDialog from '../salesInvoices/components/InvoiceDialog';
@@ -215,14 +213,14 @@ export const JobCardsPage = () => {
   const isStaff = profile?.role === 'STAFF';
   const isStakeholder = profile?.role === 'STAKEHOLDER';
 
-  const [jobs, setJobs] = useState([]);
-  const [workflow, setWorkflow] = useState(DEFAULT_WORKFLOW);
+  const [jobs, setJobs] = useState(() => getCachedJobCards() || []);
+  const [workflow, setWorkflow] = useState(() => getCachedCompanySettings()?.production_workflow || DEFAULT_WORKFLOW);
   const [searchQuery, setSearchQuery] = useState('');
   const [customerFilter, setCustomerFilter] = useState('all');
   const [billingFilter, setBillingFilter] = useState('all');
   const [sortBy, setSortBy] = useState('fcfs');
-  const [customersList, setCustomersList] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [customersList, setCustomersList] = useState(() => getCachedCustomers() || []);
+  const [loading, setLoading] = useState(() => !getCachedJobCards());
   const [error, setError] = useState(null);
   const [warningMessage, setWarningMessage] = useState(null);
   const [guideOpen, setGuideOpen] = useState(false);
@@ -322,14 +320,14 @@ export const JobCardsPage = () => {
   }, []);
 
 
-  const fetchKanbanBoardData = useCallback(async (silent = false) => {
+  const fetchKanbanBoardData = useCallback(async (force = false, silent = false) => {
     if (!silent) setLoading(true);
     setError(null);
     try {
       const [jobsData, settingsData, customersData] = await Promise.all([
-        getJobCards('', 'all', true),
-        getCompanySettings(),
-        getCustomers('', true),
+        getJobCards('', 'all', force),
+        getCompanySettings(force),
+        getCustomers('', force),
       ]);
       setJobs(jobsData || []);
       if (settingsData?.production_workflow && settingsData.production_workflow.length > 0) {
@@ -346,7 +344,8 @@ export const JobCardsPage = () => {
 
 
   useEffect(() => {
-    fetchKanbanBoardData();
+    const hasCached = jobs.length > 0;
+    fetchKanbanBoardData(false, hasCached);
   }, [fetchKanbanBoardData]);
 
   // Rollback notice checker
@@ -405,7 +404,7 @@ export const JobCardsPage = () => {
       await deleteJobCard(jobToDelete.job_id);
       setDeleteOpen(false);
       setJobToDelete(null);
-      fetchKanbanBoardData(true);
+      fetchKanbanBoardData(true, true);
     } catch (err) {
       console.error(err);
       setDeleteError(err.message || 'Failed to delete job card.');
@@ -415,7 +414,7 @@ export const JobCardsPage = () => {
   };
 
   const handleSaveSuccess = () => {
-    fetchKanbanBoardData(true);
+    fetchKanbanBoardData(true, true);
   };
 
   // Card details modal popup
@@ -471,7 +470,7 @@ export const JobCardsPage = () => {
       setInvoiceToDeleteFromJob(null);
       setInvoiceViewOpen(false);
       setInvoiceViewId(null);
-      await fetchKanbanBoardData(true);
+      await fetchKanbanBoardData(true, true);
     } catch (err) {
       console.error(err);
       setDeleteInvoiceError(err.message || 'Failed to delete invoice.');
@@ -497,7 +496,7 @@ export const JobCardsPage = () => {
       setInvoiceToVoidFromJob(null);
       setInvoiceViewOpen(false);
       setInvoiceViewId(null);
-      await fetchKanbanBoardData(true);
+      await fetchKanbanBoardData(true, true);
     } catch (err) {
       console.error(err);
       setVoidInvoiceError(err.message || 'Failed to void invoice.');
@@ -1378,7 +1377,7 @@ export const JobCardsPage = () => {
         onDelete={(job) => handleDeleteClick(job)}
         onCreateInvoice={(job) => handleCreateInvoiceFromJob(job)}
         onViewInvoice={(invoiceId) => handleViewInvoice(invoiceId)}
-        onRefresh={() => fetchKanbanBoardData(true)}
+        onRefresh={() => fetchKanbanBoardData(true, true)}
         userRole={profile?.role}
         workflow={workflow}
       />
@@ -1402,7 +1401,7 @@ export const JobCardsPage = () => {
         onSaveSuccess={() => {
           setInvoiceDialogOpen(false);
           setKickoffJobForInvoice(null);
-          fetchKanbanBoardData(true);
+          fetchKanbanBoardData(true, true);
         }}
       />
 
@@ -1430,7 +1429,7 @@ export const JobCardsPage = () => {
         onSaveSuccess={() => {
           setInvoiceEditDialogOpen(false);
           setInvoiceToEditFromJob(null);
-          fetchKanbanBoardData();
+          fetchKanbanBoardData(true, true);
         }}
       />
 

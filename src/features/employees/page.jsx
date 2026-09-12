@@ -31,8 +31,8 @@ import CancelIcon from '@mui/icons-material/Cancel';
 import { SearchInput } from '../../components/ui/SearchInput';
 import PageToolbar from '../../components/layout/PageToolbar';
 
-import { getEmployees, createEmployee, updateEmployee, deleteEmployee, toggleEmployeeStatus } from './api';
-import { getCompanySettings } from '../settings/api';
+import { getEmployees, getCachedEmployees, createEmployee, updateEmployee, deleteEmployee, toggleEmployeeStatus } from './api';
+import { getCompanySettings, getCachedCompanySettings } from '../settings/api';
 import { EmployeeDialog } from './components/EmployeeDialog';
 import { HighlightText } from '../../components/ui/HighlightText';
 import { useAuth } from '../../hooks/useAuth';
@@ -57,9 +57,9 @@ export const EmployeesPage = () => {
   const { profile } = useAuth();
   const isStakeholder = profile?.role === 'STAKEHOLDER';
 
-  const [employees, setEmployees] = useState([]);
-  const [companySettings, setCompanySettings] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [employees, setEmployees] = useState(() => getCachedEmployees() || []);
+  const [companySettings, setCompanySettings] = useState(() => getCachedCompanySettings() || null);
+  const [loading, setLoading] = useState(() => !getCachedEmployees());
   const [error, setError] = useState(null);
   
   const [searchQuery, setSearchQuery] = useState('');
@@ -77,13 +77,13 @@ export const EmployeesPage = () => {
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [deleteError, setDeleteError] = useState(null);
 
-  const loadData = async (silent = false) => {
+  const loadData = async (force = false, silent = false) => {
     try {
       if (!silent) setLoading(true);
       setError(null);
       const [empData, settingsData] = await Promise.all([
-        getEmployees(),
-        getCompanySettings()
+        getEmployees(force),
+        getCompanySettings(force)
       ]);
       setEmployees(empData || []);
       setCompanySettings(settingsData);
@@ -96,7 +96,8 @@ export const EmployeesPage = () => {
   };
 
   useEffect(() => {
-    loadData();
+    const hasCached = employees.length > 0;
+    loadData(false, hasCached);
   }, []);
 
   const processedEmployees = React.useMemo(() => {
@@ -178,7 +179,7 @@ export const EmployeesPage = () => {
       await createEmployee(formData);
     }
     setDialogOpen(false);
-    loadData(true);
+    loadData(true, true);
   };
 
   const handleDeleteClick = (employee) => {
@@ -195,7 +196,7 @@ export const EmployeesPage = () => {
       await deleteEmployee(employeeToDelete.employee_id);
       setDeleteOpen(false);
       setEmployeeToDelete(null);
-      loadData(true);
+      loadData(true, true);
     } catch (err) {
       console.error(err);
       setDeleteError(err.message || 'Failed to delete employee.');
@@ -207,7 +208,7 @@ export const EmployeesPage = () => {
   const handleToggleStatus = async (id, currentStatus) => {
     try {
       await toggleEmployeeStatus(id, !currentStatus);
-      loadData(true);
+      loadData(true, true);
     } catch (err) {
       setError(err.message || 'Failed to update employee status.');
     }

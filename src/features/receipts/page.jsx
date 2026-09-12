@@ -35,7 +35,7 @@ import { SearchInput } from '../../components/ui/SearchInput';
 import PageToolbar from '../../components/layout/PageToolbar';
 import { HighlightText } from '../../components/ui/HighlightText';
 
-import { getReceipts, deleteReceipt } from './api';
+import { getReceipts, getCachedReceipts, deleteReceipt } from './api';
 import ReceiptDialog from './components/ReceiptDialog';
 import ReceiptDetailsDialog from './components/ReceiptDetailsDialog';
 import { formatDate } from '../../lib/formatDate';
@@ -63,9 +63,9 @@ export const ReceiptsPage = () => {
   const location = useLocation();
   const navigate = useNavigate();
 
-  const [receipts, setReceipts] = useState([]);
+  const [receipts, setReceipts] = useState(() => getCachedReceipts() || []);
   const [searchQuery, setSearchQuery] = useState('');
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => !getCachedReceipts());
   const [error, setError] = useState(null);
 
   const [page, setPage] = useState(0);
@@ -101,7 +101,8 @@ export const ReceiptsPage = () => {
   }, []);
 
   useEffect(() => {
-    fetchReceipts();
+    const hasCached = receipts.length > 0;
+    fetchReceipts(hasCached);
   }, [fetchReceipts]);
 
   useEffect(() => {

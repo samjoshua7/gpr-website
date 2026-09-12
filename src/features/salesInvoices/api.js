@@ -4,21 +4,27 @@ import { invalidateCustomersCache } from '../customers/api';
 
 let cachedSalesInvoices = null;
 let lastFetchTimeSalesInvoices = null;
+let cacheGenerationSalesInvoices = 0;
 let cachedTaskProgressMap = null;
 let lastFetchTimeTaskProgress = null;
+let cacheGenerationTaskProgress = 0;
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
+export const getCachedSalesInvoices = () => cachedSalesInvoices;
+export const getCachedTaskProgressMap = () => cachedTaskProgressMap;
+
 export const invalidateSalesInvoicesCache = () => {
-  cachedSalesInvoices = null;
+  cacheGenerationSalesInvoices++;
   lastFetchTimeSalesInvoices = null;
 };
 
 export const invalidateTaskProgressCache = () => {
-  cachedTaskProgressMap = null;
+  cacheGenerationTaskProgress++;
   lastFetchTimeTaskProgress = null;
 };
 
 export const getInvoiceTaskProgress = async (invoiceIds = [], forceRefresh = false) => {
+  const fetchGen = cacheGenerationTaskProgress;
   if (!invoiceIds || invoiceIds.length === 0) return {};
 
   if (
@@ -59,12 +65,15 @@ export const getInvoiceTaskProgress = async (invoiceIds = [], forceRefresh = fal
     });
   });
 
-  cachedTaskProgressMap = { ...(cachedTaskProgressMap || {}), ...grouped };
-  lastFetchTimeTaskProgress = Date.now();
+  if (cacheGenerationTaskProgress === fetchGen) {
+    cachedTaskProgressMap = { ...(cachedTaskProgressMap || {}), ...grouped };
+    lastFetchTimeTaskProgress = Date.now();
+  }
 
   return grouped;
 };
 export const getSalesInvoices = async (searchQuery = '', statusFilter = '', forceRefresh = false) => {
+  const fetchGen = cacheGenerationSalesInvoices;
   if (!forceRefresh && cachedSalesInvoices && !searchQuery && (!statusFilter || statusFilter === 'all') && lastFetchTimeSalesInvoices && (Date.now() - lastFetchTimeSalesInvoices < CACHE_TTL)) {
     return cachedSalesInvoices;
   }
@@ -108,8 +117,10 @@ export const getSalesInvoices = async (searchQuery = '', statusFilter = '', forc
   }
 
   if (!searchQuery.trim() && (!statusFilter || statusFilter === 'all')) {
-    cachedSalesInvoices = data;
-    lastFetchTimeSalesInvoices = Date.now();
+    if (cacheGenerationSalesInvoices === fetchGen) {
+      cachedSalesInvoices = data;
+      lastFetchTimeSalesInvoices = Date.now();
+    }
   }
 
   return data;

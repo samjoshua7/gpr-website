@@ -41,7 +41,7 @@ import {
   Legend,
 } from 'recharts';
 
-import { getDashboardData } from './api';
+import { getDashboardData, getCachedDashboardData } from './api';
 
 const currencyFormatter = new Intl.NumberFormat('en-IN', {
   style: 'currency',
@@ -57,8 +57,8 @@ export const DashboardPage = () => {
 
   const isSuperAdmin = profile?.role === 'SUPER_ADMIN';
 
-  const [loading, setLoading] = useState(true);
-  const [metrics, setMetrics] = useState(null);
+  const [metrics, setMetrics] = useState(() => getCachedDashboardData() || null);
+  const [loading, setLoading] = useState(() => !getCachedDashboardData());
 
   useEffect(() => {
     if (profile?.role === 'STAFF') {
@@ -69,14 +69,15 @@ export const DashboardPage = () => {
 
   useEffect(() => {
     const loadDashboard = async () => {
-      setLoading(true);
+      const hasCached = !!getCachedDashboardData();
+      if (!hasCached) setLoading(true);
       try {
-        const data = await getDashboardData();
+        const data = await getDashboardData(false);
         setMetrics(data);
       } catch (err) {
         console.error('Failed to load dashboard metrics:', err);
       } finally {
-        setLoading(false);
+        if (!hasCached) setLoading(false);
       }
     };
     loadDashboard();

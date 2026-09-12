@@ -36,7 +36,7 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import PeopleIcon from '@mui/icons-material/People';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 
-import { getCustomers, deleteCustomer } from './api';
+import { getCustomers, getCachedCustomers, deleteCustomer } from './api';
 import CustomerDialog from './components/CustomerDialog';
 import PageToolbar from '../../components/layout/PageToolbar';
 import { CustomerImportWizard } from './components/CustomerImportWizard';
@@ -61,8 +61,8 @@ export const CustomersPage = () => {
   const navigate = useNavigate();
   const { profile } = useAuth();
   const isStakeholder = profile?.role === 'STAKEHOLDER';
-  const [allCustomers, setAllCustomers] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [allCustomers, setAllCustomers] = useState(() => getCachedCustomers() || []);
+  const [loading, setLoading] = useState(() => !getCachedCustomers());
   const [error, setError] = useState(null);
 
   // Search & Filter state
@@ -105,7 +105,8 @@ export const CustomersPage = () => {
   }, []);
 
   useEffect(() => {
-    fetchCustomers(true);
+    const hasCached = allCustomers.length > 0;
+    fetchCustomers(false, hasCached);
   }, [fetchCustomers]);
 
   // 3. Client-side Processing (Filter & Sort)

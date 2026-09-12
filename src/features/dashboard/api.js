@@ -1,6 +1,23 @@
 import { supabase } from '../../lib/supabaseClient';
 
-export const getDashboardData = async () => {
+let cachedDashboardData = null;
+let lastFetchTimeDashboard = null;
+let dashboardCacheGeneration = 0;
+const DASHBOARD_CACHE_TTL = 2 * 60 * 1000; // 2 minutes — shorter for aggregate metrics
+
+export const getCachedDashboardData = () => cachedDashboardData;
+
+export const invalidateDashboardCache = () => {
+  dashboardCacheGeneration++;
+  lastFetchTimeDashboard = null;
+};
+
+export const getDashboardData = async (forceRefresh = false) => {
+  const fetchGen = dashboardCacheGeneration;
+  if (!forceRefresh && cachedDashboardData && lastFetchTimeDashboard && (Date.now() - lastFetchTimeDashboard < DASHBOARD_CACHE_TTL)) {
+    return cachedDashboardData;
+  }
+
   const [
     { data: invoices },
     { data: receipts },
@@ -85,7 +102,7 @@ export const getDashboardData = async () => {
       reorder: parseFloat(item.reorder_level) || 0,
     }));
 
-  return {
+  const result = {
     customerCount: customerCount || 0,
     activeInvoiceCount: activeInvoices.length,
     taskCount: (tasks || []).length,
@@ -98,4 +115,11 @@ export const getDashboardData = async () => {
     pipelineData,
     inventoryStockData,
   };
+
+  if (dashboardCacheGeneration === fetchGen) {
+    cachedDashboardData = result;
+    lastFetchTimeDashboard = Date.now();
+  }
+
+  return result;
 };

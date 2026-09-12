@@ -2,13 +2,17 @@ import { supabase } from '../../lib/supabaseClient';
 
 let cachedItems = null;
 let lastFetchTimeItems = null;
+let cacheGenerationItems = 0;
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
+export const getCachedItems = () => cachedItems;
+
 export const invalidateItemsCache = () => {
-  cachedItems = null;
+  cacheGenerationItems++;
   lastFetchTimeItems = null;
 };
 export const getItems = async (searchQuery = '', forceRefresh = false) => {
+  const fetchGen = cacheGenerationItems;
   if (!forceRefresh && cachedItems && !searchQuery && lastFetchTimeItems && (Date.now() - lastFetchTimeItems < CACHE_TTL)) {
     return cachedItems;
   }
@@ -30,8 +34,10 @@ export const getItems = async (searchQuery = '', forceRefresh = false) => {
   }
 
   if (!searchQuery.trim()) {
-    cachedItems = data || [];
-    lastFetchTimeItems = Date.now();
+    if (cacheGenerationItems === fetchGen) {
+      cachedItems = data || [];
+      lastFetchTimeItems = Date.now();
+    }
   }
 
   return data || [];

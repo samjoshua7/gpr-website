@@ -2,13 +2,17 @@ import { supabase } from '../../lib/supabaseClient';
 
 let cachedEmployees = null;
 let lastFetchTimeEmployees = null;
+let cacheGenerationEmployees = 0;
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
+export const getCachedEmployees = () => cachedEmployees;
+
 export const invalidateEmployeesCache = () => {
-  cachedEmployees = null;
+  cacheGenerationEmployees++;
   lastFetchTimeEmployees = null;
 };
 export const getEmployees = async (forceRefresh = false) => {
+  const fetchGen = cacheGenerationEmployees;
   if (!forceRefresh && cachedEmployees && lastFetchTimeEmployees && (Date.now() - lastFetchTimeEmployees < CACHE_TTL)) {
     return cachedEmployees;
   }
@@ -20,9 +24,11 @@ export const getEmployees = async (forceRefresh = false) => {
     
   if (error) throw new Error(error.message);
   
-  cachedEmployees = data || [];
-  lastFetchTimeEmployees = Date.now();
-  return cachedEmployees;
+  if (cacheGenerationEmployees === fetchGen) {
+    cachedEmployees = data || [];
+    lastFetchTimeEmployees = Date.now();
+  }
+  return data || [];
 };
 
 export const createEmployee = async (payload) => {

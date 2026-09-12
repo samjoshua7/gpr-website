@@ -35,7 +35,7 @@ import BlockIcon from '@mui/icons-material/Block';
 import DeleteIcon from '@mui/icons-material/Delete';
 
 import { useLocation, useNavigate } from 'react-router-dom';
-import { getSalesInvoices, deleteSalesInvoice, voidSalesInvoice, getInvoiceTaskProgress } from './api';
+import { getSalesInvoices, getCachedSalesInvoices, deleteSalesInvoice, voidSalesInvoice, getInvoiceTaskProgress } from './api';
 import { getCompanySettings } from '../settings/api';
 import { updateJobStatus } from '../jobCards/api';
 import InvoiceDialog from './components/InvoiceDialog';
@@ -117,10 +117,10 @@ export const SalesInvoicesPage = () => {
   const { profile } = useAuth();
   const isStakeholder = profile?.role === 'STAKEHOLDER';
 
-  const [invoices, setInvoices] = useState([]);
+  const [invoices, setInvoices] = useState(() => getCachedSalesInvoices() || []);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => !getCachedSalesInvoices());
   const [error, setError] = useState(null);
 
   const [page, setPage] = useState(0);

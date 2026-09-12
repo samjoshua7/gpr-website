@@ -2,13 +2,17 @@ import { supabase } from '../../lib/supabaseClient';
 
 let cachedStatementData = null;
 let lastFetchTimeStatementData = null;
+let cacheGenerationStatementData = 0;
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
+export const getCachedStatementData = () => cachedStatementData;
+
 export const invalidateStatementDataCache = () => {
-  cachedStatementData = null;
+  cacheGenerationStatementData++;
   lastFetchTimeStatementData = null;
 };
 export const getStatementData = async (forceRefresh = false) => {
+  const fetchGen = cacheGenerationStatementData;
   if (!forceRefresh && cachedStatementData && lastFetchTimeStatementData && (Date.now() - lastFetchTimeStatementData < CACHE_TTL)) {
     return cachedStatementData;
   }
@@ -49,13 +53,17 @@ export const getStatementData = async (forceRefresh = false) => {
   if (receiptsRes.error) throw new Error(receiptsRes.error.message);
   if (customersRes.error) throw new Error(customersRes.error.message);
 
-  cachedStatementData = {
+  const result = {
     invoices: invoicesRes.data || [],
     receipts: receiptsRes.data || [],
     customers: customersRes.data || [],
     companySettings: settingsRes.data || null,
   };
-  lastFetchTimeStatementData = Date.now();
 
-  return cachedStatementData;
+  if (cacheGenerationStatementData === fetchGen) {
+    cachedStatementData = result;
+    lastFetchTimeStatementData = Date.now();
+  }
+
+  return result;
 };

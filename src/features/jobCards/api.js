@@ -3,20 +3,26 @@ import { invalidateTaskProgressCache } from '../salesInvoices/api';
 
 let cachedJobCards = null;
 let lastFetchTimeJobCards = null;
+let cacheGenerationJobCards = 0;
 let cachedProductionTasks = null;
 let lastFetchTimeProductionTasks = null;
+let cacheGenerationProductionTasks = 0;
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
+export const getCachedJobCards = () => cachedJobCards;
+export const getCachedProductionTasks = () => cachedProductionTasks;
+
 export const invalidateJobCardsCache = () => {
-  cachedJobCards = null;
+  cacheGenerationJobCards++;
   lastFetchTimeJobCards = null;
 };
 
 export const invalidateProductionTasksCache = () => {
-  cachedProductionTasks = null;
+  cacheGenerationProductionTasks++;
   lastFetchTimeProductionTasks = null;
 };
 export const getJobCards = async (searchQuery = '', statusFilter = '', forceRefresh = false) => {
+  const fetchGen = cacheGenerationJobCards;
   if (!forceRefresh && cachedJobCards && !searchQuery && (!statusFilter || statusFilter === 'all') && lastFetchTimeJobCards && (Date.now() - lastFetchTimeJobCards < CACHE_TTL)) {
     return cachedJobCards;
   }
@@ -84,8 +90,10 @@ export const getJobCards = async (searchQuery = '', statusFilter = '', forceRefr
   }
 
   if (!searchQuery.trim() && (!statusFilter || statusFilter === 'all')) {
-    cachedJobCards = formattedData;
-    lastFetchTimeJobCards = Date.now();
+    if (cacheGenerationJobCards === fetchGen) {
+      cachedJobCards = formattedData;
+      lastFetchTimeJobCards = Date.now();
+    }
   }
 
   return formattedData;
@@ -223,6 +231,7 @@ export const deleteJobCard = async (id) => {
 };
 
 export const getProductionTasks = async (forceRefresh = false) => {
+  const fetchGen = cacheGenerationProductionTasks;
   if (!forceRefresh && cachedProductionTasks && lastFetchTimeProductionTasks && (Date.now() - lastFetchTimeProductionTasks < CACHE_TTL)) {
     return cachedProductionTasks;
   }
@@ -246,8 +255,10 @@ export const getProductionTasks = async (forceRefresh = false) => {
     throw new Error(error.message);
   }
 
-  cachedProductionTasks = data || [];
-  lastFetchTimeProductionTasks = Date.now();
+  if (cacheGenerationProductionTasks === fetchGen) {
+    cachedProductionTasks = data || [];
+    lastFetchTimeProductionTasks = Date.now();
+  }
 
   return cachedProductionTasks;
 };

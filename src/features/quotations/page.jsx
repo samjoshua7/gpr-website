@@ -34,7 +34,7 @@ import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 
 import PageToolbar from '../../components/layout/PageToolbar';
 import { HighlightText } from '../../components/ui/HighlightText';
-import { getQuotations, deleteQuotation } from './api';
+import { getQuotations, getCachedQuotations, deleteQuotation } from './api';
 import InvoiceDialog from '../salesInvoices/components/InvoiceDialog';
 import QuotationDetailsDialog from './components/QuotationDetailsDialog';
 
@@ -67,10 +67,10 @@ export const QuotationsPage = () => {
   const { profile } = useAuth();
   const isStakeholder = profile?.role === 'STAKEHOLDER';
 
-  const [quotations, setQuotations] = useState([]);
+  const [quotations, setQuotations] = useState(() => getCachedQuotations() || []);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => !getCachedQuotations());
   const [error, setError] = useState(null);
 
   const [page, setPage] = useState(0);
@@ -89,11 +89,11 @@ export const QuotationsPage = () => {
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [deleteError, setDeleteError] = useState(null);
 
-  const fetchQuotationsData = useCallback(async (silent = false) => {
+  const fetchQuotationsData = useCallback(async (force = false, silent = false) => {
     if (!silent) setLoading(true);
     setError(null);
     try {
-      const data = await getQuotations('', statusFilter, true);
+      const data = await getQuotations('', statusFilter, force);
       setQuotations(data || []);
     } catch (err) {
       console.error('Failed to fetch quotations:', err);
@@ -104,7 +104,8 @@ export const QuotationsPage = () => {
   }, [statusFilter]);
 
   useEffect(() => {
-    fetchQuotationsData();
+    const hasCached = quotations.length > 0;
+    fetchQuotationsData(false, hasCached);
   }, [fetchQuotationsData]);
 
   useEffect(() => {
@@ -171,7 +172,7 @@ export const QuotationsPage = () => {
       await deleteQuotation(quotationToDelete.quotation_id);
       setDeleteOpen(false);
       setQuotationToDelete(null);
-      fetchQuotationsData(true);
+      fetchQuotationsData(true, true);
     } catch (err) {
       console.error('Failed to delete quotation:', err);
       setDeleteError(err.message || 'Failed to delete quotation');

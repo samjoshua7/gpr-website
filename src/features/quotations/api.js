@@ -3,14 +3,18 @@ import { getNextInvoiceNumber, createSalesInvoice } from '../salesInvoices/api';
 
 let cachedQuotations = null;
 let lastFetchTimeQuotations = null;
+let cacheGenerationQuotations = 0;
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
+export const getCachedQuotations = () => cachedQuotations;
+
 export const invalidateQuotationsCache = () => {
-  cachedQuotations = null;
+  cacheGenerationQuotations++;
   lastFetchTimeQuotations = null;
 };
 
 export const getQuotations = async (searchQuery = '', statusFilter = '', forceRefresh = false) => {
+  const fetchGen = cacheGenerationQuotations;
   if (
     !forceRefresh &&
     cachedQuotations &&
@@ -51,8 +55,10 @@ export const getQuotations = async (searchQuery = '', statusFilter = '', forceRe
   }
 
   if (!searchQuery.trim() && (!statusFilter || statusFilter === 'all')) {
-    cachedQuotations = data;
-    lastFetchTimeQuotations = Date.now();
+    if (cacheGenerationQuotations === fetchGen) {
+      cachedQuotations = data;
+      lastFetchTimeQuotations = Date.now();
+    }
   }
 
   return data;
