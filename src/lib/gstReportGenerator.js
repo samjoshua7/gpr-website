@@ -532,6 +532,11 @@ export function buildGstr1Datasets({ invoices = [], companySettings = {}, startD
     b2b: b2bRows,
     b2cs: b2csRows,
     b2cl: b2clRows,
+    cdnr: [],
+    cdnur: [],
+    exp: [],
+    at: [],
+    atadj: [],
     hsn: itemSummaryRows, // For backwards compatibility with UI
     hsnB2b: hsnB2bRows,
     hsnB2c: hsnB2cRows,

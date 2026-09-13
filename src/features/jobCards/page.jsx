@@ -27,6 +27,7 @@ import {
 } from '@mui/material';
 
 import AddIcon from '@mui/icons-material/Add';
+import RemoveIcon from '@mui/icons-material/Remove';
 import SearchIcon from '@mui/icons-material/Search';
 import ClearIcon from '@mui/icons-material/Clear';
 import TuneIcon from '@mui/icons-material/Tune';
@@ -83,6 +84,9 @@ const PREDEFINED_COLORS = [
   '#e91e63', // pink
   '#3f51b5', // indigo
 ];
+
+const TEN_DAYS_MS = 10 * 24 * 60 * 60 * 1000;
+const OLD_JOBS_COLOR = '#64748b';
 
 const ColumnCardList = ({ children, colCardsCount }) => {
   const containerRef = useRef(null);
@@ -225,6 +229,13 @@ export const JobCardsPage = () => {
   const [warningMessage, setWarningMessage] = useState(null);
   const [guideOpen, setGuideOpen] = useState(false);
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
+
+  // Auto-maintained "OLD Jobs" column state (auto-collapses on reload)
+  const [showOldJobs, setShowOldJobs] = useState(false);
+  const [oldJobsDismissedDuringSearch, setOldJobsDismissedDuringSearch] = useState(false);
+
+  // Search-time zero-result column collapse state
+  const [manuallyExpandedCols, setManuallyExpandedCols] = useState(() => new Set());
 
 
   const staffDepts = profile?.departments || [];
@@ -555,10 +566,28 @@ export const JobCardsPage = () => {
     }
   };
 
+  const isOldJob = useCallback((job, wf = workflow) => {
+    if (!wf || wf.length === 0) return false;
+    const lastStep = wf[wf.length - 1];
+    const currentStatus = job.status || wf[0];
+    if (currentStatus !== lastStep) return false;
+    if (!job.is_billed) return false;
+    const deliveredDate = job.updated_at || job.created_at;
+    if (!deliveredDate) return false;
+    const ageMs = Date.now() - new Date(deliveredDate).getTime();
+    return ageMs >= TEN_DAYS_MS;
+  }, [workflow]);
+
   const getFilteredCards = (stepName) => {
+    const isLastWorkflowStep = workflow.length > 0 && stepName === workflow[workflow.length - 1];
     const query = searchQuery.toLowerCase().trim();
     
     let cards = jobs.filter((j) => (j.status || workflow[0]) === stepName);
+
+    // Auto-maintained OLD Jobs: exclude old jobs from the active final step column
+    if (isLastWorkflowStep) {
+      cards = cards.filter((j) => !isOldJob(j, workflow));
+    }
 
     // 1. Customer Filter
     if (customerFilter && customerFilter !== 'all') {
@@ -625,6 +654,77 @@ export const JobCardsPage = () => {
     });
   };
 
+  const getOldJobsCards = () => {
+    const query = searchQuery.toLowerCase().trim();
+
+    let cards = jobs.filter((j) => isOldJob(j, workflow));
+
+    // 1. Customer Filter
+    if (customerFilter && customerFilter !== 'all') {
+      cards = cards.filter((j) => j.customer_id === customerFilter);
+    }
+
+    // 2. Billing Status Filter
+    if (billingFilter === 'unbilled') {
+      cards = [];
+    }
+
+    // 3. Search Query Filter
+    if (query) {
+      cards = cards.filter((j) => {
+        const jcNum = `jc-${String(j.job_number || 0).padStart(4, '0')}`.toLowerCase();
+        const rawNum = String(j.job_number || 0);
+        const invNo = (j.linked_invoice?.invoice_no || '').toLowerCase();
+        return (
+          j.description?.toLowerCase().includes(query) ||
+          j.customers?.name?.toLowerCase().includes(query) ||
+          j.customers?.phone?.includes(query) ||
+          jcNum.includes(query) ||
+          rawNum.includes(query) ||
+          invNo.includes(query)
+        );
+      });
+    }
+
+    // 4. Multi-criteria Sorting
+    return [...cards].sort((a, b) => {
+      if (sortBy === 'fcfs') {
+        const dateA = new Date(a.created_at || 0).getTime();
+        const dateB = new Date(b.created_at || 0).getTime();
+        if (dateA !== dateB) return dateA - dateB;
+        return (a.job_number || 0) - (b.job_number || 0);
+      } else if (sortBy === 'newest') {
+        const dateA = new Date(a.created_at || 0).getTime();
+        const dateB = new Date(b.created_at || 0).getTime();
+        if (dateA !== dateB) return dateB - dateA;
+        return (b.job_number || 0) - (a.job_number || 0);
+      } else if (sortBy === 'due_asc') {
+        if (!a.due_date && !b.due_date) return 0;
+        if (!a.due_date) return 1;
+        if (!b.due_date) return -1;
+        return new Date(a.due_date).getTime() - new Date(b.due_date).getTime();
+      } else if (sortBy === 'due_desc') {
+        if (!a.due_date && !b.due_date) return 0;
+        if (!a.due_date) return 1;
+        if (!b.due_date) return -1;
+        return new Date(b.due_date).getTime() - new Date(a.due_date).getTime();
+      } else if (sortBy === 'customer_asc') {
+        const nameA = (a.customers?.name || '').toLowerCase();
+        const nameB = (b.customers?.name || '').toLowerCase();
+        return nameA.localeCompare(nameB);
+      }
+      return 0;
+    });
+  };
+
+  const isSearching = Boolean(searchQuery.trim());
+
+  const handleSearchChange = (val) => {
+    setSearchQuery(val);
+    setManuallyExpandedCols(new Set());
+    setOldJobsDismissedDuringSearch(false);
+  };
+
   const hasActiveFilters = Boolean(
     searchQuery.trim() ||
     customerFilter !== 'all' ||
@@ -637,9 +737,11 @@ export const JobCardsPage = () => {
     setCustomerFilter('all');
     setBillingFilter('all');
     setSortBy('fcfs');
+    setManuallyExpandedCols(new Set());
+    setOldJobsDismissedDuringSearch(false);
   };
 
-  // Sync scrollbar thumb after data loads (slides change count after fetch)
+  // Sync scrollbar thumb after data loads or slide configuration updates
   useEffect(() => {
     if (!loading && swiperRef.current) {
       const raf1 = requestAnimationFrame(() => {
@@ -652,6 +754,198 @@ export const JobCardsPage = () => {
       return () => cancelAnimationFrame(raf1);
     }
   }, [loading, visibleWorkflow.length, syncScrollbar]);
+
+  // Keep Swiper and custom scrollbar synced when searching, expanding old jobs, or toggling column spines
+  useEffect(() => {
+    if (swiperRef.current) {
+      const raf = requestAnimationFrame(() => {
+        swiperRef.current?.update();
+        syncScrollbar(swiperRef.current);
+      });
+      return () => cancelAnimationFrame(raf);
+    }
+  }, [searchQuery, showOldJobs, manuallyExpandedCols, oldJobsDismissedDuringSearch, syncScrollbar]);
+
+  const renderJobCard = (card, { colColor, isFirstStep, isLastStep, disableNext, fullIndex, isOldJobsCol = false }) => {
+    const titleId = `JC-${String(card.job_number || 0).padStart(4, '0')}`;
+    const description = card.description || 'No description';
+    const customerName = card.customers?.name || 'Walk-in Customer';
+    const isBilled = !!card.is_billed;
+
+    return (
+      <Card
+        key={card.job_id}
+        sx={{
+          flexShrink: 0,
+          borderRadius: 2,
+          boxShadow: '0 2px 5px rgba(0,0,0,0.05)',
+          borderLeft: '4px solid',
+          borderLeftColor: colColor,
+          '&:hover': {
+            transform: 'translateY(-2px)',
+            boxShadow: '0 4px 10px rgba(0,0,0,0.12)',
+            transition: 'all 0.2s ease-in-out',
+          },
+        }}
+      >
+        <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
+          <Box
+            sx={{ cursor: 'pointer' }}
+            onClick={() => handleOpenDetails(card)}
+          >
+            {/* Card Top Header: JC-XXXX and Billing Status Block */}
+            <Box
+              sx={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                mb: 1,
+              }}
+            >
+              <Typography variant="caption" sx={{ fontWeight: 800, color: colColor }}>
+                <HighlightText text={titleId} highlight={searchQuery} />
+              </Typography>
+
+              {/* Small Red/Green status block (hidden for staff) */}
+              {!isStaff && (
+                <Chip
+                  label={isBilled ? 'BILLED' : 'NOT BILLED'}
+                  size="small"
+                  sx={{
+                    height: 20,
+                    fontSize: '0.65rem',
+                    fontWeight: 800,
+                    bgcolor: isBilled ? '#2e7d32' : '#d32f2f',
+                    color: '#ffffff',
+                    borderRadius: 1,
+                  }}
+                />
+              )}
+            </Box>
+
+            {/* Job Description */}
+            <Typography
+              variant="body2"
+              sx={{
+                fontWeight: 600,
+                mb: 1,
+                display: '-webkit-box',
+                WebkitLineClamp: 2,
+                WebkitBoxOrient: 'vertical',
+                overflow: 'hidden',
+              }}
+            >
+              <HighlightText text={description} highlight={searchQuery} />
+            </Typography>
+
+            {/* Customer / Client */}
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
+              Client: <strong><HighlightText text={customerName} highlight={searchQuery} /></strong>
+            </Typography>
+
+            {/* Linked invoice badge if billed (hidden for staff) */}
+            {!isStaff && isBilled && card.linked_invoice && (
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 1 }}>
+                <ReceiptIcon sx={{ fontSize: '0.85rem', color: 'success.main' }} />
+                <Typography variant="caption" sx={{ fontWeight: 700, color: 'success.dark' }}>
+                  {card.linked_invoice.invoice_no}
+                </Typography>
+              </Box>
+            )}
+
+            <Divider sx={{ my: 1 }} />
+
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1.5 }}>
+              <Typography variant="caption" color="text.secondary">
+                Qty: <strong>{card.quantity}</strong>
+              </Typography>
+              <Typography variant="caption" color="text.secondary">
+                {formatDate(card.created_at)}
+              </Typography>
+            </Box>
+          </Box>
+
+          {/* Column Navigation Controls */}
+          <Box sx={{ display: 'flex', gap: 1, justifyContent: 'space-between', alignItems: 'center', mt: 0.5 }}>
+            {!isFirstStep ? (
+              <Tooltip
+                title={
+                  isStakeholder
+                    ? 'Stakeholder read-only view'
+                    : isOldJobsCol
+                    ? `Move back to ${workflow[fullIndex - 1]}`
+                    : `Move back to ${workflow[fullIndex - 1]}`
+                }
+              >
+                <span>
+                  <IconButton
+                    size="small"
+                    color="inherit"
+                    disabled={isStakeholder}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleMoveToPrevious(card, fullIndex);
+                    }}
+                    sx={{
+                      border: '1px solid rgba(0,0,0,0.15)',
+                      borderRadius: 1.5,
+                      p: 0.5,
+                      bgcolor: 'background.paper',
+                      '&:hover': { bgcolor: 'action.hover', borderColor: 'primary.main' },
+                      ...(isStakeholder ? { color: 'text.disabled' } : {}),
+                    }}
+                  >
+                    <ArrowBackIcon fontSize="small" />
+                  </IconButton>
+                </span>
+              </Tooltip>
+            ) : (
+              <Box />
+            )}
+
+            {!isLastStep && (
+              <Tooltip
+                title={
+                  isStakeholder
+                    ? 'Stakeholder read-only view'
+                    : disableNext
+                      ? 'Cannot deliver an unbilled job card. Please create an invoice first.'
+                      : `Move to Next Stage: ${workflow[fullIndex + 1]}`
+                }
+              >
+                <span>
+                  <IconButton
+                    size="small"
+                    disabled={disableNext || isStakeholder}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleMoveToNext(card, fullIndex);
+                    }}
+                    sx={{
+                      borderRadius: 1.5,
+                      p: 0.5,
+                      bgcolor: disableNext || isStakeholder ? 'action.disabledBackground' : 'primary.main',
+                      color: disableNext || isStakeholder ? 'text.disabled' : '#ffffff',
+                      border: '1px solid',
+                      borderColor: disableNext || isStakeholder ? 'divider' : 'primary.dark',
+                      boxShadow: disableNext || isStakeholder ? 'none' : '0 2px 4px rgba(0,0,0,0.12)',
+                      '&:hover': {
+                        bgcolor: disableNext || isStakeholder ? 'action.disabledBackground' : 'primary.dark',
+                        transform: disableNext || isStakeholder ? 'none' : 'translateX(2px)',
+                      },
+                      transition: 'all 0.15s ease-in-out',
+                    }}
+                  >
+                    {disableNext ? <LockIcon fontSize="small" /> : <ArrowForwardIcon fontSize="small" />}
+                  </IconButton>
+                </span>
+              </Tooltip>
+            )}
+          </Box>
+        </CardContent>
+      </Card>
+    );
+  };
 
   return (
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
@@ -676,7 +970,7 @@ export const JobCardsPage = () => {
             size="small"
             placeholder="Search JC#, Customer, Description, Invoice#..."
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={(e) => handleSearchChange(e.target.value)}
             InputProps={{
               startAdornment: (
                 <InputAdornment position="start">
@@ -685,7 +979,7 @@ export const JobCardsPage = () => {
               ),
               endAdornment: searchQuery ? (
                 <InputAdornment position="end">
-                  <IconButton size="small" onClick={() => setSearchQuery('')} edge="end">
+                  <IconButton size="small" onClick={() => handleSearchChange('')} edge="end">
                     <ClearIcon fontSize="small" />
                   </IconButton>
                 </InputAdornment>
@@ -853,7 +1147,7 @@ export const JobCardsPage = () => {
               <Chip
                 label={`Search: "${searchQuery}"`}
                 size="small"
-                onDelete={() => setSearchQuery('')}
+                onDelete={() => handleSearchChange('')}
                 color="primary"
                 variant="outlined"
               />
@@ -938,8 +1232,20 @@ export const JobCardsPage = () => {
             width: '340px',
             height: '100%',
           },
+          '.swiper-slide.collapsed-col-slide': {
+            width: '52px !important',
+            minWidth: '52px !important',
+            maxWidth: '52px !important',
+          },
+          '.swiper-slide.old-jobs-trigger-slide': {
+            width: '130px !important',
+            minWidth: '130px !important',
+            maxWidth: '130px !important',
+          },
           '@media (max-width: 600px)': {
-            '.swiper-slide': { width: 'calc(100vw - 32px)' },
+            '.swiper-slide:not(.collapsed-col-slide):not(.old-jobs-trigger-slide)': {
+              width: 'calc(100vw - 32px)',
+            },
           },
         }}
       >
@@ -974,6 +1280,134 @@ export const JobCardsPage = () => {
               const colCards = getFilteredCards(stepName);
               const colColor = PREDEFINED_COLORS[(fullIndex >= 0 ? fullIndex : 0) % PREDEFINED_COLORS.length];
 
+              const isZeroResults = isSearching && colCards.length === 0;
+              const isManuallyExpanded = manuallyExpandedCols.has(stepName);
+              const isColCollapsed = isZeroResults && !isManuallyExpanded;
+
+              if (isColCollapsed) {
+                return (
+                  <SwiperSlide
+                    key={stepName}
+                    className="collapsed-col-slide"
+                    style={{ width: '52px' }}
+                    sx={{ width: '52px !important', minWidth: '52px !important', maxWidth: '52px !important' }}
+                  >
+                    <Tooltip title={`Click to expand ${stepName} (0 results)`} placement="top" arrow>
+                      <Box
+                        onClick={() => {
+                          setManuallyExpandedCols((prev) => {
+                            const next = new Set(prev);
+                            next.add(stepName);
+                            return next;
+                          });
+                        }}
+                        sx={{
+                          height: '100%',
+                          bgcolor: 'background.paper',
+                          borderRadius: 2,
+                          border: '1px solid rgba(0,0,0,0.12)',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'center',
+                          cursor: 'pointer',
+                          py: 1.5,
+                          px: 0.5,
+                          userSelect: 'none',
+                          transition: 'all 0.2s ease',
+                          position: 'relative',
+                          overflow: 'hidden',
+                          '&:hover': {
+                            bgcolor: 'grey.100',
+                            borderColor: colColor,
+                            boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+                            '& .expand-spine-icon': {
+                              color: colColor,
+                              transform: 'scale(1.15)',
+                            },
+                          },
+                        }}
+                      >
+                        {/* Top Color Accent Line */}
+                        <Box
+                          sx={{
+                            position: 'absolute',
+                            top: 0,
+                            left: 0,
+                            right: 0,
+                            height: 4,
+                            bgcolor: colColor,
+                          }}
+                        />
+
+                        {/* Zero Count Badge */}
+                        <Box
+                          sx={{
+                            width: 24,
+                            height: 24,
+                            borderRadius: '50%',
+                            bgcolor: 'grey.200',
+                            color: 'text.secondary',
+                            fontSize: '0.72rem',
+                            fontWeight: 800,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            mt: 1,
+                            mb: 1.5,
+                            flexShrink: 0,
+                          }}
+                        >
+                          0
+                        </Box>
+
+                        {/* Vertical Department Spine Text */}
+                        <Box
+                          sx={{
+                            flexGrow: 1,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            overflow: 'hidden',
+                          }}
+                        >
+                          <Typography
+                            variant="caption"
+                            sx={{
+                              writingMode: 'vertical-rl',
+                              transform: 'rotate(180deg)',
+                              fontWeight: 700,
+                              fontSize: '0.78rem',
+                              color: 'text.secondary',
+                              letterSpacing: 0.5,
+                              textTransform: 'uppercase',
+                              whiteSpace: 'nowrap',
+                            }}
+                          >
+                            {stepName} — 0 results
+                          </Typography>
+                        </Box>
+
+                        {/* Bottom Expand Plus Icon */}
+                        <Box
+                          className="expand-spine-icon"
+                          sx={{
+                            color: 'text.disabled',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            transition: 'all 0.15s ease',
+                            flexShrink: 0,
+                            mt: 1,
+                          }}
+                        >
+                          <AddIcon sx={{ fontSize: '1.1rem' }} />
+                        </Box>
+                      </Box>
+                    </Tooltip>
+                  </SwiperSlide>
+                );
+              }
+
               return (
                 <SwiperSlide key={stepName}>
                   <ColumnBox>
@@ -995,26 +1429,51 @@ export const JobCardsPage = () => {
                         flexShrink: 0,
                       }}
                     >
-                      <Typography variant="subtitle2" sx={{ fontWeight: 800, textTransform: 'uppercase', fontSize: '0.85rem' }}>
-                        {stepName}
-                      </Typography>
-                      <Chip
-                        label={loading && jobs.length === 0 ? '...' : colCards.length}
-                        size="small"
-                        sx={{
-                          fontWeight: 700,
-                          bgcolor: colColor,
-                          color: '#fff',
-                          fontSize: '0.75rem',
-                          height: 22,
-                        }}
-                      />
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 0, overflow: 'hidden' }}>
+                        <Typography variant="subtitle2" noWrap sx={{ fontWeight: 800, textTransform: 'uppercase', fontSize: '0.85rem' }}>
+                          {stepName}
+                        </Typography>
+                      </Box>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                        <Chip
+                          label={loading && jobs.length === 0 ? '...' : colCards.length}
+                          size="small"
+                          sx={{
+                            fontWeight: 700,
+                            bgcolor: colColor,
+                            color: '#fff',
+                            fontSize: '0.75rem',
+                            height: 22,
+                          }}
+                        />
+                        {isSearching && isZeroResults && isManuallyExpanded && (
+                          <Tooltip title={`Collapse ${stepName}`}>
+                            <IconButton
+                              size="small"
+                              onClick={() => {
+                                setManuallyExpandedCols((prev) => {
+                                  const next = new Set(prev);
+                                  next.delete(stepName);
+                                  return next;
+                                });
+                              }}
+                              sx={{
+                                p: 0.25,
+                                color: 'text.secondary',
+                                '&:hover': { color: 'text.primary', bgcolor: 'action.hover' },
+                              }}
+                            >
+                              <RemoveIcon sx={{ fontSize: '1rem' }} />
+                            </IconButton>
+                          </Tooltip>
+                        )}
+                      </Box>
                     </Box>
 
                     {/* Cards List container with fixed height and edge scroll indicators */}
                     <ColumnCardList colCardsCount={colCards.length}>
                       {(loading && jobs.length === 0) ? (
-                        Array.from(new Array(3)).map((_, i) => (
+                        Array.from({ length: 3 }).map((_, i) => (
                           <Card key={i} variant="outlined" sx={{ borderRadius: 2 }}>
                             <CardContent sx={{ p: 2 }}>
                               <Skeleton width="40%" height={20} />
@@ -1039,186 +1498,224 @@ export const JobCardsPage = () => {
                           </Typography>
                         </Box>
                       ) : (
-                        colCards.map((card) => {
-                          const titleId = `JC-${String(card.job_number || 0).padStart(4, '0')}`;
-                          const description = card.description || 'No description';
-                          const customerName = card.customers?.name || 'Walk-in Customer';
-                          const isBilled = !!card.is_billed;
-                          const disableNext = isPenultimateStep && !isBilled;
-
-                          return (
-                            <Card
-                              key={card.job_id}
-                                sx={{
-                                  flexShrink: 0,
-                                  borderRadius: 2,
-                                  boxShadow: '0 2px 5px rgba(0,0,0,0.05)',
-                                  borderLeft: '4px solid',
-                                  borderLeftColor: colColor,
-                                  '&:hover': {
-                                    transform: 'translateY(-2px)',
-                                    boxShadow: '0 4px 10px rgba(0,0,0,0.12)',
-                                    transition: 'all 0.2s ease-in-out',
-                                  },
-                                }}
-                              >
-                                <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
-                                  <Box
-                                    sx={{ cursor: 'pointer' }}
-                                    onClick={() => handleOpenDetails(card)}
-                                  >
-                                    {/* Card Top Header: JC-XXXX and Billing Status Block */}
-                                    <Box
-                                      sx={{
-                                        display: 'flex',
-                                        justifyContent: 'space-between',
-                                        alignItems: 'center',
-                                        mb: 1,
-                                      }}
-                                    >
-                                      <Typography variant="caption" sx={{ fontWeight: 800, color: colColor }}>
-                                        <HighlightText text={titleId} highlight={searchQuery} />
-                                      </Typography>
-
-                                      {/* Small Red/Green status block (hidden for staff) */}
-                                      {!isStaff && (
-                                        <Chip
-                                          label={isBilled ? 'BILLED' : 'NOT BILLED'}
-                                          size="small"
-                                          sx={{
-                                            height: 20,
-                                            fontSize: '0.65rem',
-                                            fontWeight: 800,
-                                            bgcolor: isBilled ? '#2e7d32' : '#d32f2f',
-                                            color: '#ffffff',
-                                            borderRadius: 1,
-                                          }}
-                                        />
-                                      )}
-                                    </Box>
-
-                                    {/* Job Description */}
-                                    <Typography
-                                      variant="body2"
-                                      sx={{
-                                        fontWeight: 600,
-                                        mb: 1,
-                                        display: '-webkit-box',
-                                        WebkitLineClamp: 2,
-                                        WebkitBoxOrient: 'vertical',
-                                        overflow: 'hidden',
-                                      }}
-                                    >
-                                      <HighlightText text={description} highlight={searchQuery} />
-                                    </Typography>
-
-                                    {/* Customer / Client */}
-                                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
-                                      Client: <strong><HighlightText text={customerName} highlight={searchQuery} /></strong>
-                                    </Typography>
-
-                                    {/* Linked invoice badge if billed (hidden for staff) */}
-                                    {!isStaff && isBilled && card.linked_invoice && (
-                                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 1 }}>
-                                        <ReceiptIcon sx={{ fontSize: '0.85rem', color: 'success.main' }} />
-                                        <Typography variant="caption" sx={{ fontWeight: 700, color: 'success.dark' }}>
-                                          {card.linked_invoice.invoice_no}
-                                        </Typography>
-                                      </Box>
-                                    )}
-
-                                    <Divider sx={{ my: 1 }} />
-
-                                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1.5 }}>
-                                      <Typography variant="caption" color="text.secondary">
-                                        Qty: <strong>{card.quantity}</strong>
-                                      </Typography>
-                                      <Typography variant="caption" color="text.secondary">
-                                        {formatDate(card.created_at)}
-                                      </Typography>
-                                    </Box>
-                                  </Box>
-
-                                  {/* Column Navigation Controls */}
-                                  <Box sx={{ display: 'flex', gap: 1, justifyContent: 'space-between', alignItems: 'center', mt: 0.5 }}>
-                                    {!isFirstStep ? (
-                                      <Tooltip title={isStakeholder ? 'Stakeholder read-only view' : `Move back to ${workflow[fullIndex - 1]}`}>
-                                        <span>
-                                          <IconButton
-                                            size="small"
-                                            color="inherit"
-                                            disabled={isStakeholder}
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                              handleMoveToPrevious(card, fullIndex);
-                                            }}
-                                            sx={{
-                                              border: '1px solid rgba(0,0,0,0.15)',
-                                              borderRadius: 1.5,
-                                              p: 0.5,
-                                              bgcolor: 'background.paper',
-                                              '&:hover': { bgcolor: 'action.hover', borderColor: 'primary.main' },
-                                              ...(isStakeholder ? { color: 'text.disabled' } : {}),
-                                            }}
-                                          >
-                                            <ArrowBackIcon fontSize="small" />
-                                          </IconButton>
-                                        </span>
-                                      </Tooltip>
-                                    ) : (
-                                      <Box />
-                                    )}
-
-                                    {!isLastStep && (
-                                      <Tooltip
-                                        title={
-                                          isStakeholder
-                                            ? 'Stakeholder read-only view'
-                                            : disableNext
-                                              ? 'Cannot deliver an unbilled job card. Please create an invoice first.'
-                                              : `Move to Next Stage: ${workflow[fullIndex + 1]}`
-                                        }
-                                      >
-                                        <span>
-                                          <IconButton
-                                            size="small"
-                                            disabled={disableNext || isStakeholder}
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                              handleMoveToNext(card, fullIndex);
-                                            }}
-                                            sx={{
-                                              borderRadius: 1.5,
-                                              p: 0.5,
-                                              bgcolor: disableNext || isStakeholder ? 'action.disabledBackground' : 'primary.main',
-                                              color: disableNext || isStakeholder ? 'text.disabled' : '#ffffff',
-                                              border: '1px solid',
-                                              borderColor: disableNext || isStakeholder ? 'divider' : 'primary.dark',
-                                              boxShadow: disableNext || isStakeholder ? 'none' : '0 2px 4px rgba(0,0,0,0.12)',
-                                              '&:hover': {
-                                                bgcolor: disableNext || isStakeholder ? 'action.disabledBackground' : 'primary.dark',
-                                                transform: disableNext || isStakeholder ? 'none' : 'translateX(2px)',
-                                              },
-                                              transition: 'all 0.15s ease-in-out',
-                                            }}
-                                          >
-                                            {disableNext ? <LockIcon fontSize="small" /> : <ArrowForwardIcon fontSize="small" />}
-                                          </IconButton>
-                                        </span>
-                                      </Tooltip>
-                                    )}
-                                  </Box>
-
-                                </CardContent>
-                              </Card>
-                            );
+                        colCards.map((card) =>
+                          renderJobCard(card, {
+                            colColor,
+                            isFirstStep,
+                            isLastStep,
+                            disableNext: isPenultimateStep && !card.is_billed,
+                            fullIndex,
                           })
-                        )}
+                        )
+                      )}
                     </ColumnCardList>
                   </ColumnBox>
                 </SwiperSlide>
               );
             })}
+
+            {/* Auto-Maintained OLD Jobs Column */}
+            {(!isStaff || staffDepts.includes(workflow[workflow.length - 1])) && (() => {
+              const allOldJobs = jobs.filter((j) => isOldJob(j, workflow));
+              const oldJobsCards = getOldJobsCards();
+              const shouldAutoExpandOldJobs = isSearching && oldJobsCards.length > 0 && !oldJobsDismissedDuringSearch;
+              const isOldJobsExpanded = showOldJobs || shouldAutoExpandOldJobs;
+
+              if (!isOldJobsExpanded) {
+                return (
+                  <SwiperSlide
+                    key="old-jobs-trigger"
+                    className="old-jobs-trigger-slide"
+                    style={{ width: '130px' }}
+                    sx={{ width: '130px !important', minWidth: '130px !important', maxWidth: '130px !important' }}
+                  >
+                    <Tooltip title="Show older delivered & billed jobs (10+ days)" placement="top" arrow>
+                      <Box
+                        onClick={() => setShowOldJobs(true)}
+                        sx={{
+                          height: '100%',
+                          bgcolor: 'background.paper',
+                          borderRadius: 2,
+                          border: '2px dashed',
+                          borderColor: 'grey.400',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: 1.5,
+                          cursor: 'pointer',
+                          p: 2,
+                          userSelect: 'none',
+                          transition: 'all 0.2s ease',
+                          '&:hover': {
+                            borderColor: 'grey.600',
+                            bgcolor: 'grey.100',
+                            transform: 'translateY(-2px)',
+                            boxShadow: 2,
+                          },
+                        }}
+                      >
+                        <Box
+                          sx={{
+                            width: 42,
+                            height: 42,
+                            borderRadius: '50%',
+                            bgcolor: 'grey.200',
+                            color: 'text.secondary',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                          }}
+                        >
+                          <AddIcon />
+                        </Box>
+                        <Box sx={{ textAlign: 'center' }}>
+                          <Typography
+                            variant="caption"
+                            sx={{
+                              fontWeight: 800,
+                              letterSpacing: 0.8,
+                              color: 'text.secondary',
+                              display: 'block',
+                              textTransform: 'uppercase',
+                              fontSize: '0.75rem',
+                            }}
+                          >
+                            OLD Jobs
+                          </Typography>
+                          <Chip
+                            label={isSearching ? oldJobsCards.length : allOldJobs.length}
+                            size="small"
+                            sx={{
+                              mt: 0.75,
+                              fontWeight: 700,
+                              bgcolor: 'grey.500',
+                              color: '#fff',
+                              fontSize: '0.72rem',
+                              height: 20,
+                            }}
+                          />
+                        </Box>
+                        <Typography
+                          variant="caption"
+                          sx={{
+                            fontSize: '0.68rem',
+                            color: 'text.disabled',
+                            textAlign: 'center',
+                            lineHeight: 1.2,
+                          }}
+                        >
+                          + Show older
+                        </Typography>
+                      </Box>
+                    </Tooltip>
+                  </SwiperSlide>
+                );
+              }
+
+              return (
+                <SwiperSlide key="old-jobs-expanded">
+                  <ColumnBox>
+                    {/* Column Header */}
+                    <Box
+                      sx={{
+                        position: 'sticky',
+                        top: 0,
+                        zIndex: 2,
+                        p: 1.5,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        borderBottom: '2px solid',
+                        borderColor: OLD_JOBS_COLOR,
+                        bgcolor: 'background.paper',
+                        borderTopLeftRadius: 12,
+                        borderTopRightRadius: 12,
+                        flexShrink: 0,
+                      }}
+                    >
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <Typography variant="subtitle2" sx={{ fontWeight: 800, textTransform: 'uppercase', fontSize: '0.85rem', color: OLD_JOBS_COLOR }}>
+                          OLD Jobs
+                        </Typography>
+                      </Box>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <Chip
+                          label={loading && jobs.length === 0 ? '...' : oldJobsCards.length}
+                          size="small"
+                          sx={{
+                            fontWeight: 700,
+                            bgcolor: OLD_JOBS_COLOR,
+                            color: '#fff',
+                            fontSize: '0.75rem',
+                            height: 22,
+                          }}
+                        />
+                        <Tooltip title="Collapse OLD Jobs">
+                          <IconButton
+                            size="small"
+                            onClick={() => {
+                              setShowOldJobs(false);
+                              if (isSearching) {
+                                setOldJobsDismissedDuringSearch(true);
+                              }
+                            }}
+                            sx={{
+                              p: 0.25,
+                              color: 'text.secondary',
+                              '&:hover': { color: 'text.primary', bgcolor: 'action.hover' },
+                            }}
+                          >
+                            <RemoveIcon sx={{ fontSize: '1.1rem' }} />
+                          </IconButton>
+                        </Tooltip>
+                      </Box>
+                    </Box>
+
+                    {/* Cards List container */}
+                    <ColumnCardList colCardsCount={oldJobsCards.length}>
+                      {(loading && jobs.length === 0) ? (
+                        Array.from({ length: 3 }).map((_, i) => (
+                          <Card key={i} variant="outlined" sx={{ borderRadius: 2 }}>
+                            <CardContent sx={{ p: 2 }}>
+                              <Skeleton width="40%" height={20} />
+                              <Skeleton width="80%" height={40} sx={{ my: 1 }} />
+                              <Skeleton width="60%" height={20} />
+                            </CardContent>
+                          </Card>
+                        ))
+                      ) : oldJobsCards.length === 0 ? (
+                        <Box
+                          sx={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            height: 120,
+                            border: '2px dashed rgba(0,0,0,0.08)',
+                            borderRadius: 2,
+                          }}
+                        >
+                          <Typography variant="caption" color="text.secondary">
+                            No Old Jobs
+                          </Typography>
+                        </Box>
+                      ) : (
+                        oldJobsCards.map((card) =>
+                          renderJobCard(card, {
+                            colColor: OLD_JOBS_COLOR,
+                            isFirstStep: false,
+                            isLastStep: true,
+                            disableNext: true,
+                            fullIndex: workflow.length - 1,
+                            isOldJobsCol: true,
+                          })
+                        )
+                      )}
+                    </ColumnCardList>
+                  </ColumnBox>
+                </SwiperSlide>
+              );
+            })()}
         </Swiper>
 
           {/* Custom horizontal scrollbar — rendered OUTSIDE Swiper overflow:hidden so it is always visible */}
