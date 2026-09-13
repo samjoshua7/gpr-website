@@ -233,6 +233,7 @@ export async function saveExportFile({ fileBlob, fileName, subfolder = 'pdf' }) 
  */
 export async function showSavedFolder(subfolder = '', filePath = '') {
   if (!filePath) {
+    console.warn('[ShowInFolder] Aborted: filePath is empty.');
     return { success: false, method: 'unsupported', path: '' };
   }
 
@@ -248,82 +249,87 @@ export async function showSavedFolder(subfolder = '', filePath = '') {
       if (resp.ok && contentType.includes('application/json')) {
         const data = await resp.json();
         if (data?.success) {
-          console.info('[SavedLocation] Local Explorer bridge opened Windows File Explorer for:', data.path || filePath);
+          console.debug('[ShowInFolder] Local Explorer bridge opened file:', data.path || filePath);
           return { success: true, method: 'explorer', path: data.path || filePath };
         }
       }
 
-      // If the response is not valid JSON (e.g. HTML from a misconfigured server or 404/500)
       if (!contentType.includes('application/json')) {
         console.warn(
-          `[SavedLocation] Local Explorer bridge returned non-JSON response (HTTP ${resp.status}, Content-Type: ${contentType}). ` +
+          `[ShowInFolder] Non-JSON response (HTTP ${resp.status}, Content-Type: ${contentType}). ` +
           `Ensure the Vite dev server with revealInExplorerPlugin is active.`
         );
       } else {
         const errData = await resp.json().catch(() => null);
-        console.warn(`[SavedLocation] Local Explorer bridge failed (HTTP ${resp.status}):`, errData?.error || 'Unknown error');
+        console.warn(`[ShowInFolder] Bridge error (HTTP ${resp.status}):`, errData?.error || 'Unknown error');
       }
     } catch (err) {
-      console.warn('[SavedLocation] Local Explorer bridge request failed:', err.message);
+      console.warn('[ShowInFolder] Fetch exception:', err.message);
     }
   }
 
-  // 2. In Deployed / Cloud Environments (or if local bridge was unavailable):
-  // Attempt the registered Windows Desktop URI protocol `gpr-explorer://`
+  // 2. In Deployed / Cloud Environments: Attempt gpr-explorer:// protocol via hidden iframe
   if (typeof window !== 'undefined') {
+    const protocolUrl = `gpr-explorer://select?path=${encodeURIComponent(filePath)}`;
+    console.debug('[ShowInFolder] Attempting protocol dispatch:', protocolUrl);
+
     try {
-      const protocolUrl = `gpr-explorer://select?path=${encodeURIComponent(filePath)}`;
-      
-      // CRITICAL FIX: Modern Chromium strictly blocks custom protocol navigation inside subframes/iframes.
-      // Must dispatch in the top frame with user activation via window.location.assign or anchor click:
-      try {
-        window.location.assign(protocolUrl);
-      } catch {
-        const link = document.createElement('a');
-        link.href = protocolUrl;
-        link.style.display = 'none';
-        document.body.appendChild(link);
-        link.click();
-        setTimeout(() => {
-          try {
-            if (link.parentNode) {
-              document.body.removeChild(link);
-            }
-          } catch {
-            // ignore
-          }
-        }, 500);
-      }
+      // Use hidden iframe — avoids navigating the SPA away
+      const iframe = document.createElement('iframe');
+      iframe.style.display = 'none';
+      iframe.src = protocolUrl;
+      document.body.appendChild(iframe);
 
-      // Copy path to clipboard as a reliable safety net
-      if (navigator?.clipboard?.writeText) {
-        await navigator.clipboard.writeText(filePath).catch(() => {});
-      }
-
-      if (!isLocalHost) {
-        console.info(
-          `[SavedLocation] Deployed environment detected (${window.location.hostname}). ` +
-          `Dispatched desktop protocol "gpr-explorer://". ` +
-          `If Windows File Explorer did not open, run "tools/gpr-protocol/register-protocol.bat" once on this computer.`
-        );
-      }
-
-      return {
-        success: true,
-        method: 'protocol',
-        path: filePath,
-        message: 'Opening Windows File Explorer via gpr-explorer protocol (path also copied).',
+      // Detect if the protocol handler launched by listening for window blur.
+      // When Chrome dispatches a custom protocol to an external app, the browser
+      // loses focus momentarily (either the "Open external app?" dialog or the
+      // launched app takes focus). If the page stays focused, the protocol was
+      // silently ignored.
+      let protocolLaunched = false;
+      const onBlur = () => {
+        protocolLaunched = true;
       };
+      window.addEventListener('blur', onBlur);
+
+      // Wait 1.5s for the external handler or prompt to steal focus
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+
+      window.removeEventListener('blur', onBlur);
+
+      if (!document.hasFocus()) {
+        protocolLaunched = true;
+      }
+
+      // Clean up iframe
+      try {
+        if (iframe.parentNode) {
+          document.body.removeChild(iframe);
+        }
+      } catch {
+        // ignore
+      }
+
+      if (protocolLaunched) {
+        console.debug('[ShowInFolder] Protocol handler detected (window blurred/unfocused).');
+        return {
+          success: true,
+          method: 'protocol',
+          path: filePath,
+          message: 'File Explorer opened via gpr-explorer protocol.',
+        };
+      }
+
+      console.debug('[ShowInFolder] Protocol handler not detected (window retained focus). Falling back to clipboard.');
     } catch (protocolErr) {
-      console.warn('[SavedLocation] Protocol dispatch error:', protocolErr);
+      console.warn('[ShowInFolder] Protocol dispatch error:', protocolErr);
     }
   }
 
-  // 3. Last-resort fallback: copy to clipboard and inform caller of environment restriction
+  // 3. Fallback: copy to clipboard and inform caller of environment restriction
   if (navigator?.clipboard?.writeText) {
     try {
       await navigator.clipboard.writeText(filePath);
-      console.info('[SavedLocation] Direct Explorer opening unavailable. Copied path to clipboard:', filePath);
+      console.debug('[ShowInFolder] Clipboard fallback succeeded:', filePath);
       return {
         success: false,
         method: 'unavailable',
@@ -331,7 +337,7 @@ export async function showSavedFolder(subfolder = '', filePath = '') {
         message: 'Direct desktop Explorer opening is not supported in this environment. File path copied to clipboard.',
       };
     } catch (err) {
-      console.warn('[SavedLocation] Clipboard write error:', err);
+      console.warn('[ShowInFolder] Clipboard fallback failed:', err);
     }
   }
 
