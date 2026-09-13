@@ -274,20 +274,26 @@ export async function showSavedFolder(subfolder = '', filePath = '') {
     try {
       const protocolUrl = `gpr-explorer://select?path=${encodeURIComponent(filePath)}`;
       
-      // Dispatch protocol via a hidden iframe to avoid leaving the current page
-      const iframe = document.createElement('iframe');
-      iframe.style.display = 'none';
-      iframe.src = protocolUrl;
-      document.body.appendChild(iframe);
-      setTimeout(() => {
-        try {
-          if (iframe.parentNode) {
-            document.body.removeChild(iframe);
+      // CRITICAL FIX: Modern Chromium strictly blocks custom protocol navigation inside subframes/iframes.
+      // Must dispatch in the top frame with user activation via window.location.assign or anchor click:
+      try {
+        window.location.assign(protocolUrl);
+      } catch {
+        const link = document.createElement('a');
+        link.href = protocolUrl;
+        link.style.display = 'none';
+        document.body.appendChild(link);
+        link.click();
+        setTimeout(() => {
+          try {
+            if (link.parentNode) {
+              document.body.removeChild(link);
+            }
+          } catch {
+            // ignore
           }
-        } catch {
-          // ignore
-        }
-      }, 2000);
+        }, 500);
+      }
 
       // Copy path to clipboard as a reliable safety net
       if (navigator?.clipboard?.writeText) {

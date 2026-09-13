@@ -16,6 +16,17 @@ function revealInExplorerPlugin() {
     configureServer(server) {
       server.middlewares.use('/api/reveal-in-explorer', (req, res) => {
         try {
+          res.setHeader('Access-Control-Allow-Origin', '*');
+          res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+          res.setHeader('Access-Control-Allow-Headers', '*');
+          res.setHeader('Access-Control-Allow-Private-Network', 'true');
+
+          if (req.method === 'OPTIONS') {
+            res.statusCode = 204;
+            res.end();
+            return;
+          }
+
           const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
           const rawTargetPath = url.searchParams.get('path');
           if (!rawTargetPath) {

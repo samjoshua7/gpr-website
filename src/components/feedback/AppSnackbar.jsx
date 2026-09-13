@@ -133,7 +133,11 @@ export const AppSnackbar = ({
       setFolderActionStatus('protocol');
       setResolvedDisplayPath(res.path || effectiveFilePath);
       setActionMessage(res.message || 'Opening Windows File Explorer via gpr-explorer protocol (path also copied).');
-      setTimeout(() => setFolderActionStatus(null), 3500);
+      // Smoothly transition from 'protocol' (Opening Explorer...) to 'opened' (Opened in Explorer)
+      setTimeout(() => {
+        setFolderActionStatus('opened');
+        setTimeout(() => setFolderActionStatus(null), 3000);
+      }, 700);
     } else if (res?.method === 'unavailable') {
       setFolderActionStatus('unavailable');
       setResolvedDisplayPath(res.path || effectiveFilePath);
@@ -214,7 +218,7 @@ export const AppSnackbar = ({
               : folderActionStatus === 'protocol'
               ? 'Opening Explorer...'
               : folderActionStatus === 'unavailable'
-              ? 'Not Available'
+              ? 'Path Copied'
               : folderActionStatus === 'copied'
               ? 'Path Copied'
               : 'Show in folder'}

@@ -14,6 +14,13 @@ End If
 Dim rawArg, targetPath
 rawArg = WScript.Arguments(0)
 
+Dim fsoLog, logFile, tempDir
+Set fsoLog = CreateObject("Scripting.FileSystemObject")
+tempDir = CreateObject("WScript.Shell").ExpandEnvironmentStrings("%TEMP%")
+Set logFile = fsoLog.OpenTextFile(tempDir & "\gpr-explorer.log", 8, True)
+logFile.WriteLine Now & " [START] rawArg=" & rawArg
+logFile.Close
+
 ' Extract path from URL query: gpr-explorer://select?path=<encoded_path>
 Dim qPos, ampPos
 qPos = InStr(1, rawArg, "path=", 1)
@@ -70,6 +77,11 @@ If Left(targetPath, 1) = """" And Right(targetPath, 1) = """" Then
     targetPath = Mid(targetPath, 2, Len(targetPath) - 2)
 End If
 
+' Trim any trailing backslashes or spaces that browsers might append
+Do While Len(targetPath) > 3 And (Right(targetPath, 1) = "\" Or Right(targetPath, 1) = " ")
+    targetPath = Left(targetPath, Len(targetPath) - 1)
+Loop
+
 Dim fso, wsh
 Set fso = CreateObject("Scripting.FileSystemObject")
 Set wsh = CreateObject("WScript.Shell")
@@ -88,18 +100,28 @@ Else
     userProfile = wsh.ExpandEnvironmentStrings("%USERPROFILE%")
     fileNameOnly = fso.GetFileName(targetPath)
 
-    Dim candidatePaths(10)
-    candidatePaths(0) = fso.BuildPath(userProfile, "Documents\" & targetPath)
-    candidatePaths(1) = fso.BuildPath(userProfile, "Documents\gpr\" & targetPath)
-    candidatePaths(2) = fso.BuildPath(userProfile, "Documents\gpr\pdf\" & fileNameOnly)
-    candidatePaths(3) = fso.BuildPath(userProfile, "Documents\gpr\jpg\" & fileNameOnly)
-    candidatePaths(4) = fso.BuildPath(userProfile, "Documents\gpr\accounts\" & fileNameOnly)
-    candidatePaths(5) = fso.BuildPath(userProfile, "Downloads\" & targetPath)
-    candidatePaths(6) = fso.BuildPath(userProfile, "Downloads\" & fileNameOnly)
-    candidatePaths(7) = fso.BuildPath(userProfile, "Desktop\" & targetPath)
-    candidatePaths(8) = "C:\" & targetPath
-    candidatePaths(9) = "C:\gpr\" & targetPath
-    candidatePaths(10) = "D:\" & targetPath
+    Dim candidatePaths(20)
+    candidatePaths(0)  = fso.BuildPath(userProfile, "Documents\" & targetPath)
+    candidatePaths(1)  = fso.BuildPath(userProfile, "Documents\gpr\" & targetPath)
+    candidatePaths(2)  = fso.BuildPath(userProfile, "Documents\gpr\pdf\" & fileNameOnly)
+    candidatePaths(3)  = fso.BuildPath(userProfile, "Documents\gpr\jpg\" & fileNameOnly)
+    candidatePaths(4)  = fso.BuildPath(userProfile, "Documents\gpr\accounts\" & fileNameOnly)
+    candidatePaths(5)  = fso.BuildPath(userProfile, "gpr_invoices\" & targetPath)
+    candidatePaths(6)  = fso.BuildPath(userProfile, "gpr_invoices\pdf\" & fileNameOnly)
+    candidatePaths(7)  = fso.BuildPath(userProfile, "gpr_invoices\jpg\" & fileNameOnly)
+    candidatePaths(8)  = fso.BuildPath(userProfile, "gpr_invoices\accounts\" & fileNameOnly)
+    candidatePaths(9)  = "C:\gpr_invoices\" & targetPath
+    candidatePaths(10) = "C:\gpr_invoices\pdf\" & fileNameOnly
+    candidatePaths(11) = "C:\gpr\" & targetPath
+    candidatePaths(12) = "C:\gpr\pdf\" & fileNameOnly
+    candidatePaths(13) = "D:\gpr_invoices\" & targetPath
+    candidatePaths(14) = "D:\gpr_invoices\pdf\" & fileNameOnly
+    candidatePaths(15) = "D:\gpr\" & targetPath
+    candidatePaths(16) = fso.BuildPath(userProfile, "Downloads\" & targetPath)
+    candidatePaths(17) = fso.BuildPath(userProfile, "Downloads\" & fileNameOnly)
+    candidatePaths(18) = fso.BuildPath(userProfile, "Desktop\" & targetPath)
+    candidatePaths(19) = "C:\" & targetPath
+    candidatePaths(20) = "D:\" & targetPath
 
     Dim idx
     For idx = 0 To UBound(candidatePaths)
@@ -127,12 +149,18 @@ Else
 End If
 
 ' Launch explorer.exe with the resolved path
+Set logFile = fsoLog.OpenTextFile(tempDir & "\gpr-explorer.log", 8, True)
+logFile.WriteLine Now & " [RESOLVED] resolvedPath=" & resolvedPath
 If resolvedPath <> "" Then
     If fso.FileExists(resolvedPath) Then
         ' Select the specific file in Windows Explorer
+        logFile.WriteLine Now & " [RUN] explorer.exe /select,""" & resolvedPath & """"
+        logFile.Close
         wsh.Run "explorer.exe /select,""" & resolvedPath & """", 1, False
     Else
         ' Open folder
+        logFile.WriteLine Now & " [RUN] explorer.exe """ & resolvedPath & """"
+        logFile.Close
         wsh.Run "explorer.exe """ & resolvedPath & """", 1, False
     End If
 Else
@@ -140,8 +168,12 @@ Else
     Dim defaultDocs
     defaultDocs = wsh.ExpandEnvironmentStrings("%USERPROFILE%\Documents")
     If fso.FolderExists(defaultDocs & "\gpr") Then
+        logFile.WriteLine Now & " [RUN-FALLBACK] explorer.exe """ & defaultDocs & "\gpr"""
+        logFile.Close
         wsh.Run "explorer.exe """ & defaultDocs & "\gpr""", 1, False
     Else
+        logFile.WriteLine Now & " [RUN-FALLBACK] explorer.exe """ & defaultDocs & """"
+        logFile.Close
         wsh.Run "explorer.exe """ & defaultDocs & """", 1, False
     End If
 End If
