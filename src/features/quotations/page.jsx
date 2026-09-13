@@ -56,7 +56,7 @@ const headCells = [
   { id: 'invoice_type', label: 'Type', align: 'left' },
   { id: 'status', label: 'Status', align: 'center' },
   { id: 'total_amount', label: 'Estimated Amount', align: 'right' },
-  { id: 'actions', label: 'Actions', align: 'center', disableSort: true },
+  { id: 'actions', label: 'Actions', align: 'left', disableSort: true },
 ];
 
 
@@ -293,7 +293,7 @@ export const QuotationsPage = () => {
                       <TableCell><Skeleton width="40%" /></TableCell>
                       <TableCell align="center"><Skeleton width="50%" sx={{ mx: 'auto' }} /></TableCell>
                       <TableCell align="right"><Skeleton width="40%" sx={{ ml: 'auto' }} /></TableCell>
-                      <TableCell align="center"><Skeleton width="60%" sx={{ mx: 'auto' }} /></TableCell>
+                      <TableCell align="left"><Skeleton width="60%" /></TableCell>
                     </TableRow>
                   ))
                 ) : paginatedQuotations.length === 0 ? (
@@ -348,56 +348,58 @@ export const QuotationsPage = () => {
                             {formatCurrency(row.total_amount)}
                           </Typography>
                         </TableCell>
-                        <TableCell align="center">
-                          <Tooltip title="View Details">
-                            <IconButton size="small" onClick={() => handleView(row)}>
-                              <VisibilityIcon fontSize="small" />
-                            </IconButton>
-                          </Tooltip>
+                        <TableCell align="left" sx={{ whiteSpace: 'nowrap' }}>
+                          <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5 }}>
+                            <Tooltip title="View Details">
+                              <IconButton size="small" onClick={() => handleView(row)}>
+                                <VisibilityIcon fontSize="small" />
+                              </IconButton>
+                            </Tooltip>
 
-                          {!isConverted && (
-                            <Tooltip title={isStakeholder ? 'Stakeholder read-only view' : 'Edit Quotation'}>
+                            {!isConverted && (
+                              <Tooltip title={isStakeholder ? 'Stakeholder read-only view' : 'Edit Quotation'}>
+                                <span>
+                                  <IconButton
+                                    size="small"
+                                    color="primary"
+                                    disabled={isStakeholder}
+                                    onClick={() => handleEdit(row)}
+                                    sx={isStakeholder ? { color: 'text.disabled' } : {}}
+                                  >
+                                    <EditIcon fontSize="small" />
+                                  </IconButton>
+                                </span>
+                              </Tooltip>
+                            )}
+
+                            <Tooltip title={isStakeholder ? 'Stakeholder read-only view' : 'Clone Quotation'}>
                               <span>
                                 <IconButton
                                   size="small"
-                                  color="primary"
+                                  color="info"
                                   disabled={isStakeholder}
-                                  onClick={() => handleEdit(row)}
+                                  onClick={() => handleClone(row)}
                                   sx={isStakeholder ? { color: 'text.disabled' } : {}}
                                 >
-                                  <EditIcon fontSize="small" />
+                                  <ContentCopyIcon fontSize="small" />
                                 </IconButton>
                               </span>
                             </Tooltip>
-                          )}
 
-                          <Tooltip title={isStakeholder ? 'Stakeholder read-only view' : 'Clone Quotation'}>
-                            <span>
-                              <IconButton
-                                size="small"
-                                color="info"
-                                disabled={isStakeholder}
-                                onClick={() => handleClone(row)}
-                                sx={isStakeholder ? { color: 'text.disabled' } : {}}
-                              >
-                                <ContentCopyIcon fontSize="small" />
-                              </IconButton>
-                            </span>
-                          </Tooltip>
-
-                          <Tooltip title={isStakeholder ? 'Stakeholder read-only view' : 'Delete Quotation'}>
-                            <span>
-                              <IconButton
-                                size="small"
-                                color="error"
-                                disabled={isStakeholder}
-                                onClick={() => handleDeleteClick(row)}
-                                sx={isStakeholder ? { color: 'text.disabled' } : {}}
-                              >
-                                <DeleteIcon fontSize="small" />
-                              </IconButton>
-                            </span>
-                          </Tooltip>
+                            <Tooltip title={isStakeholder ? 'Stakeholder read-only view' : 'Delete Quotation'}>
+                              <span>
+                                <IconButton
+                                  size="small"
+                                  color="error"
+                                  disabled={isStakeholder}
+                                  onClick={() => handleDeleteClick(row)}
+                                  sx={isStakeholder ? { color: 'text.disabled' } : {}}
+                                >
+                                  <DeleteIcon fontSize="small" />
+                                </IconButton>
+                              </span>
+                            </Tooltip>
+                          </Box>
                         </TableCell>
                       </TableRow>
                     );

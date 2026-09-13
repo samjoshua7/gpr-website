@@ -25,7 +25,6 @@ import {
   Tab,
   Chip,
   Tooltip,
-  Snackbar,
 } from '@mui/material';
 
 import AddIcon from '@mui/icons-material/Add';
@@ -43,6 +42,7 @@ import InvoiceDetailsDialog from './components/InvoiceDetailsDialog';
 import PageToolbar from '../../components/layout/PageToolbar';
 import { checkReferences } from '../../lib/referenceChecker';
 import CannotDeleteDialog from '../../components/feedback/CannotDeleteDialog';
+import AppSnackbar from '../../components/feedback/AppSnackbar';
 import { SearchInput } from '../../components/ui/SearchInput';
 import { HighlightText } from '../../components/ui/HighlightText';
 import { TablePagination, TableSortLabel, Stack } from '@mui/material';
@@ -719,7 +719,7 @@ export const SalesInvoicesPage = () => {
         </DialogActions>
       </Dialog>
 
-      <Snackbar
+      <AppSnackbar
         open={notificationOpen}
         autoHideDuration={5000}
         onClose={() => setNotificationOpen(false)}

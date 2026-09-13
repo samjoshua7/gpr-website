@@ -31,6 +31,7 @@ export const getStatementData = async (forceRefresh = false) => {
         ),
         items:sales_invoice_items (
           invoice_item_id,
+          item_id,
           product_name,
           description,
           hsn_code,

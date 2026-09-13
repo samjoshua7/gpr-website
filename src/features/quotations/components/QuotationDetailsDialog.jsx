@@ -16,7 +16,6 @@ import {
   Select,
   MenuItem,
   Paper,
-  Snackbar,
   Checkbox,
   FormControlLabel,
 } from '@mui/material';
@@ -29,6 +28,7 @@ import PrintIcon from '@mui/icons-material/Print';
 import TransformIcon from '@mui/icons-material/Transform';
 
 import { useNavigate } from 'react-router-dom';
+import AppSnackbar from '../../../components/feedback/AppSnackbar';
 import { getQuotationById, convertQuotationToInvoice, updateQuotationNotes } from '../api';
 import { getCompanySettings } from '../../settings/api';
 import { QuotationDocument } from './QuotationDocument';
@@ -59,6 +59,10 @@ export const QuotationDetailsDialog = ({ open, onClose, quotationId, onEdit, onC
   const [converting, setConverting] = useState(false);
   const [toastOpen, setToastOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
+  const [toastBlob, setToastBlob] = useState(null);
+  const [toastPath, setToastPath] = useState('');
+  const [toastSubfolder, setToastSubfolder] = useState('');
+  const [toastIsFile, setToastIsFile] = useState(false);
   const [error, setError] = useState(null);
   const [lastExportedBlob, setLastExportedBlob] = useState(null);
 
@@ -95,6 +99,10 @@ export const QuotationDetailsDialog = ({ open, onClose, quotationId, onEdit, onC
 
       if (result.success) {
         setToastMessage(`Saved PDF to ${result.path}`);
+        setToastBlob(pdfBlob);
+        setToastPath(result.path);
+        setToastSubfolder('pdf');
+        setToastIsFile(true);
         setToastOpen(true);
       }
     } catch (err) {
@@ -134,6 +142,10 @@ export const QuotationDetailsDialog = ({ open, onClose, quotationId, onEdit, onC
 
       if (result.success) {
         setToastMessage(`Saved JPG to ${result.path}`);
+        setToastBlob(jpgBlob);
+        setToastPath(result.path);
+        setToastSubfolder('jpg');
+        setToastIsFile(true);
         setToastOpen(true);
       }
     } catch (err) {
@@ -439,6 +451,10 @@ export const QuotationDetailsDialog = ({ open, onClose, quotationId, onEdit, onC
                     try {
                       await updateQuotationNotes(quotation.quotation_id, updated.notes);
                       setQuotation((prev) => ({ ...prev, notes: updated.notes }));
+                      setToastBlob(null);
+                      setToastPath('');
+                      setToastSubfolder('');
+                      setToastIsFile(false);
                       setToastMessage('Quotation notes updated.');
                       setToastOpen(true);
                     } catch (e) {
@@ -458,28 +474,16 @@ export const QuotationDetailsDialog = ({ open, onClose, quotationId, onEdit, onC
         </Button>
       </DialogActions>
 
-      <Snackbar
+      <AppSnackbar
         open={toastOpen}
         autoHideDuration={6000}
         onClose={() => setToastOpen(false)}
         message={toastMessage}
+        showInFolder={toastIsFile}
+        subfolder={toastSubfolder}
+        filePath={toastPath}
+        fileBlob={toastBlob}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-        action={
-          lastExportedBlob ? (
-            <Button
-              color="secondary"
-              size="small"
-              variant="contained"
-              onClick={() => {
-                const url = URL.createObjectURL(lastExportedBlob);
-                window.open(url, '_blank');
-              }}
-              sx={{ fontWeight: 700, textTransform: 'none', ml: 1 }}
-            >
-              Open File
-            </Button>
-          ) : null
-        }
       />
     </Dialog>
   );

@@ -192,3 +192,49 @@ export async function saveExportFile({ fileBlob, fileName, subfolder = 'pdf' }) 
     path: fileName,
   };
 }
+
+/**
+ * Reveals or opens directory handle in the native file picker if supported,
+ * and copies the folder/file path to the clipboard.
+ *
+ * @param {string} subfolder - 'pdf' | 'jpg' | 'accounts'
+ * @param {string} filePath - optional full or relative path
+ * @returns {Promise<{ success: boolean, method: string }>}
+ */
+export async function showSavedFolder(subfolder = '', filePath = '') {
+  if (filePath && navigator.clipboard) {
+    try {
+      await navigator.clipboard.writeText(filePath);
+    } catch {
+      // ignore clipboard permission error
+    }
+  }
+
+  if ('showDirectoryPicker' in window) {
+    try {
+      const rootDir = await getSavedDirectoryHandle();
+      if (rootDir && (await verifyDirectoryPermission(rootDir, false))) {
+        let targetHandle = rootDir;
+        if (subfolder) {
+          try {
+            targetHandle = await rootDir.getDirectoryHandle(subfolder, { create: false });
+          } catch {
+            targetHandle = rootDir;
+          }
+        }
+        await window.showDirectoryPicker({
+          startIn: targetHandle,
+          mode: 'read',
+        });
+        return { success: true, method: 'picker' };
+      }
+    } catch (err) {
+      if (err.name === 'AbortError') {
+        return { success: true, method: 'picker_dismissed' };
+      }
+      console.warn('showDirectoryPicker error:', err);
+    }
+  }
+
+  return { success: false, method: 'unsupported' };
+}

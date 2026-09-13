@@ -25,7 +25,6 @@ import {
   TablePagination,
   Card,
   CardContent,
-  Snackbar,
 } from '@mui/material';
 import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
 import FileDownloadIcon from '@mui/icons-material/FileDownload';
@@ -43,6 +42,7 @@ import { HighlightText } from '../../components/ui/HighlightText';
 import { formatDate } from '../../lib/formatDate';
 import { buildGstr1Datasets, generateGstr1ExcelBlob } from '../../lib/gstReportGenerator';
 import { saveExportFile } from '../../lib/savedLocation';
+import AppSnackbar from '../../components/feedback/AppSnackbar';
 
 const currencyFormatter = new Intl.NumberFormat('en-IN', {
   style: 'currency',
@@ -74,6 +74,8 @@ export const StatementsPage = () => {
   const [exportingGst, setExportingGst] = useState(false);
   const [toastOpen, setToastOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
+  const [toastBlob, setToastBlob] = useState(null);
+  const [toastPath, setToastPath] = useState('');
 
   const loadData = async (force = false, silent = false) => {
     try {
@@ -273,6 +275,7 @@ export const StatementsPage = () => {
         : new Date().toISOString().split('T')[0];
 
       let fileName = `GSTR1_Report_${periodLabel}.xlsx`;
+      if (exportType === 'sales_register') fileName = `GST_Sales_Register_${periodLabel}.xlsx`;
       if (exportType === 'b2b') fileName = `GST_B2B_Invoices_${periodLabel}.xlsx`;
       if (exportType === 'b2cs') fileName = `GST_B2C_Summary_${periodLabel}.xlsx`;
       if (exportType === 'hsn') fileName = `GST_HSN_Summary_${periodLabel}.xlsx`;
@@ -286,6 +289,8 @@ export const StatementsPage = () => {
 
       if (result.success) {
         setToastMessage(`Saved GST Report to ${result.path}`);
+        setToastBlob(blob);
+        setToastPath(result.path);
         setToastOpen(true);
       }
     } catch (err) {
@@ -308,7 +313,7 @@ export const StatementsPage = () => {
               color="success"
               startIcon={<FileDownloadIcon />}
               onClick={() => handleExportGstr1Excel('all')}
-              disabled={exportingGst || gstDatasets.b2b.length + gstDatasets.b2cs.length === 0}
+              disabled={exportingGst || (gstDatasets.salesRegister ? gstDatasets.salesRegister.length === 0 : (gstDatasets.b2b.length + gstDatasets.b2cs.length === 0))}
               sx={{ fontWeight: 700 }}
             >
               {exportingGst ? 'Generating GSTR-1...' : 'Export GSTR-1 Excel'}
@@ -485,6 +490,17 @@ export const StatementsPage = () => {
               variant="outlined"
               color="primary"
               size="small"
+              startIcon={<ReceiptLongIcon />}
+              onClick={() => handleExportGstr1Excel('sales_register')}
+              disabled={exportingGst || !gstDatasets.salesRegister || gstDatasets.salesRegister.length === 0}
+              sx={{ fontWeight: 700 }}
+            >
+              Sales Register
+            </Button>
+            <Button
+              variant="outlined"
+              color="primary"
+              size="small"
               startIcon={<BusinessIcon />}
               onClick={() => handleExportGstr1Excel('b2b')}
               disabled={exportingGst || gstDatasets.b2b.length === 0}
@@ -513,7 +529,7 @@ export const StatementsPage = () => {
             </Button>
           </Paper>
 
-          {/* GST Sub-Tabs (B2B, B2CS, HSN, DOCS) */}
+          {/* GST Sub-Tabs (Sales Register, B2B, B2CS, HSN, DOCS) */}
           <Paper variant="outlined" sx={{ mb: 1.5, borderRadius: 1.5 }}>
             <Tabs
               value={gstSubTab}
@@ -522,6 +538,7 @@ export const StatementsPage = () => {
               indicatorColor="primary"
               sx={{ minHeight: 38 }}
             >
+              <Tab label={`Sales Register (${gstDatasets.salesRegister ? gstDatasets.salesRegister.length : 0})`} sx={{ minHeight: 38, py: 0.5, fontWeight: 700 }} />
               <Tab label={`B2B Invoices (${gstDatasets.b2b.length})`} sx={{ minHeight: 38, py: 0.5, fontWeight: 700 }} />
               <Tab label={`B2C Small (${gstDatasets.b2cs.length})`} sx={{ minHeight: 38, py: 0.5, fontWeight: 700 }} />
               <Tab label={`HSN Summary (${gstDatasets.hsn.length})`} sx={{ minHeight: 38, py: 0.5, fontWeight: 700 }} />
@@ -529,8 +546,64 @@ export const StatementsPage = () => {
             </Tabs>
           </Paper>
 
-          {/* Subtab 0: B2B Table */}
+          {/* Subtab 0: Sales Register Table (All Outward Sales Transactions) */}
           {gstSubTab === 0 && (
+            <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 1.5, mb: 3 }}>
+              <Table size="small">
+                <TableHead sx={{ bgcolor: 'grey.100' }}>
+                  <TableRow>
+                    <TableCell><strong>GSTIN/UIN</strong></TableCell>
+                    <TableCell><strong>Party Name</strong></TableCell>
+                    <TableCell align="center"><strong>Transaction Type</strong></TableCell>
+                    <TableCell><strong>Invoice No.</strong></TableCell>
+                    <TableCell><strong>Invoice Date</strong></TableCell>
+                    <TableCell align="right"><strong>Invoice Value</strong></TableCell>
+                    <TableCell align="center"><strong>Rate %</strong></TableCell>
+                    <TableCell align="center"><strong>Cess Rate</strong></TableCell>
+                    <TableCell align="right"><strong>Taxable Value</strong></TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {(!gstDatasets.salesRegister || gstDatasets.salesRegister.length === 0) ? (
+                    <TableRow>
+                      <TableCell colSpan={9} align="center" sx={{ py: 3 }}>
+                        No outward sales transactions found in selected date range.
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    gstDatasets.salesRegister.map((row, idx) => (
+                      <TableRow key={`sr-${idx}`} hover>
+                        <TableCell>
+                          {row['GSTIN/UIN'] ? (
+                            <Typography variant="body2" fontWeight={700}>
+                              {row['GSTIN/UIN']}
+                            </Typography>
+                          ) : (
+                            <Typography variant="body2" color="text.secondary">
+                              —
+                            </Typography>
+                          )}
+                        </TableCell>
+                        <TableCell sx={{ fontWeight: 600 }}>{row['Party Name']}</TableCell>
+                        <TableCell align="center">
+                          <Chip label={row['Transaction Type']} size="small" variant="outlined" color="primary" sx={{ height: 20, fontSize: '0.75rem' }} />
+                        </TableCell>
+                        <TableCell><Typography variant="body2" fontWeight={700}>{row['Invoice No.']}</Typography></TableCell>
+                        <TableCell>{row['Invoice Date']}</TableCell>
+                        <TableCell align="right">{formatCurrency(row['Invoice Value'])}</TableCell>
+                        <TableCell align="center"><Chip label={`${row['Rate']}%`} size="small" /></TableCell>
+                        <TableCell align="center">{row['Cess Rate']}</TableCell>
+                        <TableCell align="right" sx={{ fontWeight: 700 }}>{formatCurrency(row['Taxable Value'])}</TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          )}
+
+          {/* Subtab 1: B2B Table */}
+          {gstSubTab === 1 && (
             <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 1.5, mb: 3 }}>
               <Table size="small">
                 <TableHead sx={{ bgcolor: 'grey.100' }}>
@@ -571,8 +644,8 @@ export const StatementsPage = () => {
             </TableContainer>
           )}
 
-          {/* Subtab 1: B2CS Table */}
-          {gstSubTab === 1 && (
+          {/* Subtab 2: B2CS Table */}
+          {gstSubTab === 2 && (
             <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 1.5, mb: 3 }}>
               <Table size="small">
                 <TableHead sx={{ bgcolor: 'grey.100' }}>
@@ -607,8 +680,8 @@ export const StatementsPage = () => {
             </TableContainer>
           )}
 
-          {/* Subtab 2: HSN Summary Table */}
-          {gstSubTab === 2 && (
+          {/* Subtab 3: HSN Summary Table */}
+          {gstSubTab === 3 && (
             <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 1.5, mb: 3 }}>
               <Table size="small">
                 <TableHead sx={{ bgcolor: 'grey.100' }}>
@@ -651,8 +724,8 @@ export const StatementsPage = () => {
             </TableContainer>
           )}
 
-          {/* Subtab 3: Documents Issued Table */}
-          {gstSubTab === 3 && (
+          {/* Subtab 4: Documents Issued Table */}
+          {gstSubTab === 4 && (
             <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 1.5, mb: 3 }}>
               <Table size="small">
                 <TableHead sx={{ bgcolor: 'grey.100' }}>
@@ -852,12 +925,16 @@ export const StatementsPage = () => {
         </Box>
       )}
 
-      {/* Snackbar feedback */}
-      <Snackbar
+      {/* Standardized Toast feedback */}
+      <AppSnackbar
         open={toastOpen}
-        autoHideDuration={4000}
+        autoHideDuration={5000}
         onClose={() => setToastOpen(false)}
         message={toastMessage}
+        showInFolder={!!toastBlob}
+        subfolder="accounts"
+        filePath={toastPath}
+        fileBlob={toastBlob}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
       />
     </Box>

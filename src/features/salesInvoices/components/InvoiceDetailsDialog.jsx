@@ -32,7 +32,7 @@ import BlockIcon from '@mui/icons-material/Block';
 import DeleteIcon from '@mui/icons-material/Delete';
 import LinkIcon from '@mui/icons-material/Link';
 import LinkOffIcon from '@mui/icons-material/LinkOff';
-import Snackbar from '@mui/material/Snackbar';
+import AppSnackbar from '../../../components/feedback/AppSnackbar';
 import { getInvoiceById, getInvoiceTaskProgress, linkInvoiceToJobCard, unlinkInvoiceFromJobCard } from '../api';
 import { getJobCards, getJobCardsByCustomer } from '../../jobCards/api';
 import { getCompanySettings } from '../../settings/api';
@@ -74,6 +74,10 @@ export const InvoiceDetailsDialog = ({
   const [exportingJpg, setExportingJpg] = useState(false);
   const [toastOpen, setToastOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
+  const [toastBlob, setToastBlob] = useState(null);
+  const [toastPath, setToastPath] = useState('');
+  const [toastSubfolder, setToastSubfolder] = useState('');
+  const [toastIsFile, setToastIsFile] = useState(false);
   const [error, setError] = useState(null);
 
   const [linkJobDialogOpen, setLinkJobDialogOpen] = useState(false);
@@ -113,6 +117,10 @@ export const InvoiceDetailsDialog = ({
 
       if (result.success) {
         setToastMessage(`Saved PDF to ${result.path}`);
+        setToastBlob(pdfBlob);
+        setToastPath(result.path);
+        setToastSubfolder('pdf');
+        setToastIsFile(true);
         setToastOpen(true);
       }
     } catch (err) {
@@ -144,6 +152,10 @@ export const InvoiceDetailsDialog = ({
 
       if (result.success) {
         setToastMessage(`Saved JPG to ${result.path}`);
+        setToastBlob(jpgBlob);
+        setToastPath(result.path);
+        setToastSubfolder('jpg');
+        setToastIsFile(true);
         setToastOpen(true);
       }
     } catch (err) {
@@ -238,6 +250,10 @@ export const InvoiceDetailsDialog = ({
       await fetchInvoiceDetails();
       setLinkJobDialogOpen(false);
       setSelectedJobToLink(null);
+      setToastBlob(null);
+      setToastPath('');
+      setToastSubfolder('');
+      setToastIsFile(false);
       setToastMessage(`Linked Job Card JC-${String(selectedJobToLink.job_number || 0).padStart(4, '0')} to invoice.`);
       setToastOpen(true);
     } catch (err) {
@@ -256,6 +272,10 @@ export const InvoiceDetailsDialog = ({
       await unlinkInvoiceFromJobCard(invoice.invoice_id);
       await fetchInvoiceDetails();
       setUnlinkJobDialogOpen(false);
+      setToastBlob(null);
+      setToastPath('');
+      setToastSubfolder('');
+      setToastIsFile(false);
       setToastMessage('Unlinked Job Card from invoice.');
       setToastOpen(true);
     } catch (err) {
@@ -668,28 +688,16 @@ export const InvoiceDetailsDialog = ({
         </DialogActions>
       </Dialog>
 
-      <Snackbar
+      <AppSnackbar
         open={toastOpen}
         autoHideDuration={6000}
         onClose={() => setToastOpen(false)}
         message={toastMessage}
+        showInFolder={toastIsFile}
+        subfolder={toastSubfolder}
+        filePath={toastPath}
+        fileBlob={toastBlob}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-        action={
-          lastExportedBlob ? (
-            <Button
-              color="secondary"
-              size="small"
-              variant="contained"
-              onClick={() => {
-                const url = URL.createObjectURL(lastExportedBlob);
-                window.open(url, '_blank');
-              }}
-              sx={{ fontWeight: 700, textTransform: 'none', ml: 1 }}
-            >
-              Open File
-            </Button>
-          ) : null
-        }
       />
     </Dialog>
   );
