@@ -10,12 +10,13 @@ import {
 import CloseIcon from '@mui/icons-material/Close';
 import FolderOpenIcon from '@mui/icons-material/FolderOpen';
 import CheckIcon from '@mui/icons-material/Check';
+import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
 import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline';
 import WarningAmberOutlinedIcon from '@mui/icons-material/WarningAmberOutlined';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import FileDownloadDoneIcon from '@mui/icons-material/FileDownloadDone';
-import { showSavedFolder } from '../../lib/savedLocation';
+import { showSavedFolder, copySavedPath } from '../../lib/savedLocation';
 
 /**
  * Standardized High-Contrast Toast / Notification Palette
@@ -106,9 +107,9 @@ export const AppSnackbar = ({
   sx,
   ...props
 }) => {
-  const [folderActionStatus, setFolderActionStatus] = useState(null); // 'opened' | 'protocol' | 'unavailable' | 'copied' | null
+  const [folderActionStatus, setFolderActionStatus] = useState(null); // 'opened' | 'protocol' | null
   const [resolvedDisplayPath, setResolvedDisplayPath] = useState('');
-  const [actionMessage, setActionMessage] = useState('');
+  const [copiedPath, setCopiedPath] = useState(false);
 
   const effectiveFilePath = filePath || fileName || '';
   const isFileNotification = Boolean(showInFolder || effectiveFilePath);
@@ -124,23 +125,26 @@ export const AppSnackbar = ({
   };
 
   const handleShowInFolder = async () => {
-    setFolderActionStatus('protocol');
     const res = await showSavedFolder(subfolder, effectiveFilePath);
-    if (res?.method === 'explorer' || res?.method === 'protocol') {
+    if (res?.method === 'explorer') {
       setFolderActionStatus('opened');
       setResolvedDisplayPath(res.path || effectiveFilePath);
       setTimeout(() => setFolderActionStatus(null), 3500);
-    } else if (res?.method === 'unavailable') {
-      setFolderActionStatus('unavailable');
+    } else if (res?.method === 'protocol') {
+      setFolderActionStatus('protocol');
       setResolvedDisplayPath(res.path || effectiveFilePath);
-      setActionMessage(res.message || 'Direct desktop Explorer opening is unavailable in cloud deployment. File path copied to clipboard.');
-      setTimeout(() => setFolderActionStatus(null), 4000);
-    } else if (res?.method === 'clipboard') {
-      setFolderActionStatus('copied');
-      setResolvedDisplayPath(res.path || effectiveFilePath);
-      setTimeout(() => setFolderActionStatus(null), 3000);
+      setTimeout(() => setFolderActionStatus(null), 3500);
     } else {
       setFolderActionStatus(null);
+    }
+  };
+
+  const handleCopyPath = async () => {
+    if (!effectiveFilePath) return;
+    const success = await copySavedPath(effectiveFilePath);
+    if (success) {
+      setCopiedPath(true);
+      setTimeout(() => setCopiedPath(false), 2500);
     }
   };
 
@@ -163,11 +167,7 @@ export const AppSnackbar = ({
             folderActionStatus === 'opened'
               ? `Opened in Windows File Explorer: ${resolvedDisplayPath || effectiveFilePath}`
               : folderActionStatus === 'protocol'
-              ? (actionMessage || `Opening in Windows File Explorer: ${resolvedDisplayPath || effectiveFilePath}`)
-              : folderActionStatus === 'unavailable'
-              ? (actionMessage || `Direct desktop Explorer opening is unavailable. Path copied to clipboard: ${resolvedDisplayPath || effectiveFilePath}`)
-              : folderActionStatus === 'copied'
-              ? `Path copied to clipboard: ${resolvedDisplayPath || effectiveFilePath}`
+              ? `Opening in Windows File Explorer: ${resolvedDisplayPath || effectiveFilePath}`
               : `Saved file: ${effectiveFilePath}`
           }
         >
@@ -176,8 +176,6 @@ export const AppSnackbar = ({
             variant="contained"
             startIcon={
               folderActionStatus === 'opened' || folderActionStatus === 'protocol' ? (
-                <CheckIcon sx={{ fontSize: '0.9rem !important' }} />
-              ) : folderActionStatus === 'copied' ? (
                 <CheckIcon sx={{ fontSize: '0.9rem !important' }} />
               ) : (
                 <FolderOpenIcon sx={{ fontSize: '0.9rem !important' }} />
@@ -211,11 +209,49 @@ export const AppSnackbar = ({
               ? 'Opened in Explorer'
               : folderActionStatus === 'protocol'
               ? 'Opening Explorer...'
-              : folderActionStatus === 'unavailable'
-              ? 'Path Copied'
-              : folderActionStatus === 'copied'
-              ? 'Path Copied'
               : 'Show in folder'}
+          </Button>
+        </Tooltip>
+      )}
+
+      {/* Explicit Copy Path Button */}
+      {effectiveFilePath && (
+        <Tooltip title={copiedPath ? 'Path copied to clipboard' : `Copy file path: ${effectiveFilePath}`}>
+          <Button
+            size="small"
+            variant="outlined"
+            startIcon={
+              copiedPath ? (
+                <CheckIcon sx={{ fontSize: '0.9rem !important' }} />
+              ) : (
+                <ContentCopyIcon sx={{ fontSize: '0.9rem !important' }} />
+              )
+            }
+            onClick={handleCopyPath}
+            aria-label="Copy file path"
+            sx={{
+              color: theme.color,
+              borderColor: theme.border,
+              fontWeight: 600,
+              fontSize: '0.75rem',
+              py: 0.35,
+              px: 1,
+              minHeight: 28,
+              borderRadius: 1,
+              boxShadow: 'none',
+              textTransform: 'none',
+              transition: 'all 120ms ease',
+              '&:hover': {
+                borderColor: theme.iconColor,
+                bgcolor: theme.dismissHoverBg,
+              },
+              '&:focus-visible': {
+                outline: `2px solid ${theme.iconColor}`,
+                outlineOffset: '2px',
+              },
+            }}
+          >
+            {copiedPath ? 'Path Copied' : 'Copy Path'}
           </Button>
         </Tooltip>
       )}

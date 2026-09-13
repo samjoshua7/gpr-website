@@ -268,80 +268,54 @@ export async function showSavedFolder(subfolder = '', filePath = '') {
     }
   }
 
-  // 2. In Deployed / Cloud Environments: Attempt gpr-explorer:// protocol via hidden iframe
+  // 2. In Deployed / Cloud Environments:
+  // Synchronous top-level protocol dispatch within active user gesture.
+  // No await, no timeout, no blur/focus detection, no automatic clipboard write.
   if (typeof window !== 'undefined') {
     const protocolUrl = `gpr-explorer://select?path=${encodeURIComponent(filePath)}`;
-    console.debug('[ShowInFolder] Attempting protocol dispatch:', protocolUrl);
+    console.debug('[ShowInFolder] Synchronous protocol dispatch:', protocolUrl);
 
     try {
-      // Use hidden iframe — avoids navigating the SPA away
-      const iframe = document.createElement('iframe');
-      iframe.style.display = 'none';
-      iframe.src = protocolUrl;
-      document.body.appendChild(iframe);
+      const link = document.createElement('a');
+      link.href = protocolUrl;
+      link.target = '_self';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
 
-      // Detect if the protocol handler launched by listening for window blur.
-      // When Chrome dispatches a custom protocol to an external app, the browser
-      // loses focus momentarily (either the "Open external app?" dialog or the
-      // launched app takes focus). If the page stays focused, the protocol was
-      // silently ignored.
-      let protocolLaunched = false;
-      const onBlur = () => {
-        protocolLaunched = true;
+      return {
+        success: true,
+        method: 'protocol',
+        path: filePath,
+        message: 'Dispatched request to open Windows File Explorer.',
       };
-      window.addEventListener('blur', onBlur);
-
-      // Wait 1.5s for the external handler or prompt to steal focus
-      await new Promise((resolve) => setTimeout(resolve, 1500));
-
-      window.removeEventListener('blur', onBlur);
-
-      if (!document.hasFocus()) {
-        protocolLaunched = true;
-      }
-
-      // Clean up iframe
-      try {
-        if (iframe.parentNode) {
-          document.body.removeChild(iframe);
-        }
-      } catch {
-        // ignore
-      }
-
-      if (protocolLaunched) {
-        console.debug('[ShowInFolder] Protocol handler detected (window blurred/unfocused).');
-        return {
-          success: true,
-          method: 'protocol',
-          path: filePath,
-          message: 'File Explorer opened via gpr-explorer protocol.',
-        };
-      }
-
-      console.debug('[ShowInFolder] Protocol handler not detected (window retained focus). Falling back to clipboard.');
     } catch (protocolErr) {
       console.warn('[ShowInFolder] Protocol dispatch error:', protocolErr);
-    }
-  }
-
-  // 3. Fallback: copy to clipboard and inform caller of environment restriction
-  if (navigator?.clipboard?.writeText) {
-    try {
-      await navigator.clipboard.writeText(filePath);
-      console.debug('[ShowInFolder] Clipboard fallback succeeded:', filePath);
-      return {
-        success: false,
-        method: 'unavailable',
-        path: filePath,
-        message: 'Direct desktop Explorer opening is not supported in this environment. File path copied to clipboard.',
-      };
-    } catch (err) {
-      console.warn('[ShowInFolder] Clipboard fallback failed:', err);
+      return { success: false, method: 'unsupported', path: filePath };
     }
   }
 
   return { success: false, method: 'unsupported', path: filePath };
+}
+
+/**
+ * Explicit user action to copy a saved file's path to clipboard.
+ * Only executed when the user specifically clicks the "Copy Path" button.
+ * 
+ * @param {string} filePath
+ * @returns {Promise<boolean>}
+ */
+export async function copySavedPath(filePath = '') {
+  if (!filePath || typeof navigator === 'undefined' || !navigator.clipboard?.writeText) {
+    return false;
+  }
+  try {
+    await navigator.clipboard.writeText(filePath);
+    return true;
+  } catch (err) {
+    console.warn('[ShowInFolder] Copy path failed:', err);
+    return false;
+  }
 }
 
 
