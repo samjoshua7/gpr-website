@@ -116,9 +116,10 @@ export const InvoiceDetailsDialog = ({
       });
 
       if (result.success) {
-        setToastMessage(`Saved PDF to ${result.path}`);
+        const exportedName = result.fileName || fileName;
+        setToastMessage(`Downloaded PDF:\n"${exportedName}"`);
         setToastBlob(pdfBlob);
-        setToastPath(result.path);
+        setToastPath(result.path || exportedName);
         setToastSubfolder('pdf');
         setToastIsFile(true);
         setToastOpen(true);
@@ -151,9 +152,10 @@ export const InvoiceDetailsDialog = ({
       });
 
       if (result.success) {
-        setToastMessage(`Saved JPG to ${result.path}`);
+        const exportedName = result.fileName || fileName;
+        setToastMessage(`Downloaded JPG:\n"${exportedName}"`);
         setToastBlob(jpgBlob);
-        setToastPath(result.path);
+        setToastPath(result.path || exportedName);
         setToastSubfolder('jpg');
         setToastIsFile(true);
         setToastOpen(true);
@@ -696,6 +698,7 @@ export const InvoiceDetailsDialog = ({
         showInFolder={toastIsFile}
         subfolder={toastSubfolder}
         filePath={toastPath}
+        fileName={toastPath}
         fileBlob={toastBlob}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
       />

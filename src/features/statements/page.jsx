@@ -288,9 +288,10 @@ export const StatementsPage = () => {
       });
 
       if (result.success) {
-        setToastMessage(`Saved GST Report to ${result.path}`);
+        const exportedName = result.fileName || fileName;
+        setToastMessage(`Downloaded GST Report:\n"${exportedName}"`);
         setToastBlob(blob);
-        setToastPath(result.path);
+        setToastPath(result.path || exportedName);
         setToastOpen(true);
       }
     } catch (err) {
@@ -934,6 +935,7 @@ export const StatementsPage = () => {
         showInFolder={!!toastBlob}
         subfolder="accounts"
         filePath={toastPath}
+        fileName={toastPath}
         fileBlob={toastBlob}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
       />

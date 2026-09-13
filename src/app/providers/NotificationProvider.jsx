@@ -11,6 +11,7 @@ export const NotificationProvider = ({ children }) => {
     showInFolder: false,
     subfolder: '',
     filePath: '',
+    fileName: '',
     fileBlob: null,
     autoHideDuration: 5000,
   });
@@ -21,6 +22,7 @@ export const NotificationProvider = ({ children }) => {
     showInFolder = false,
     subfolder = '',
     filePath = '',
+    fileName = '',
     fileBlob = null,
     autoHideDuration = 5000,
   }) => {
@@ -31,6 +33,7 @@ export const NotificationProvider = ({ children }) => {
       showInFolder,
       subfolder,
       filePath,
+      fileName: fileName || filePath,
       fileBlob,
       autoHideDuration,
     });
@@ -59,6 +62,7 @@ export const NotificationProvider = ({ children }) => {
         showInFolder={toastState.showInFolder}
         subfolder={toastState.subfolder}
         filePath={toastState.filePath}
+        fileName={toastState.fileName}
         fileBlob={toastState.fileBlob}
         autoHideDuration={toastState.autoHideDuration}
       />

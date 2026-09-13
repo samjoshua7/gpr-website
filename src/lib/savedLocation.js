@@ -132,24 +132,26 @@ export async function pickAndSaveDirectoryHandle() {
 }
 
 /**
- * Writes file directly into the target folder without Chrome "Save As" popups.
- * If no folder is configured or user cancels, falls back to standard browser download.
+ * Writes file directly into the configured local invoice storage folder (Silent Auto-Save).
+ * Uses the active directory handle stored in IndexedDB.
+ * If no folder has been configured yet, prompts the user to select one once,
+ * stores the handle in IndexedDB, and silently writes subsequent exports.
  *
  * @param {Object} options
- * @param {Blob} options.fileBlob - The file data blob (PDF or JPG).
+ * @param {Blob} options.fileBlob - The file data blob (PDF, JPG, or XLSX).
  * @param {string} options.fileName - Structured filename.
- * @param {string} options.subfolder - Subfolder name ('pdf' or 'jpg').
- * @returns {Promise<{ success: boolean, method: 'direct' | 'download', path?: string, error?: string }>}
+ * @param {string} [options.subfolder] - Subfolder name ('pdf', 'jpg', or 'accounts').
+ * @returns {Promise<{ success: boolean, method: 'direct' | 'download', baseFolder?: string, fileName: string, path: string }>}
  */
 export async function saveExportFile({ fileBlob, fileName, subfolder = 'pdf' }) {
   if (!fileBlob) throw new Error('No file blob provided.');
 
-  // 1. Try File System Access API for direct silent saving
+  // 1. Existing Local Storage System (File System Access API)
   if ('showDirectoryPicker' in window) {
     try {
       let rootDir = await getSavedDirectoryHandle();
 
-      // If no directory saved or permission expired, prompt once
+      // If no directory configured yet or permission expired, prompt once for setup
       if (!rootDir || !(await verifyDirectoryPermission(rootDir, true))) {
         rootDir = await pickAndSaveDirectoryHandle();
       }
@@ -161,80 +163,89 @@ export async function saveExportFile({ fileBlob, fileName, subfolder = 'pdf' }) 
         await writable.write(fileBlob);
         await writable.close();
 
+        const formattedPath = `${rootDir.name}\\${subfolder}\\${fileName}`;
         return {
           success: true,
           method: 'direct',
-          path: `${rootDir.name}/${subfolder}/${fileName}`,
+          baseFolder: rootDir.name,
+          subfolder,
+          fileName,
+          path: formattedPath,
         };
       }
     } catch (err) {
       if (err.name === 'AbortError') {
-        console.warn('Folder selection dismissed by user, falling back to browser download.');
+        throw new Error('Folder selection was cancelled. Please configure a local storage folder to save invoices.');
       } else {
-        console.error('Direct folder write failed, falling back to download:', err);
+        console.error('Direct local storage write failed:', err);
+        throw new Error(`Failed to write file to local folder: ${err.message}`);
       }
     }
   }
 
-  // 2. Fallback: Standard browser download link
+  // 2. Fallback for legacy browsers without File System Access API
   const url = URL.createObjectURL(fileBlob);
   const link = document.createElement('a');
   link.href = url;
   link.download = fileName;
+  link.style.display = 'none';
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
-  URL.revokeObjectURL(url);
+
+  setTimeout(() => {
+    try {
+      URL.revokeObjectURL(url);
+    } catch {
+      // ignore
+    }
+  }, 1500);
 
   return {
     success: true,
     method: 'download',
+    fileName,
     path: fileName,
   };
 }
 
 /**
- * Reveals or opens directory handle in the native file picker if supported,
- * and copies the folder/file path to the clipboard.
+ * Opens Windows File Explorer with the saved file selected (via local bridge),
+ * or copies the saved file path to clipboard if running in a remote/pure-browser environment.
+ * DOES NOT invoke window.showDirectoryPicker() so no permission dialog appears.
  *
  * @param {string} subfolder - 'pdf' | 'jpg' | 'accounts'
- * @param {string} filePath - optional full or relative path
- * @returns {Promise<{ success: boolean, method: string }>}
+ * @param {string} filePath - local file path (e.g. "gpr\\pdf\\filename.pdf")
+ * @returns {Promise<{ success: boolean, method: 'explorer' | 'clipboard' | 'unsupported', path: string }>}
  */
 export async function showSavedFolder(subfolder = '', filePath = '') {
-  if (filePath && navigator.clipboard) {
+  if (filePath) {
+    // 1. Try local bridge endpoint (opens Windows File Explorer with file auto-selected)
     try {
-      await navigator.clipboard.writeText(filePath);
-    } catch {
-      // ignore clipboard permission error
-    }
-  }
-
-  if ('showDirectoryPicker' in window) {
-    try {
-      const rootDir = await getSavedDirectoryHandle();
-      if (rootDir && (await verifyDirectoryPermission(rootDir, false))) {
-        let targetHandle = rootDir;
-        if (subfolder) {
-          try {
-            targetHandle = await rootDir.getDirectoryHandle(subfolder, { create: false });
-          } catch {
-            targetHandle = rootDir;
-          }
+      const resp = await fetch(`/api/reveal-in-explorer?path=${encodeURIComponent(filePath)}`);
+      if (resp.ok) {
+        const data = await resp.json();
+        if (data?.success) {
+          return { success: true, method: 'explorer', path: data.path || filePath };
         }
-        await window.showDirectoryPicker({
-          startIn: targetHandle,
-          mode: 'read',
-        });
-        return { success: true, method: 'picker' };
       }
-    } catch (err) {
-      if (err.name === 'AbortError') {
-        return { success: true, method: 'picker_dismissed' };
+    } catch {
+      // Local bridge endpoint not reachable in remote/cloud deployment
+    }
+
+    // 2. Safe fallback: copy exact path to clipboard
+    if (navigator?.clipboard?.writeText) {
+      try {
+        await navigator.clipboard.writeText(filePath);
+        return { success: true, method: 'clipboard', path: filePath };
+      } catch (err) {
+        console.warn('Clipboard write error:', err);
       }
-      console.warn('showDirectoryPicker error:', err);
     }
   }
 
-  return { success: false, method: 'unsupported' };
+  return { success: false, method: 'unsupported', path: filePath };
 }
+
+
+
