@@ -210,37 +210,122 @@ export async function saveExportFile({ fileBlob, fileName, subfolder = 'pdf' }) 
 }
 
 /**
- * Opens Windows File Explorer with the saved file selected (via local bridge),
- * or copies the saved file path to clipboard if running in a remote/pure-browser environment.
- * DOES NOT invoke window.showDirectoryPicker() so no permission dialog appears.
+ * Opens Windows File Explorer with the saved file auto-selected.
+ *
+ * Environment Strategy:
+ * 1. Local Environment (Vite Dev Server on localhost/127.0.0.1):
+ *    Directly calls the Node.js bridge `/api/reveal-in-explorer` which spawns `explorer.exe /select,"..."`.
+ *    Inspects Content-Type and HTTP status to prevent SPA fallback confusion.
+ *
+ * 2. Deployed / Cloud Environment (Vercel, custom domain):
+ *    Cloud servers cannot spawn desktop applications on client PCs.
+ *    Dispatches the registered Windows protocol `gpr-explorer://select?path=...`.
+ *    Also safely copies the path to clipboard as an immediate convenience.
+ *    Logs clear, helpful diagnostics to the developer console.
+ *
+ * 3. Fallback / Diagnostics:
+ *    If the endpoint returns non-JSON or fails, logs explicit warnings distinguishing
+ *    between "Show in Folder succeeded" vs "Not available in this environment".
  *
  * @param {string} subfolder - 'pdf' | 'jpg' | 'accounts'
  * @param {string} filePath - local file path (e.g. "gpr\\pdf\\filename.pdf")
- * @returns {Promise<{ success: boolean, method: 'explorer' | 'clipboard' | 'unsupported', path: string }>}
+ * @returns {Promise<{ success: boolean, method: 'explorer' | 'protocol' | 'unavailable' | 'clipboard' | 'unsupported', path: string, message?: string }>}
  */
 export async function showSavedFolder(subfolder = '', filePath = '') {
-  if (filePath) {
-    // 1. Try local bridge endpoint (opens Windows File Explorer with file auto-selected)
+  if (!filePath) {
+    return { success: false, method: 'unsupported', path: '' };
+  }
+
+  const isLocalHost = typeof window !== 'undefined' && 
+    (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+
+  // 1. In Local Development: Use the local Node.js explorer bridge
+  if (isLocalHost) {
     try {
       const resp = await fetch(`/api/reveal-in-explorer?path=${encodeURIComponent(filePath)}`);
-      if (resp.ok) {
+      const contentType = resp.headers.get('content-type') || '';
+
+      if (resp.ok && contentType.includes('application/json')) {
         const data = await resp.json();
         if (data?.success) {
+          console.info('[SavedLocation] Local Explorer bridge opened Windows File Explorer for:', data.path || filePath);
           return { success: true, method: 'explorer', path: data.path || filePath };
         }
       }
-    } catch {
-      // Local bridge endpoint not reachable in remote/cloud deployment
-    }
 
-    // 2. Safe fallback: copy exact path to clipboard
-    if (navigator?.clipboard?.writeText) {
-      try {
-        await navigator.clipboard.writeText(filePath);
-        return { success: true, method: 'clipboard', path: filePath };
-      } catch (err) {
-        console.warn('Clipboard write error:', err);
+      // If the response is not valid JSON (e.g. HTML from a misconfigured server or 404/500)
+      if (!contentType.includes('application/json')) {
+        console.warn(
+          `[SavedLocation] Local Explorer bridge returned non-JSON response (HTTP ${resp.status}, Content-Type: ${contentType}). ` +
+          `Ensure the Vite dev server with revealInExplorerPlugin is active.`
+        );
+      } else {
+        const errData = await resp.json().catch(() => null);
+        console.warn(`[SavedLocation] Local Explorer bridge failed (HTTP ${resp.status}):`, errData?.error || 'Unknown error');
       }
+    } catch (err) {
+      console.warn('[SavedLocation] Local Explorer bridge request failed:', err.message);
+    }
+  }
+
+  // 2. In Deployed / Cloud Environments (or if local bridge was unavailable):
+  // Attempt the registered Windows Desktop URI protocol `gpr-explorer://`
+  if (typeof window !== 'undefined') {
+    try {
+      const protocolUrl = `gpr-explorer://select?path=${encodeURIComponent(filePath)}`;
+      
+      // Dispatch protocol via a hidden iframe to avoid leaving the current page
+      const iframe = document.createElement('iframe');
+      iframe.style.display = 'none';
+      iframe.src = protocolUrl;
+      document.body.appendChild(iframe);
+      setTimeout(() => {
+        try {
+          if (iframe.parentNode) {
+            document.body.removeChild(iframe);
+          }
+        } catch {
+          // ignore
+        }
+      }, 2000);
+
+      // Copy path to clipboard as a reliable safety net
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(filePath).catch(() => {});
+      }
+
+      if (!isLocalHost) {
+        console.info(
+          `[SavedLocation] Deployed environment detected (${window.location.hostname}). ` +
+          `Dispatched desktop protocol "gpr-explorer://". ` +
+          `If Windows File Explorer did not open, run "tools/gpr-protocol/register-protocol.bat" once on this computer.`
+        );
+      }
+
+      return {
+        success: true,
+        method: 'protocol',
+        path: filePath,
+        message: 'Opening Windows File Explorer via gpr-explorer protocol (path also copied).',
+      };
+    } catch (protocolErr) {
+      console.warn('[SavedLocation] Protocol dispatch error:', protocolErr);
+    }
+  }
+
+  // 3. Last-resort fallback: copy to clipboard and inform caller of environment restriction
+  if (navigator?.clipboard?.writeText) {
+    try {
+      await navigator.clipboard.writeText(filePath);
+      console.info('[SavedLocation] Direct Explorer opening unavailable. Copied path to clipboard:', filePath);
+      return {
+        success: false,
+        method: 'unavailable',
+        path: filePath,
+        message: 'Direct desktop Explorer opening is not supported in this environment. File path copied to clipboard.',
+      };
+    } catch (err) {
+      console.warn('[SavedLocation] Clipboard write error:', err);
     }
   }
 

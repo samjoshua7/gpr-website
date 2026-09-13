@@ -106,8 +106,9 @@ export const AppSnackbar = ({
   sx,
   ...props
 }) => {
-  const [folderActionStatus, setFolderActionStatus] = useState(null); // 'opened' | 'copied' | null
+  const [folderActionStatus, setFolderActionStatus] = useState(null); // 'opened' | 'protocol' | 'unavailable' | 'copied' | null
   const [resolvedDisplayPath, setResolvedDisplayPath] = useState('');
+  const [actionMessage, setActionMessage] = useState('');
 
   const effectiveFilePath = filePath || fileName || '';
   const isFileNotification = Boolean(showInFolder || effectiveFilePath);
@@ -127,7 +128,17 @@ export const AppSnackbar = ({
     if (res?.method === 'explorer') {
       setFolderActionStatus('opened');
       setResolvedDisplayPath(res.path || effectiveFilePath);
-      setTimeout(() => setFolderActionStatus(null), 3000);
+      setTimeout(() => setFolderActionStatus(null), 3500);
+    } else if (res?.method === 'protocol') {
+      setFolderActionStatus('protocol');
+      setResolvedDisplayPath(res.path || effectiveFilePath);
+      setActionMessage(res.message || 'Opening Windows File Explorer via gpr-explorer protocol (path also copied).');
+      setTimeout(() => setFolderActionStatus(null), 3500);
+    } else if (res?.method === 'unavailable') {
+      setFolderActionStatus('unavailable');
+      setResolvedDisplayPath(res.path || effectiveFilePath);
+      setActionMessage(res.message || 'Direct desktop Explorer opening is unavailable in cloud deployment. File path copied to clipboard.');
+      setTimeout(() => setFolderActionStatus(null), 4000);
     } else if (res?.method === 'clipboard') {
       setFolderActionStatus('copied');
       setResolvedDisplayPath(res.path || effectiveFilePath);
@@ -153,6 +164,10 @@ export const AppSnackbar = ({
           title={
             folderActionStatus === 'opened'
               ? `Opened in Windows File Explorer: ${resolvedDisplayPath || effectiveFilePath}`
+              : folderActionStatus === 'protocol'
+              ? (actionMessage || `Opening in Windows File Explorer: ${resolvedDisplayPath || effectiveFilePath}`)
+              : folderActionStatus === 'unavailable'
+              ? (actionMessage || `Direct desktop Explorer opening is unavailable. Path copied to clipboard: ${resolvedDisplayPath || effectiveFilePath}`)
               : folderActionStatus === 'copied'
               ? `Path copied to clipboard: ${resolvedDisplayPath || effectiveFilePath}`
               : `Saved file: ${effectiveFilePath}`
@@ -162,7 +177,9 @@ export const AppSnackbar = ({
             size="small"
             variant="contained"
             startIcon={
-              folderActionStatus ? (
+              folderActionStatus === 'opened' || folderActionStatus === 'protocol' ? (
+                <CheckIcon sx={{ fontSize: '0.9rem !important' }} />
+              ) : folderActionStatus === 'copied' ? (
                 <CheckIcon sx={{ fontSize: '0.9rem !important' }} />
               ) : (
                 <FolderOpenIcon sx={{ fontSize: '0.9rem !important' }} />
@@ -194,6 +211,10 @@ export const AppSnackbar = ({
           >
             {folderActionStatus === 'opened'
               ? 'Opened in Explorer'
+              : folderActionStatus === 'protocol'
+              ? 'Opening Explorer...'
+              : folderActionStatus === 'unavailable'
+              ? 'Not Available'
               : folderActionStatus === 'copied'
               ? 'Path Copied'
               : 'Show in folder'}
