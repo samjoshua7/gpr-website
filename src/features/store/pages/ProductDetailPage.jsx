@@ -34,8 +34,6 @@ import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import { Swiper, SwiperSlide } from 'swiper/react';
 import 'swiper/css';
-
-import { StoreHeader } from '../components/StoreHeader';
 import { StoreFooter } from '../components/StoreFooter';
 import { PricingCalculator } from '../components/PricingCalculator';
 import { useCart } from '../context/CartContext';
@@ -246,8 +244,6 @@ export const ProductDetailPage = () => {
 
   return (
     <Box sx={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', bgcolor: '#f8fafc' }}>
-      {/* StoreHeader rendered unconditionally at root to prevent remount churn */}
-      <StoreHeader />
 
       {loading ? (
         <Container maxWidth="xl" sx={{ py: 4, flexGrow: 1 }}>

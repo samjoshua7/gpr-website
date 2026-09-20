@@ -21,8 +21,6 @@ import GoogleIcon from '@mui/icons-material/Google';
 import LockIcon from '@mui/icons-material/Lock';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import Inventory2OutlinedIcon from '@mui/icons-material/Inventory2Outlined';
-
-import { StoreHeader } from '../components/StoreHeader';
 import { StoreFooter } from '../components/StoreFooter';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../../../hooks/useAuth';
@@ -151,7 +149,6 @@ export const CheckoutPage = () => {
   if (!user) {
     return (
       <Box sx={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', bgcolor: '#f8fafc' }}>
-        <StoreHeader />
         <Container maxWidth="sm" sx={{ py: 12, flexGrow: 1 }}>
           <Paper
             elevation={0}
@@ -208,7 +205,6 @@ export const CheckoutPage = () => {
   if (items.length === 0) {
     return (
       <Box sx={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', bgcolor: '#f8fafc' }}>
-        <StoreHeader />
         <Container maxWidth="md" sx={{ py: 10, textAlign: 'center', flexGrow: 1 }}>
           <Typography variant="h5" fontWeight={800} sx={{ mb: 2 }}>
             Your cart is empty
@@ -227,7 +223,6 @@ export const CheckoutPage = () => {
 
   return (
     <Box sx={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', bgcolor: '#f8fafc' }}>
-      <StoreHeader />
 
       <Container maxWidth="xl" sx={{ py: 4, flexGrow: 1 }}>
         <Breadcrumbs separator={<NavigateNextIcon fontSize="small" />} sx={{ mb: 3 }}>

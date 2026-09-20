@@ -509,7 +509,25 @@ export const AppShell = () => {
           minWidth: 0,
         }}
       >
-        <Outlet />
+        <Box
+          key={location.pathname}
+          sx={{
+            minHeight: 0,
+            flexGrow: 1,
+            display: 'flex',
+            flexDirection: 'column',
+            animation: 'erpRouteFadeIn 160ms ease-out',
+            '@keyframes erpRouteFadeIn': {
+              from: { opacity: 0 },
+              to: { opacity: 1 },
+            },
+            '@media (prefers-reduced-motion: reduce)': {
+              animation: 'none',
+            },
+          }}
+        >
+          <Outlet />
+        </Box>
       </Box>
     </Box>
   );

@@ -31,8 +31,6 @@ import TuneIcon from '@mui/icons-material/Tune';
 import CloseIcon from '@mui/icons-material/Close';
 import NavigateNextIcon from '@mui/icons-material/NavigateNext';
 import StorefrontIcon from '@mui/icons-material/Storefront';
-
-import { StoreHeader } from '../components/StoreHeader';
 import { StoreFooter } from '../components/StoreFooter';
 import { ProductCard } from '../components/ProductCard';
 import { CategoryIcon } from '../../../components/common/CategoryIcon';
@@ -213,7 +211,6 @@ export const ProductCatalogPage = () => {
 
   return (
     <Box sx={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', bgcolor: '#f8fafc' }}>
-      <StoreHeader />
 
       {/* 1. Compact Catalog Header (Low Vertical Height) */}
       <Box

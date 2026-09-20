@@ -1,62 +1,113 @@
 import { supabase } from '../../lib/supabaseClient';
 
+const SETTINGS_CACHE_KEY = 'gpr_company_settings_cache_v1';
+const CACHE_TTL = 5 * 60 * 1000;
+
 let cachedSettings = null;
 let lastFetchTimeSettings = null;
 let cacheGenerationSettings = 0;
-const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+let pendingSettingsRequest = null;
+
+try {
+  const persistedCache = localStorage.getItem(SETTINGS_CACHE_KEY);
+  if (persistedCache) {
+    const parsedCache = JSON.parse(persistedCache);
+    if (
+      parsedCache?.settings &&
+      Number.isFinite(parsedCache.fetchedAt) &&
+      Date.now() - parsedCache.fetchedAt < CACHE_TTL
+    ) {
+      cachedSettings = parsedCache.settings;
+      lastFetchTimeSettings = parsedCache.fetchedAt;
+    }
+  }
+} catch {
+  // Storage is optional; the in-memory cache and Supabase remain available.
+}
+
+const cacheCompanySettings = (settings) => {
+  cachedSettings = settings || null;
+  lastFetchTimeSettings = Date.now();
+
+  try {
+    if (cachedSettings) {
+      localStorage.setItem(SETTINGS_CACHE_KEY, JSON.stringify({
+        settings: cachedSettings,
+        fetchedAt: lastFetchTimeSettings,
+      }));
+    } else {
+      localStorage.removeItem(SETTINGS_CACHE_KEY);
+    }
+  } catch {
+    // Ignore storage failures and retain the in-memory cache.
+  }
+};
 
 export const getCachedCompanySettings = () => cachedSettings;
 
 export const invalidateSettingsCache = () => {
   cacheGenerationSettings++;
+  cachedSettings = null;
   lastFetchTimeSettings = null;
+  pendingSettingsRequest = null;
+
+  try {
+    localStorage.removeItem(SETTINGS_CACHE_KEY);
+  } catch {
+    // Storage cleanup is best-effort.
+  }
 };
+
 export const getCompanySettings = async (forceRefresh = false) => {
-  const fetchGen = cacheGenerationSettings;
-  if (!forceRefresh && cachedSettings && lastFetchTimeSettings && (Date.now() - lastFetchTimeSettings < CACHE_TTL)) {
+  if (
+    !forceRefresh &&
+    cachedSettings &&
+    lastFetchTimeSettings &&
+    Date.now() - lastFetchTimeSettings < CACHE_TTL
+  ) {
     return cachedSettings;
   }
 
-  const { data, error } = await supabase
-    .from('company_settings')
-    .select('*')
-    .limit(1)
-    .single();
-    
-  if (error && error.code !== 'PGRST116') { // PGRST116 means no rows returned
-    throw new Error(error.message);
+  if (pendingSettingsRequest) {
+    return pendingSettingsRequest;
   }
-  
-  if (cacheGenerationSettings === fetchGen) {
-    cachedSettings = data || null;
-    lastFetchTimeSettings = Date.now();
+
+  const fetchGeneration = cacheGenerationSettings;
+  pendingSettingsRequest = (async () => {
+    const { data, error } = await supabase
+      .from('company_settings')
+      .select('*')
+      .limit(1)
+      .single();
+
+    if (error && error.code !== 'PGRST116') {
+      throw new Error(error.message);
+    }
+
+    if (cacheGenerationSettings === fetchGeneration) {
+      cacheCompanySettings(data || null);
+    }
+    return data || null;
+  })();
+
+  try {
+    return await pendingSettingsRequest;
+  } finally {
+    pendingSettingsRequest = null;
   }
-  return cachedSettings;
 };
 
 export const updateCompanySettings = async (id, payload) => {
-  if (id) {
-    const { data, error } = await supabase
-      .from('company_settings')
-      .update(payload)
-      .eq('setting_id', id)
-      .select()
-      .single();
-      
-    if (error) throw new Error(error.message);
-    invalidateSettingsCache();
-    return data;
-  } else {
-    const { data, error } = await supabase
-      .from('company_settings')
-      .insert([payload])
-      .select()
-      .single();
-      
-    if (error) throw new Error(error.message);
-    invalidateSettingsCache();
-    return data;
-  }
+  const query = id
+    ? supabase.from('company_settings').update(payload).eq('setting_id', id)
+    : supabase.from('company_settings').insert([payload]);
+
+  const { data, error } = await query.select().single();
+  if (error) throw new Error(error.message);
+
+  cacheGenerationSettings++;
+  cacheCompanySettings(data);
+  return data;
 };
 
 export const uploadCompanyAsset = async (file, type) => {

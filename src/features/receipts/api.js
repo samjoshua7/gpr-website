@@ -1,5 +1,5 @@
 import { supabase } from '../../lib/supabaseClient';
-import { invalidateCustomersCache } from '../customers/api';
+import { refreshCustomersInCache } from '../customers/api';
 import { invalidateSalesInvoicesCache } from '../salesInvoices/api';
 import { invalidateStatementDataCache } from '../statements/api';
 
@@ -117,7 +117,7 @@ export const createReceipt = async (receiptData) => {
   }
 
   invalidateReceiptsCache();
-  invalidateCustomersCache();
+  await refreshCustomersInCache([data.customer_id]);
   invalidateSalesInvoicesCache();
   invalidateStatementDataCache();
   return data;
@@ -177,7 +177,7 @@ export const createReceiptWithAllocations = async ({
   }
 
   invalidateReceiptsCache();
-  invalidateCustomersCache();
+  await refreshCustomersInCache([customer_id]);
   invalidateSalesInvoicesCache();
   invalidateStatementDataCache();
 
@@ -185,6 +185,17 @@ export const createReceiptWithAllocations = async ({
 };
 
 export const updateReceipt = async (receiptId, receiptData) => {
+  let previousCustomerId = cachedReceipts?.find((item) => item.receipt_id === receiptId)?.customer_id || null;
+  if (!previousCustomerId) {
+    const { data: existingReceipt, error: existingReceiptError } = await supabase
+      .from('receipts')
+      .select('customer_id')
+      .eq('receipt_id', receiptId)
+      .single();
+    if (existingReceiptError) throw new Error(existingReceiptError.message);
+    previousCustomerId = existingReceipt.customer_id;
+  }
+
   const { data, error } = await supabase
     .from('receipts')
     .update({
@@ -203,13 +214,24 @@ export const updateReceipt = async (receiptId, receiptData) => {
   }
 
   invalidateReceiptsCache();
-  invalidateCustomersCache();
+  await refreshCustomersInCache([previousCustomerId, data.customer_id]);
   invalidateSalesInvoicesCache();
   invalidateStatementDataCache();
   return data;
 };
 
 export const deleteReceipt = async (receiptId) => {
+  let customerId = cachedReceipts?.find((item) => item.receipt_id === receiptId)?.customer_id || null;
+  if (!customerId) {
+    const { data: existingReceipt, error: existingReceiptError } = await supabase
+      .from('receipts')
+      .select('customer_id')
+      .eq('receipt_id', receiptId)
+      .single();
+    if (existingReceiptError) throw new Error(existingReceiptError.message);
+    customerId = existingReceipt.customer_id;
+  }
+
   const { error } = await supabase
     .from('receipts')
     .delete()
@@ -220,7 +242,7 @@ export const deleteReceipt = async (receiptId) => {
   }
 
   invalidateReceiptsCache();
-  invalidateCustomersCache();
+  await refreshCustomersInCache([customerId]);
   invalidateSalesInvoicesCache();
   invalidateStatementDataCache();
   return true;

@@ -34,20 +34,26 @@ export const getDashboardData = async (forceRefresh = false) => {
 
   const activeInvoices = (invoices || []).filter((inv) => inv.status !== 'void');
 
-  // 1. Revenue over time (Monthly)
-  const monthlyRevenueMap = {};
-  activeInvoices.forEach((inv) => {
-    if (!inv.invoice_date) return;
-    const date = new Date(inv.invoice_date);
-    const monthKey = date.toLocaleString('default', { month: 'short', year: '2-digit' });
-    monthlyRevenueMap[monthKey] = (monthlyRevenueMap[monthKey] || 0) + (parseFloat(inv.total_amount) || 0);
+  // Revenue trend is ordered chronologically and limited to the latest 12 active months.
+  const monthlyRevenueMap = new Map();
+  activeInvoices.forEach((invoice) => {
+    if (!invoice.invoice_date) return;
+    const date = new Date(`${invoice.invoice_date}T00:00:00`);
+    if (Number.isNaN(date.getTime())) return;
+    const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+    const current = monthlyRevenueMap.get(key) || {
+      key,
+      month: date.toLocaleString('en-IN', { month: 'short', year: '2-digit' }),
+      revenue: 0,
+    };
+    current.revenue += parseFloat(invoice.total_amount) || 0;
+    monthlyRevenueMap.set(key, current);
   });
 
-  const revenueTrend = Object.keys(monthlyRevenueMap).map((month) => ({
-    month,
-    revenue: monthlyRevenueMap[month],
-  }));
-
+  const revenueTrend = [...monthlyRevenueMap.values()]
+    .sort((a, b) => a.key.localeCompare(b.key))
+    .slice(-12)
+    .map(({ month, revenue }) => ({ month, revenue }));
   // 2. Receivables vs Collected
   let totalBilled = 0;
   let totalPaid = 0;
@@ -91,20 +97,21 @@ export const getDashboardData = async (forceRefresh = false) => {
     count: taskCountsByStage[stage] || 0,
   }));
 
-  // 4. Low stock inventory materials
-  const inventoryStockData = (items || [])
-    .slice(0, 8)
-    .map((item) => ({
-      name: item.name,
-      stock: parseFloat(item.current_stock) || 0,
-      reorder: parseFloat(item.reorder_level) || 0,
-    }));
-
+  const normalizedItems = (items || []).map((item) => ({
+    name: item.name,
+    stock: parseFloat(item.current_stock) || 0,
+    reorder: parseFloat(item.reorder_level) || 0,
+  }));
+  const lowStockCount = normalizedItems.filter((item) => item.reorder > 0 && item.stock <= item.reorder).length;
+  const inventoryStockData = normalizedItems
+    .sort((a, b) => (a.stock - a.reorder) - (b.stock - b.reorder))
+    .slice(0, 8);
   const result = {
     customerCount: customerCount || 0,
     activeInvoiceCount: activeInvoices.length,
     taskCount: (tasks || []).length,
     itemCount: (items || []).length,
+    lowStockCount,
     totalBilled,
     totalPaid,
     outstanding,

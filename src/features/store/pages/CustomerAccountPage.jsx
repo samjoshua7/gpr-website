@@ -18,8 +18,6 @@ import {
 import NavigateNextIcon from '@mui/icons-material/NavigateNext';
 import ShoppingBagIcon from '@mui/icons-material/ShoppingBag';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
-
-import { StoreHeader } from '../components/StoreHeader';
 import { StoreFooter } from '../components/StoreFooter';
 import { useAuth } from '../../../hooks/useAuth';
 import { supabase } from '../../../lib/supabaseClient';
@@ -118,7 +116,6 @@ export const CustomerAccountPage = () => {
   if (!user) {
     return (
       <Box sx={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
-        <StoreHeader />
         <Container maxWidth="sm" sx={{ py: 12, textAlign: 'center', flexGrow: 1 }}>
           <Typography variant="h5" fontWeight={800} sx={{ mb: 2 }}>
             Sign In Required
@@ -137,7 +134,6 @@ export const CustomerAccountPage = () => {
 
   return (
     <Box sx={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', bgcolor: '#f8fafc' }}>
-      <StoreHeader />
 
       <Container maxWidth="lg" sx={{ py: 4, flexGrow: 1 }}>
         <Breadcrumbs separator={<NavigateNextIcon fontSize="small" />} sx={{ mb: 3 }}>

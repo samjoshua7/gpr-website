@@ -1,6 +1,6 @@
 import { supabase } from '../../lib/supabaseClient';
 import { advanceJobProductionTaskOnInvoice, invalidateJobCardsCache } from '../jobCards/api';
-import { invalidateCustomersCache } from '../customers/api';
+import { refreshCustomersInCache } from '../customers/api';
 
 let cachedSalesInvoices = null;
 let lastFetchTimeSalesInvoices = null;
@@ -320,13 +320,24 @@ export const createSalesInvoice = async (invoiceData, lineItems) => {
   }
 
   invalidateSalesInvoicesCache();
-  invalidateCustomersCache();
+  await refreshCustomersInCache([invoice.customer_id]);
   invalidateJobCardsCache();
   invalidateTaskProgressCache();
   return { ...invoice, autoCreatedJob };
 };
 
 export const updateSalesInvoice = async (invoiceId, invoiceData, lineItems) => {
+  let previousCustomerId = cachedSalesInvoices?.find((item) => item.invoice_id === invoiceId)?.customer_id || null;
+  if (!previousCustomerId) {
+    const { data: existingInvoice, error: existingInvoiceError } = await supabase
+      .from('sales_invoices')
+      .select('customer_id')
+      .eq('invoice_id', invoiceId)
+      .single();
+    if (existingInvoiceError) throw new Error(existingInvoiceError.message);
+    previousCustomerId = existingInvoice.customer_id;
+  }
+
   // 1. Update parent invoice
   const { data: invoice, error: invoiceError } = await supabase
     .from('sales_invoices')
@@ -391,7 +402,7 @@ export const updateSalesInvoice = async (invoiceId, invoiceData, lineItems) => {
   }
 
   invalidateSalesInvoicesCache();
-  invalidateCustomersCache();
+  await refreshCustomersInCache([previousCustomerId, invoice.customer_id]);
   invalidateJobCardsCache();
   invalidateTaskProgressCache();
   return invoice;
@@ -410,13 +421,24 @@ export const voidSalesInvoice = async (id) => {
   }
 
   invalidateSalesInvoicesCache();
-  invalidateCustomersCache();
+  await refreshCustomersInCache([data.customer_id]);
   invalidateJobCardsCache();
   invalidateTaskProgressCache();
   return data;
 };
 
 export const deleteSalesInvoice = async (id) => {
+  let customerId = cachedSalesInvoices?.find((item) => item.invoice_id === id)?.customer_id || null;
+  if (!customerId) {
+    const { data: existingInvoice, error: existingInvoiceError } = await supabase
+      .from('sales_invoices')
+      .select('customer_id')
+      .eq('invoice_id', id)
+      .single();
+    if (existingInvoiceError) throw new Error(existingInvoiceError.message);
+    customerId = existingInvoice.customer_id;
+  }
+
   // 1. Delete child line items first
   const { error: itemsError } = await supabase
     .from('sales_invoice_items')
@@ -444,7 +466,7 @@ export const deleteSalesInvoice = async (id) => {
   }
 
   invalidateSalesInvoicesCache();
-  invalidateCustomersCache();
+  await refreshCustomersInCache([customerId]);
   invalidateJobCardsCache();
   invalidateTaskProgressCache();
   return true;

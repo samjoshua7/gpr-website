@@ -41,6 +41,17 @@ import { CategoryIcon } from '../../../components/common/CategoryIcon';
 import { useAuth } from '../../../hooks/useAuth';
 import { useCart } from '../context/CartContext';
 import { getStoreCategories } from '../api';
+import { getCachedCompanySettings, getCompanySettings } from '../../settings/api';
+
+const DEFAULT_HEADER_APPEARANCE = {
+  backgroundColor: '#8A6424',
+  textColor: '#FFFFFF',
+};
+
+const getHeaderAppearance = (settings) => ({
+  backgroundColor: settings?.storefront_nav_background_color || DEFAULT_HEADER_APPEARANCE.backgroundColor,
+  textColor: settings?.storefront_nav_text_color || DEFAULT_HEADER_APPEARANCE.textColor,
+});
 
 export const StoreHeader = () => {
   const navigate = useNavigate();
@@ -56,11 +67,18 @@ export const StoreHeader = () => {
   const [userMenuAnchor, setUserMenuAnchor] = useState(null);
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [headerAppearance, setHeaderAppearance] = useState(
+    () => getHeaderAppearance(getCachedCompanySettings())
+  );
 
   useEffect(() => {
     getStoreCategories()
       .then((data) => setCategories(data || []))
       .catch((err) => console.warn('Failed to load categories for header', err));
+
+    getCompanySettings()
+      .then((settings) => setHeaderAppearance(getHeaderAppearance(settings)))
+      .catch((err) => console.warn('Failed to load storefront header appearance', err));
   }, []);
 
   useEffect(() => {
@@ -91,9 +109,8 @@ export const StoreHeader = () => {
         position="sticky"
         elevation={0}
         sx={{
-          bgcolor: 'rgba(255, 255, 255, 0.96)',
-          backdropFilter: 'blur(12px)',
-          color: '#0f172a',
+          bgcolor: headerAppearance.backgroundColor,
+          color: headerAppearance.textColor,
           borderBottom: '1px solid rgba(15, 23, 42, 0.08)',
           zIndex: (th) => th.zIndex.appBar,
         }}
@@ -106,7 +123,7 @@ export const StoreHeader = () => {
               size="small"
               onClick={() => setMobileDrawerOpen(true)}
               edge="start"
-              sx={{ color: '#0f172a' }}
+              sx={{ color: 'inherit' }}
               aria-label="Open navigation menu"
               aria-expanded={mobileDrawerOpen}
             >
@@ -130,7 +147,8 @@ export const StoreHeader = () => {
                 onClick={() => navigate('/')}
                 sx={{
                   fontWeight: location.pathname === '/' ? 700 : 500,
-                  color: location.pathname === '/' ? 'primary.main' : 'text.primary',
+                  color: 'inherit',
+                  opacity: location.pathname === '/' ? 1 : 0.86,
                   textTransform: 'none',
                 }}
               >
@@ -181,7 +199,8 @@ export const StoreHeader = () => {
                 onClick={() => navigate('/products')}
                 sx={{
                   fontWeight: location.pathname === '/products' ? 700 : 500,
-                  color: location.pathname === '/products' ? 'primary.main' : 'text.primary',
+                  color: 'inherit',
+                  opacity: location.pathname === '/products' ? 1 : 0.86,
                   textTransform: 'none',
                 }}
               >
@@ -193,7 +212,8 @@ export const StoreHeader = () => {
                 onClick={() => navigate('/about')}
                 sx={{
                   fontWeight: location.pathname === '/about' ? 700 : 500,
-                  color: location.pathname === '/about' ? 'primary.main' : 'text.primary',
+                  color: 'inherit',
+                  opacity: location.pathname === '/about' ? 1 : 0.86,
                   textTransform: 'none',
                 }}
               >
@@ -235,6 +255,39 @@ export const StoreHeader = () => {
 
           {/* User Account & Cart Actions */}
           <Stack direction="row" spacing={1.5} alignItems="center">
+            {isInternal && (
+              <>
+                <Button
+                  variant="outlined"
+                  size="small"
+                  startIcon={<DashboardIcon />}
+                  onClick={() => navigate('/dashboard')}
+                  sx={{
+                    display: { xs: 'none', sm: 'inline-flex' },
+                    color: 'inherit',
+                    borderColor: 'currentColor',
+                    textTransform: 'none',
+                    fontWeight: 800,
+                    '&:hover': { borderColor: 'currentColor', bgcolor: 'rgba(255,255,255,0.12)' },
+                  }}
+                >
+                  ERP
+                </Button>
+                <IconButton
+                  size="small"
+                  onClick={() => navigate('/dashboard')}
+                  aria-label="Open ERP dashboard"
+                  sx={{
+                    display: { xs: 'inline-flex', sm: 'none' },
+                    color: 'inherit',
+                    border: '1px solid currentColor',
+                  }}
+                >
+                  <DashboardIcon fontSize="small" />
+                </IconButton>
+              </>
+            )}
+
             {/* Cart Button */}
             <IconButton
               onClick={() => navigate('/cart')}

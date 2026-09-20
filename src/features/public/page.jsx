@@ -15,8 +15,6 @@ import MonetizationOnIcon from '@mui/icons-material/MonetizationOn';
 import WorkspacePremiumIcon from '@mui/icons-material/WorkspacePremium';
 import LocalShippingIcon from '@mui/icons-material/LocalShipping';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
-
-import { StoreHeader } from '../store/components/StoreHeader';
 import { StoreFooter } from '../store/components/StoreFooter';
 import { HeroCarousel } from '../store/components/HeroCarousel';
 import { CategoryGrid } from '../store/components/CategoryGrid';
@@ -48,7 +46,6 @@ export const PublicHomePage = () => {
   return (
     <Box sx={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', bgcolor: '#f8fafc' }}>
       {/* 1. Header */}
-      <StoreHeader />
 
       {/* 2. Hero Carousel */}
       <HeroCarousel />

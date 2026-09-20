@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../hooks/useAuth';
-import { supabase } from '../../lib/supabaseClient';
 import { useNavigate } from 'react-router-dom';
 import { Box, Button, Typography, Card, CardContent, Container, Alert, CircularProgress, Chip } from '@mui/material';
 import GoogleIcon from '@mui/icons-material/Google';
@@ -8,20 +7,16 @@ import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import logoSvg from '../../assets/logo.svg';
 
 export const LoginPage = () => {
-  const { session, profile, loading: authLoading, authError, clearError } = useAuth();
+  const { session, profile, loading: authLoading, authError, clearError, signInWithGoogle } = useAuth();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const navigate = useNavigate();
 
-  // Handle automatic redirects if already logged in / restored session
+  // Return every authenticated user to the storefront. Internal roles can
+  // deliberately enter the ERP through the role-aware header button.
   useEffect(() => {
     if (!authLoading && session && profile) {
-      const isInternalUser = ['SUPER_ADMIN', 'STAFF', 'STAKEHOLDER', 'ACCOUNTS'].includes(profile.role);
-      if (isInternalUser) {
-        navigate('/dashboard', { replace: true });
-      } else {
-        navigate('/', { replace: true });
-      }
+      navigate('/', { replace: true });
     }
   }, [session, profile, authLoading, navigate]);
 
@@ -30,21 +25,9 @@ export const LoginPage = () => {
     setError(null);
     setLoading(true);
 
-    try {
-      const { error: oauthError } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          redirectTo: window.location.origin,
-        },
-      });
-
-      if (oauthError) {
-        setError(oauthError.message);
-        setLoading(false);
-      }
-    } catch (err) {
-      console.error(err);
-      setError('An unexpected error occurred during Google sign-in.');
+    const { error: oauthError } = await signInWithGoogle();
+    if (oauthError) {
+      setError(oauthError.message);
       setLoading(false);
     }
   };

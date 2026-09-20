@@ -21,8 +21,6 @@ import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import PrintIcon from '@mui/icons-material/Print';
 import ShoppingBagIcon from '@mui/icons-material/ShoppingBag';
 import HomeIcon from '@mui/icons-material/Home';
-
-import { StoreHeader } from '../components/StoreHeader';
 import { StoreFooter } from '../components/StoreFooter';
 import { supabase } from '../../../lib/supabaseClient';
 
@@ -77,7 +75,6 @@ export const OrderConfirmationPage = () => {
   if (loading) {
     return (
       <Box sx={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
-        <StoreHeader />
         <Container maxWidth="md" sx={{ py: 12, textAlign: 'center', flexGrow: 1 }}>
           <CircularProgress />
           <Typography sx={{ mt: 2 }} color="text.secondary">
@@ -92,7 +89,6 @@ export const OrderConfirmationPage = () => {
   if (error || !order) {
     return (
       <Box sx={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
-        <StoreHeader />
         <Container maxWidth="md" sx={{ py: 10, textAlign: 'center', flexGrow: 1 }}>
           <Alert severity="error" sx={{ mb: 3 }}>
             {error || 'Order record not found.'}
@@ -108,7 +104,6 @@ export const OrderConfirmationPage = () => {
 
   return (
     <Box sx={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', bgcolor: '#f8fafc' }}>
-      <StoreHeader />
 
       <Container maxWidth="md" sx={{ py: 6, flexGrow: 1 }}>
         <Paper

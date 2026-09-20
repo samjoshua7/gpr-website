@@ -23,8 +23,6 @@ import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
 import NavigateNextIcon from '@mui/icons-material/NavigateNext';
 import GoogleIcon from '@mui/icons-material/Google';
 import Inventory2OutlinedIcon from '@mui/icons-material/Inventory2Outlined';
-
-import { StoreHeader } from '../components/StoreHeader';
 import { StoreFooter } from '../components/StoreFooter';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../../../hooks/useAuth';
@@ -48,7 +46,6 @@ export const CartPage = () => {
 
   return (
     <Box sx={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', bgcolor: '#f8fafc' }}>
-      <StoreHeader />
 
       <Container maxWidth="xl" sx={{ py: 4, flexGrow: 1 }}>
         <Breadcrumbs separator={<NavigateNextIcon fontSize="small" />} sx={{ mb: 3 }}>

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Box,
@@ -18,16 +18,27 @@ import WorkspacePremiumIcon from '@mui/icons-material/WorkspacePremium';
 import LocalShippingIcon from '@mui/icons-material/LocalShipping';
 import NavigateNextIcon from '@mui/icons-material/NavigateNext';
 import StorefrontIcon from '@mui/icons-material/Storefront';
-
-import { StoreHeader } from '../components/StoreHeader';
+import LocationOnIcon from '@mui/icons-material/LocationOn';
+import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import { StoreFooter } from '../components/StoreFooter';
+import { getCachedCompanySettings, getCompanySettings } from '../../settings/api';
 
 export const AboutPage = () => {
   const navigate = useNavigate();
+  const [companySettings, setCompanySettings] = useState(() => getCachedCompanySettings());
+
+  useEffect(() => {
+    getCompanySettings()
+      .then(setCompanySettings)
+      .catch((err) => console.warn('Failed to load company location', err));
+  }, []);
+
+  const companyAddress = companySettings?.address || 'GPR Offset Printers, Tirunelveli, Tamil Nadu';
+  const mapEmbedUrl = 'https://www.google.com/maps?q=8.7082553,77.7231781&z=17&output=embed';
+  const mapDirectionsUrl = 'https://maps.app.goo.gl/nCsD5dyyWXfw9CFM7';
 
   return (
     <Box sx={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', bgcolor: '#f8fafc' }}>
-      <StoreHeader />
 
       {/* Hero Header */}
       <Box sx={{ bgcolor: 'primary.main', color: '#fff', py: { xs: 5, md: 6 } }}>
@@ -196,6 +207,75 @@ export const AboutPage = () => {
               </Grid>
             ))}
           </Grid>
+        </Box>
+
+        <Divider sx={{ my: 6 }} />
+
+        {/* Factory Location */}
+        <Box sx={{ mb: 8 }}>
+          <Box sx={{ textAlign: 'center', mb: 4 }}>
+            <Typography variant="overline" color="primary.main" fontWeight={800} letterSpacing="0.1em">
+              VISIT OUR PRESS
+            </Typography>
+            <Typography variant="h4" fontWeight={900} letterSpacing="-0.02em">
+              Factory &amp; Office Location
+            </Typography>
+            <Typography variant="body1" color="text.secondary" sx={{ maxWidth: 700, mx: 'auto', mt: 1 }}>
+              Find GPR Offset Printers using the location configured in Company Settings.
+            </Typography>
+          </Box>
+
+          <Paper
+            elevation={0}
+            sx={{
+              overflow: 'hidden',
+              borderRadius: 3,
+              border: '1px solid',
+              borderColor: 'divider',
+              bgcolor: 'background.paper',
+            }}
+          >
+            <Box
+              component="iframe"
+              title="GPR Offset Printers location on Google Maps"
+              src={mapEmbedUrl}
+              loading="lazy"
+              referrerPolicy="no-referrer-when-downgrade"
+              allowFullScreen
+              sx={{
+                display: 'block',
+                width: '100%',
+                height: { xs: 320, md: 440 },
+                border: 0,
+              }}
+            />
+            <Box
+              sx={{
+                p: 2,
+                display: 'flex',
+                flexDirection: { xs: 'column', sm: 'row' },
+                alignItems: { xs: 'flex-start', sm: 'center' },
+                justifyContent: 'space-between',
+                gap: 1.5,
+              }}
+            >
+              <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
+                <LocationOnIcon color="primary" fontSize="small" sx={{ mt: 0.25 }} />
+                <Typography variant="body2" color="text.secondary">{companyAddress}</Typography>
+              </Box>
+              <Button
+                component="a"
+                href={mapDirectionsUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                variant="outlined"
+                endIcon={<OpenInNewIcon />}
+                sx={{ textTransform: 'none', fontWeight: 700, flexShrink: 0 }}
+              >
+                Open in Google Maps
+              </Button>
+            </Box>
+          </Paper>
         </Box>
 
         <Divider sx={{ my: 6 }} />

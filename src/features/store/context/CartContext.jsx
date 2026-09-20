@@ -1,13 +1,62 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { supabase } from '../../../lib/supabaseClient';
 import { useAuth } from '../../../hooks/useAuth';
+import { calculateProductPricing } from '../api';
 
 const CartContext = createContext(null);
 
 const STORAGE_KEY = 'gpr_online_cart_v1';
 
+const getOptionsKey = (options = {}) => JSON.stringify(
+  Object.entries(options).sort(([firstKey], [secondKey]) => firstKey.localeCompare(secondKey))
+);
+
+const SERVER_CART_SELECT = 'cart_item_id, product_id, quantity, selected_options, design_provision, product:products(name, slug, base_price, min_quantity, main_image_url, tiers:product_quantity_tiers(min_quantity, max_quantity, price_per_unit), options:product_options(option_id, name, values:product_option_values(value_id, label, price_adjustment)))';
+
+const mapServerCartItem = (serverItem) => {
+  const product = serverItem.product || {};
+  const selectedOptions = serverItem.selected_options || {};
+  const selectedOptionValues = [];
+  const selectedOptionLabels = {};
+
+  (product.options || []).forEach((option) => {
+    const selectedValue = (option.values || []).find(
+      (value) => value.value_id === selectedOptions[option.option_id]
+    );
+    if (selectedValue) {
+      selectedOptionValues.push(selectedValue);
+      selectedOptionLabels[option.name] = selectedValue.label;
+    }
+  });
+
+  const pricing = calculateProductPricing({
+    basePrice: product.base_price,
+    minQuantity: product.min_quantity,
+    quantity: serverItem.quantity,
+    selectedOptionValues,
+    quantityTiers: product.tiers || [],
+  });
+
+  return {
+    id: serverItem.cart_item_id,
+    cart_item_id: serverItem.cart_item_id,
+    product_id: serverItem.product_id,
+    product_name: product.name || 'Product',
+    product_slug: product.slug || '',
+    product_image_url: product.main_image_url || '',
+    base_price: product.base_price || 0,
+    quantity: serverItem.quantity,
+    selected_options: selectedOptions,
+    selected_option_labels: selectedOptionLabels,
+    design_provision: serverItem.design_provision || 'self_supplied',
+    unit_price: pricing.unitPrice,
+    subtotal: pricing.subtotal,
+  };
+};
+
 export const CartProvider = ({ children }) => {
   const { user } = useAuth();
+  const syncedUserIdRef = useRef(null);
   const [items, setItems] = useState(() => {
     try {
       const stored = localStorage.getItem(STORAGE_KEY);
@@ -18,152 +67,130 @@ export const CartProvider = ({ children }) => {
   });
   const [syncing, setSyncing] = useState(false);
 
-  // Keep localStorage updated with guest cart
+  // Persist only anonymous cart items. Authenticated server rows must never
+  // become input to the guest-to-user merge.
   useEffect(() => {
+    if (user) return;
+
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(items.filter((item) => !item.cart_item_id)));
     } catch (err) {
-      console.warn('Failed to save cart to localStorage', err);
+      console.warn('Failed to save guest cart to localStorage', err);
     }
-  }, [items]);
+  }, [items, user]);
 
-  // Sync with server cart when user logs in
+  // Hydrate the authenticated cart once per user. Only items without a
+  // server cart_item_id are genuine guest items eligible for a one-time merge.
   useEffect(() => {
-    if (!user) return;
+    const userId = user?.id;
+    if (!userId) {
+      if (syncedUserIdRef.current) {
+        setItems((currentItems) => currentItems.filter((item) => !item.cart_item_id));
+      }
+      syncedUserIdRef.current = null;
+      return;
+    }
+    if (syncedUserIdRef.current === userId) return;
 
-    let isMounted = true;
+    syncedUserIdRef.current = userId;
 
     const syncServerCart = async () => {
       try {
         setSyncing(true);
 
-        // 1. Get or create user's cart in DB
-        let { data: cart } = await supabase
+        const { data: existingCart, error: cartFetchError } = await supabase
           .from('carts')
           .select('cart_id')
-          .eq('user_id', user.id)
+          .eq('user_id', userId)
           .maybeSingle();
 
+        if (cartFetchError) throw cartFetchError;
+
+        let cart = existingCart;
         if (!cart) {
           const { data: newCart, error: createCartError } = await supabase
             .from('carts')
-            .insert([{ user_id: user.id }])
+            .insert([{ user_id: userId }])
             .select('cart_id')
             .single();
 
-          if (createCartError) {
-            console.error('Failed to create server cart', createCartError);
-            return;
-          }
+          if (createCartError) throw createCartError;
           cart = newCart;
         }
 
         const cartId = cart.cart_id;
-
-        // 2. Fetch server cart items
-        const { data: serverItems, error: fetchError } = await supabase
+        const { data: serverItems = [], error: fetchError } = await supabase
           .from('cart_items')
-          .select(`
-            cart_item_id,
-            product_id,
-            quantity,
-            selected_options,
-            design_provision,
-            product:products(name, slug, base_price, main_image_url)
-          `)
+          .select(SERVER_CART_SELECT)
           .eq('cart_id', cartId);
 
-        if (fetchError) {
-          console.error('Failed to fetch server cart items', fetchError);
-          return;
-        }
+        if (fetchError) throw fetchError;
 
-        // 3. Merge local guest items into server
-        const localItems = [...items];
-        if (localItems.length > 0) {
-          for (const localItem of localItems) {
-            const existingServer = serverItems?.find(
-              (si) =>
-                si.product_id === localItem.product_id &&
-                JSON.stringify(si.selected_options) === JSON.stringify(localItem.selected_options) &&
-                si.design_provision === localItem.design_provision
-            );
+        const guestItems = items.filter((item) => !item.cart_item_id);
+        for (const guestItem of guestItems) {
+          const existingServer = serverItems.find(
+            (serverItem) =>
+              serverItem.product_id === guestItem.product_id &&
+              getOptionsKey(serverItem.selected_options) === getOptionsKey(guestItem.selected_options) &&
+              serverItem.design_provision === (guestItem.design_provision || 'self_supplied')
+          );
 
-            if (existingServer) {
-              // Update quantity
-              const newQty = existingServer.quantity + localItem.quantity;
-              await supabase
-                .from('cart_items')
-                .update({ quantity: newQty })
-                .eq('cart_item_id', existingServer.cart_item_id);
-            } else {
-              // Insert
-              await supabase.from('cart_items').insert([{
-                cart_id: cartId,
-                product_id: localItem.product_id,
-                quantity: localItem.quantity,
-                selected_options: localItem.selected_options || {},
-                design_provision: localItem.design_provision || 'self_supplied',
-              }]);
-            }
+          if (existingServer) {
+            const mergedQuantity = existingServer.quantity + guestItem.quantity;
+            const { error: updateError } = await supabase
+              .from('cart_items')
+              .update({ quantity: mergedQuantity })
+              .eq('cart_item_id', existingServer.cart_item_id);
+
+            if (updateError) throw updateError;
+            existingServer.quantity = mergedQuantity;
+          } else {
+            const { error: insertError } = await supabase.from('cart_items').insert([{
+              cart_id: cartId,
+              product_id: guestItem.product_id,
+              quantity: guestItem.quantity,
+              selected_options: guestItem.selected_options || {},
+              design_provision: guestItem.design_provision || 'self_supplied',
+            }]);
+
+            if (insertError) throw insertError;
           }
         }
 
-        // 4. Re-fetch consolidated items from server
-        const { data: finalServerItems } = await supabase
+        const { data: finalServerItems, error: finalFetchError } = await supabase
           .from('cart_items')
-          .select(`
-            cart_item_id,
-            product_id,
-            quantity,
-            selected_options,
-            design_provision,
-            product:products(name, slug, base_price, main_image_url)
-          `)
+          .select(SERVER_CART_SELECT)
           .eq('cart_id', cartId);
 
-        if (isMounted && finalServerItems) {
-          const mapped = finalServerItems.map((si) => ({
-            id: si.cart_item_id,
-            cart_item_id: si.cart_item_id,
-            product_id: si.product_id,
-            product_name: si.product?.name || 'Product',
-            product_slug: si.product?.slug || '',
-            product_image_url: si.product?.main_image_url || '',
-            base_price: si.product?.base_price || 0,
-            quantity: si.quantity,
-            selected_options: si.selected_options || {},
-            design_provision: si.design_provision || 'self_supplied',
-            unit_price: si.product?.base_price || 0, // Fallback
-            subtotal: (si.product?.base_price || 0) * si.quantity,
-          }));
-          setItems(mapped);
+        if (finalFetchError) throw finalFetchError;
+        setItems((finalServerItems || []).map(mapServerCartItem));
+        try {
+          localStorage.removeItem(STORAGE_KEY);
+        } catch {
+          // Storage cleanup is best-effort; server state remains authoritative.
         }
       } catch (err) {
+        syncedUserIdRef.current = null;
         console.error('Cart sync error:', err);
       } finally {
-        if (isMounted) setSyncing(false);
+        setSyncing(false);
       }
     };
 
     syncServerCart();
-
-    return () => {
-      isMounted = false;
-    };
-  }, [user]);
+  }, [user?.id]);
 
   // Add Item to Cart
   const addItem = useCallback(async (itemPayload) => {
     // Generate unique key
-    const optionsKey = JSON.stringify(itemPayload.selected_options || {});
+    const optionsKey = getOptionsKey(itemPayload.selected_options);
     const itemKey = `${itemPayload.product_id}_${optionsKey}_${itemPayload.design_provision || 'self_supplied'}`;
 
     setItems((prevItems) => {
       const existingIndex = prevItems.findIndex(
         (i) =>
           i.product_id === itemPayload.product_id &&
-          JSON.stringify(i.selected_options) === JSON.stringify(itemPayload.selected_options) &&
+          getOptionsKey(i.selected_options) === getOptionsKey(itemPayload.selected_options) &&
           i.design_provision === itemPayload.design_provision
       );
 
@@ -199,28 +226,46 @@ export const CartProvider = ({ children }) => {
           .single();
 
         if (cart) {
-          const { data: existing } = await supabase
+          const designProvision = itemPayload.design_provision || 'self_supplied';
+          const { data: candidates, error: candidateError } = await supabase
             .from('cart_items')
-            .select('cart_item_id, quantity')
+            .select('cart_item_id, quantity, selected_options')
             .eq('cart_id', cart.cart_id)
             .eq('product_id', itemPayload.product_id)
-            .eq('design_provision', itemPayload.design_provision || 'self_supplied')
-            .maybeSingle();
+            .eq('design_provision', designProvision);
+
+          if (candidateError) throw candidateError;
+
+          const existing = (candidates || []).find(
+            (candidate) => getOptionsKey(candidate.selected_options) === getOptionsKey(itemPayload.selected_options)
+          );
 
           if (existing) {
-            await supabase
+            const { error: updateError } = await supabase
               .from('cart_items')
               .update({ quantity: existing.quantity + itemPayload.quantity })
               .eq('cart_item_id', existing.cart_item_id);
+
+            if (updateError) throw updateError;
           } else {
-            await supabase.from('cart_items').insert([{
+            const { error: insertError } = await supabase.from('cart_items').insert([{
               cart_id: cart.cart_id,
               product_id: itemPayload.product_id,
               quantity: itemPayload.quantity,
               selected_options: itemPayload.selected_options || {},
-              design_provision: itemPayload.design_provision || 'self_supplied',
+              design_provision: designProvision,
             }]);
+
+            if (insertError) throw insertError;
           }
+
+          const { data: refreshedItems, error: refreshError } = await supabase
+            .from('cart_items')
+            .select(SERVER_CART_SELECT)
+            .eq('cart_id', cart.cart_id);
+
+          if (refreshError) throw refreshError;
+          setItems((refreshedItems || []).map(mapServerCartItem));
         }
       } catch (err) {
         console.warn('Failed to sync added item to DB', err);

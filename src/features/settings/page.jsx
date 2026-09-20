@@ -4,6 +4,7 @@ import {
   Typography,
   Paper,
   Grid,
+  Stack,
   TextField,
   Button,
   CircularProgress,
@@ -62,6 +63,27 @@ import {
   pickAndSaveDirectoryHandle,
   clearSavedDirectoryHandle,
 } from '../../lib/savedLocation';
+
+const HEX_COLOR_PATTERN = /^#[0-9A-Fa-f]{6}$/;
+
+const getRelativeLuminance = (hexColor) => {
+  if (!HEX_COLOR_PATTERN.test(hexColor || '')) return null;
+
+  const channels = [1, 3, 5].map((index) => {
+    const value = parseInt(hexColor.slice(index, index + 2), 16) / 255;
+    return value <= 0.03928 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
+  });
+
+  return (0.2126 * channels[0]) + (0.7152 * channels[1]) + (0.0722 * channels[2]);
+};
+
+const getContrastRatio = (firstColor, secondColor) => {
+  const first = getRelativeLuminance(firstColor);
+  const second = getRelativeLuminance(secondColor);
+  if (first === null || second === null) return 0;
+
+  return (Math.max(first, second) + 0.05) / (Math.min(first, second) + 0.05);
+};
 
 export const SettingsPage = () => {
   const { profile } = useAuth();
@@ -123,7 +145,9 @@ export const SettingsPage = () => {
           gstin: '',
           invoice_prefix: 'INV',
           financial_year_start: new Date().toISOString().split('T')[0],
-          production_workflow: ['New Orders', 'Designing', 'Proof', 'Printing', 'Additional works', 'Cutting', 'Packing', 'Out for Delivery', 'Delivered']
+          production_workflow: ['New Orders', 'Designing', 'Proof', 'Printing', 'Additional works', 'Cutting', 'Packing', 'Out for Delivery', 'Delivered'],
+          storefront_nav_background_color: '#8A6424',
+          storefront_nav_text_color: '#FFFFFF',
         });
       }
     } catch (err) {
@@ -319,6 +343,8 @@ export const SettingsPage = () => {
         bank_account_no: settings.bank_account_no || null,
         bank_ifsc: settings.bank_ifsc || null,
         bank_branch: settings.bank_branch || null,
+        storefront_nav_background_color: settings.storefront_nav_background_color || '#8A6424',
+        storefront_nav_text_color: settings.storefront_nav_text_color || '#FFFFFF',
       });
       setSuccess('Settings saved successfully.');
     } catch (err) {
@@ -393,6 +419,78 @@ export const SettingsPage = () => {
           onChange={handleChange}
           isSuperAdmin={isSuperAdmin}
         />
+
+        <Paper elevation={0} variant="outlined" sx={{ p: 2.5, mb: 2.5, borderRadius: 2 }}>
+          <Typography variant="h6" fontWeight={700}>Storefront Navigation Colors</Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, mb: 2 }}>
+            Choose the public storefront header background and text colors. Changes apply after saving and refreshing the storefront.
+          </Typography>
+
+          <Grid container spacing={2} alignItems="stretch">
+            <Grid item xs={12} sm={6} md={3}>
+              <TextField
+                fullWidth
+                type="color"
+                label="Navigation Background"
+                name="storefront_nav_background_color"
+                value={settings?.storefront_nav_background_color || '#8A6424'}
+                onChange={handleChange}
+                disabled={!isSuperAdmin}
+                InputLabelProps={{ shrink: true }}
+                inputProps={{ 'aria-label': 'Storefront navigation background color', style: { height: 44, cursor: 'pointer' } }}
+                helperText={settings?.storefront_nav_background_color || '#8A6424'}
+              />
+            </Grid>
+            <Grid item xs={12} sm={6} md={3}>
+              <TextField
+                fullWidth
+                type="color"
+                label="Navigation Text"
+                name="storefront_nav_text_color"
+                value={settings?.storefront_nav_text_color || '#FFFFFF'}
+                onChange={handleChange}
+                disabled={!isSuperAdmin}
+                InputLabelProps={{ shrink: true }}
+                inputProps={{ 'aria-label': 'Storefront navigation text color', style: { height: 44, cursor: 'pointer' } }}
+                helperText={settings?.storefront_nav_text_color || '#FFFFFF'}
+              />
+            </Grid>
+            <Grid item xs={12} md={6}>
+              <Box
+                aria-label="Storefront navigation color preview"
+                sx={{
+                  minHeight: 88,
+                  height: '100%',
+                  px: 2,
+                  borderRadius: 2,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: 2,
+                  bgcolor: settings?.storefront_nav_background_color || '#8A6424',
+                  color: settings?.storefront_nav_text_color || '#FFFFFF',
+                  border: '1px solid',
+                  borderColor: 'divider',
+                }}
+              >
+                <Typography fontWeight={800}>GPR Offset Printers</Typography>
+                <Stack direction="row" spacing={2}>
+                  <Typography variant="body2" fontWeight={700}>Catalog</Typography>
+                  <Typography variant="body2" fontWeight={700}>Cart</Typography>
+                </Stack>
+              </Box>
+            </Grid>
+          </Grid>
+
+          {getContrastRatio(
+            settings?.storefront_nav_background_color || '#8A6424',
+            settings?.storefront_nav_text_color || '#FFFFFF'
+          ) < 4.5 && (
+            <Alert severity="warning" sx={{ mt: 2 }}>
+              These colors have low contrast. Choose a darker background or lighter text for comfortable daily use.
+            </Alert>
+          )}
+        </Paper>
 
         <Grid container spacing={2.5}>
           <Grid item xs={12} md={6}>

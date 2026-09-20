@@ -21,8 +21,6 @@ import {
 import NavigateNextIcon from '@mui/icons-material/NavigateNext';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import ShoppingBagIcon from '@mui/icons-material/ShoppingBag';
-
-import { StoreHeader } from '../components/StoreHeader';
 import { StoreFooter } from '../components/StoreFooter';
 import { useAuth } from '../../../hooks/useAuth';
 import { supabase } from '../../../lib/supabaseClient';
@@ -80,7 +78,6 @@ export const CustomerOrdersPage = () => {
   if (!user) {
     return (
       <Box sx={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
-        <StoreHeader />
         <Container maxWidth="sm" sx={{ py: 12, textAlign: 'center', flexGrow: 1 }}>
           <Typography variant="h5" fontWeight={800} sx={{ mb: 2 }}>
             Sign In Required
@@ -99,7 +96,6 @@ export const CustomerOrdersPage = () => {
 
   return (
     <Box sx={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', bgcolor: '#f8fafc' }}>
-      <StoreHeader />
 
       <Container maxWidth="xl" sx={{ py: 4, flexGrow: 1 }}>
         <Breadcrumbs separator={<NavigateNextIcon fontSize="small" />} sx={{ mb: 3 }}>

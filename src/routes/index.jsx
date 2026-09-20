@@ -38,6 +38,7 @@ import { OnlineOrdersPage } from '../features/onlineOrders/page';
 import { OnlineCustomersPage } from '../features/onlineCustomers/page';
 import { HeroBannersPage } from '../features/heroBanners/page';
 import { AboutPage } from '../features/store/pages/AboutPage';
+import { StorefrontLayout } from '../features/store/components/StorefrontLayout';
 
 // Basic unauthorized page
 const UnauthorizedPage = () => (
@@ -59,45 +60,20 @@ export const router = createBrowserRouter([
     element: <RootLayout />,
     children: [
       {
-        path: '/',
-        element: <PublicHomePage />,
+        element: <StorefrontLayout />,
+        children: [
+          { path: '/', element: <PublicHomePage /> },
+          { path: '/about', element: <AboutPage /> },
+          { path: '/products', element: <ProductCatalogPage /> },
+          { path: '/products/:slug', element: <ProductDetailPage /> },
+          { path: '/cart', element: <CartPage /> },
+          { path: '/checkout', element: <CheckoutPage /> },
+          { path: '/order-confirmation/:orderId', element: <OrderConfirmationPage /> },
+          { path: '/account', element: <CustomerAccountPage /> },
+          { path: '/account/orders', element: <CustomerOrdersPage /> },
+          { path: '/account/orders/:orderId', element: <CustomerOrderDetailPage /> },
+        ],
       },
-  {
-    path: '/about',
-    element: <AboutPage />,
-  },
-  {
-    path: '/products',
-    element: <ProductCatalogPage />,
-  },
-  {
-    path: '/products/:slug',
-    element: <ProductDetailPage />,
-  },
-  {
-    path: '/cart',
-    element: <CartPage />,
-  },
-  {
-    path: '/checkout',
-    element: <CheckoutPage />,
-  },
-  {
-    path: '/order-confirmation/:orderId',
-    element: <OrderConfirmationPage />,
-  },
-  {
-    path: '/account',
-    element: <CustomerAccountPage />,
-  },
-  {
-    path: '/account/orders',
-    element: <CustomerOrdersPage />,
-  },
-  {
-    path: '/account/orders/:orderId',
-    element: <CustomerOrderDetailPage />,
-  },
   {
     path: '/login',
     element: <LoginPage />,

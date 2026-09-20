@@ -24,7 +24,8 @@ import {
   Stack,
   Chip,
   TablePagination,
-  TableSortLabel
+  TableSortLabel,
+  LinearProgress
 } from '@mui/material';
 
 import AddIcon from '@mui/icons-material/Add';
@@ -33,7 +34,7 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import PeopleIcon from '@mui/icons-material/People';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 
-import { getCustomers, getCachedCustomers, deleteCustomer } from './api';
+import { getCustomers, getCachedCustomers, hasCachedCustomers, deleteCustomer } from './api';
 import CustomerDialog from './components/CustomerDialog';
 import PageToolbar from '../../components/layout/PageToolbar';
 import { CustomerImportWizard } from './components/CustomerImportWizard';
@@ -57,7 +58,8 @@ export const CustomersPage = () => {
   const { profile } = useAuth();
   const isStakeholder = profile?.role === 'STAKEHOLDER';
   const [allCustomers, setAllCustomers] = useState(() => getCachedCustomers() || []);
-  const [loading, setLoading] = useState(() => !getCachedCustomers());
+  const [initialLoading, setInitialLoading] = useState(() => !hasCachedCustomers());
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
 
   // Search & Filter state
@@ -83,25 +85,29 @@ export const CustomersPage = () => {
   const [cannotDeleteOpen, setCannotDeleteOpen] = useState(false);
   const [dependencyDetails, setDependencyDetails] = useState([]);
 
-  // 1. Initial Fetch
-  const fetchCustomers = useCallback(async (force = true, silent = false) => {
-    if (!silent) setLoading(true);
+  const fetchCustomers = useCallback(async (force = true) => {
+    const hasUsableData = hasCachedCustomers();
+    if (hasUsableData) {
+      setRefreshing(true);
+    } else {
+      setInitialLoading(true);
+    }
     setError(null);
+
     try {
-      // Fetch all customers with fresh balances
       const data = await getCustomers('', force);
       setAllCustomers(data || []);
     } catch (err) {
       console.error(err);
-      setError(err.message || 'Failed to load customers.');
+      setError(err.message || 'Failed to refresh customers. Existing data may be out of date.');
     } finally {
-      if (!silent) setLoading(false);
+      setInitialLoading(false);
+      setRefreshing(false);
     }
   }, []);
 
   useEffect(() => {
-    const hasCached = allCustomers.length > 0;
-    fetchCustomers(false, hasCached);
+    fetchCustomers(false);
   }, [fetchCustomers]);
 
   // 3. Client-side Processing (Filter & Sort)
@@ -203,7 +209,7 @@ export const CustomersPage = () => {
       await deleteCustomer(customerToDelete.customer_id);
       setDeleteOpen(false);
       setCustomerToDelete(null);
-      fetchCustomers(true, true); // Refresh list silently on modification
+      setAllCustomers(getCachedCustomers() || []);
     } catch (err) {
       console.error(err);
       setDeleteError(err.message || 'Failed to delete customer. Ensure they have no linked jobs/invoices.');
@@ -213,7 +219,9 @@ export const CustomersPage = () => {
   };
 
   const handleDataChanged = () => {
-    fetchCustomers(true, true);
+    const cached = getCachedCustomers();
+    if (cached !== null) setAllCustomers(cached);
+    fetchCustomers(true);
   };
 
   return (
@@ -262,7 +270,10 @@ export const CustomersPage = () => {
       )}
 
       {/* 2 & 3. DATA TABLE WITH SORTING & PAGINATION */}
-      <Paper variant="outlined" sx={{ width: '100%', overflow: 'hidden', flexGrow: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+      <Paper variant="outlined" aria-busy={initialLoading || refreshing} sx={{ width: '100%', overflow: 'hidden', flexGrow: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+        <Box sx={{ height: 2, flexShrink: 0 }}>
+          {refreshing && <LinearProgress aria-label="Refreshing customer balances" sx={{ height: 2 }} />}
+        </Box>
         <TableContainer sx={{ flexGrow: 1, overflowY: 'auto', minHeight: 0 }}>
           <Table stickyHeader size="small">
             <TableHead>
@@ -290,7 +301,7 @@ export const CustomersPage = () => {
               </TableRow>
             </TableHead>
             <TableBody>
-              {loading && allCustomers.length === 0 ? (
+              {initialLoading ? (
                 // 5. LOADING EXPERIENCE: Skeletons only on initial fetch
                 Array.from({ length: 10 }).map((_, index) => (
                   <TableRow key={`skeleton-${index}`}>

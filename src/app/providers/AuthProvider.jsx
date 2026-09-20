@@ -8,6 +8,7 @@ export const AuthContext = createContext({
   loading: true,
   authError: null,
   clearError: () => {},
+  signInWithGoogle: async () => ({ error: null }),
   signOut: async () => {},
 });
 
@@ -161,6 +162,32 @@ export const AuthProvider = ({ children }) => {
     setLoading(false);
   };
 
+  const signInWithGoogle = async () => {
+    setAuthError(null);
+
+    try {
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: window.location.origin + '/',
+          queryParams: {
+            prompt: 'select_account',
+          },
+        },
+      });
+
+      if (error) {
+        setAuthError(error.message || 'Unable to start Google sign-in.');
+      }
+
+      return { data, error };
+    } catch (error) {
+      const normalizedError = error instanceof Error ? error : new Error('Unable to start Google sign-in.');
+      setAuthError(normalizedError.message);
+      return { data: null, error: normalizedError };
+    }
+  };
+
   const clearError = () => {
     setAuthError(null);
   };
@@ -172,6 +199,7 @@ export const AuthProvider = ({ children }) => {
     loading,
     authError,
     clearError,
+    signInWithGoogle,
     signOut,
   };
 

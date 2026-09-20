@@ -26,8 +26,6 @@ import {
 import NavigateNextIcon from '@mui/icons-material/NavigateNext';
 import PrintIcon from '@mui/icons-material/Print';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
-
-import { StoreHeader } from '../components/StoreHeader';
 import { StoreFooter } from '../components/StoreFooter';
 import { useAuth } from '../../../hooks/useAuth';
 import { supabase } from '../../../lib/supabaseClient';
@@ -95,7 +93,6 @@ export const CustomerOrderDetailPage = () => {
   if (!user) {
     return (
       <Box sx={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
-        <StoreHeader />
         <Container maxWidth="sm" sx={{ py: 12, textAlign: 'center', flexGrow: 1 }}>
           <Typography variant="h5" fontWeight={800} sx={{ mb: 2 }}>
             Sign In Required
@@ -112,7 +109,6 @@ export const CustomerOrderDetailPage = () => {
   if (loading) {
     return (
       <Box sx={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
-        <StoreHeader />
         <Container maxWidth="lg" sx={{ py: 12, textAlign: 'center', flexGrow: 1 }}>
           <CircularProgress />
         </Container>
@@ -124,7 +120,6 @@ export const CustomerOrderDetailPage = () => {
   if (error || !order) {
     return (
       <Box sx={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
-        <StoreHeader />
         <Container maxWidth="md" sx={{ py: 10, textAlign: 'center', flexGrow: 1 }}>
           <Alert severity="error" sx={{ mb: 3 }}>
             {error || 'Order record not found.'}
@@ -142,7 +137,6 @@ export const CustomerOrderDetailPage = () => {
 
   return (
     <Box sx={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', bgcolor: '#f8fafc' }}>
-      <StoreHeader />
 
       <Container maxWidth="xl" sx={{ py: 4, flexGrow: 1 }}>
         <Breadcrumbs separator={<NavigateNextIcon fontSize="small" />} sx={{ mb: 3 }}>
