@@ -34,6 +34,10 @@ import BadgeIcon from '@mui/icons-material/Badge';
 import RequestQuoteIcon from '@mui/icons-material/RequestQuote';
 import SettingsIcon from '@mui/icons-material/Settings';
 import LogoutIcon from '@mui/icons-material/Logout';
+import StorefrontIcon from '@mui/icons-material/Storefront';
+import ShoppingBagIcon from '@mui/icons-material/ShoppingBag';
+import ContactPageIcon from '@mui/icons-material/ContactPage';
+import logoSvg from '../../assets/logo.svg';
 
 const DRAWER_WIDTH = 240;
 const DRAWER_COLLAPSED_WIDTH = 68;
@@ -99,6 +103,14 @@ export const AppShell = () => {
       ],
     },
     {
+      category: 'Online Store',
+      items: [
+        { text: 'Products', icon: <StorefrontIcon fontSize="small" />, path: '/dashboard/products', roles: ['SUPER_ADMIN'] },
+        { text: 'Online Orders', icon: <ShoppingBagIcon fontSize="small" />, path: '/dashboard/online-orders', roles: ['SUPER_ADMIN', 'ACCOUNTS', 'STAKEHOLDER'] },
+        { text: 'Online Customers', icon: <ContactPageIcon fontSize="small" />, path: '/dashboard/online-customers', roles: ['SUPER_ADMIN', 'ACCOUNTS', 'STAKEHOLDER'] },
+      ],
+    },
+    {
       category: 'Financials & Reports',
       items: [
         { text: 'Statements', icon: <ReceiptIcon fontSize="small" />, path: '/dashboard/statements', roles: ['SUPER_ADMIN', 'ACCOUNTS', 'STAKEHOLDER'] },
@@ -160,7 +172,17 @@ export const AppShell = () => {
                 flexShrink: 0,
               }}
             >
-              <Box component="img" src="/favicon.svg" alt="G.P.R. Logo" sx={{ width: 20, height: 20, objectFit: 'contain' }} />
+              <Box
+                component="img"
+                src={logoSvg}
+                alt="G.P.R. Logo"
+                onError={(e) => {
+                  if (e.currentTarget.src !== window.location.origin + '/favicon.svg') {
+                    e.currentTarget.src = '/favicon.svg';
+                  }
+                }}
+                sx={{ width: 22, height: 22, objectFit: 'contain' }}
+              />
             </Box>
             {!showMini && (
               <Box sx={{ overflow: 'hidden' }}>

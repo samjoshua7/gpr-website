@@ -6,6 +6,7 @@ import { theme } from './theme';
 import { AuthProvider } from './providers/AuthProvider';
 import { ErrorProvider } from './providers/ErrorProvider';
 import { NotificationProvider } from './providers/NotificationProvider';
+import { CartProvider } from '../features/store/context/CartContext';
 import { router } from '../routes';
 
 function App() {
@@ -15,7 +16,9 @@ function App() {
       <AuthProvider>
         <ErrorProvider>
           <NotificationProvider>
-            <RouterProvider router={router} />
+            <CartProvider>
+              <RouterProvider router={router} />
+            </CartProvider>
           </NotificationProvider>
         </ErrorProvider>
       </AuthProvider>

@@ -24,6 +24,17 @@ import { InventoryPage } from '../features/inventory/page';
 import { StatementsPage } from '../features/statements/page';
 import { EmployeesPage } from '../features/employees/page';
 import { SettingsPage } from '../features/settings/page';
+import { ProductManagementPage } from '../features/productManagement/page';
+import { ProductCatalogPage } from '../features/store/pages/ProductCatalogPage';
+import { ProductDetailPage } from '../features/store/pages/ProductDetailPage';
+import { CartPage } from '../features/store/pages/CartPage';
+import { CheckoutPage } from '../features/store/pages/CheckoutPage';
+import { OrderConfirmationPage } from '../features/store/pages/OrderConfirmationPage';
+import { CustomerAccountPage } from '../features/store/pages/CustomerAccountPage';
+import { CustomerOrdersPage } from '../features/store/pages/CustomerOrdersPage';
+import { CustomerOrderDetailPage } from '../features/store/pages/CustomerOrderDetailPage';
+import { OnlineOrdersPage } from '../features/onlineOrders/page';
+import { OnlineCustomersPage } from '../features/onlineCustomers/page';
 
 // Basic unauthorized page
 const UnauthorizedPage = () => (
@@ -37,6 +48,38 @@ export const router = createBrowserRouter([
   {
     path: '/',
     element: <PublicHomePage />,
+  },
+  {
+    path: '/products',
+    element: <ProductCatalogPage />,
+  },
+  {
+    path: '/products/:slug',
+    element: <ProductDetailPage />,
+  },
+  {
+    path: '/cart',
+    element: <CartPage />,
+  },
+  {
+    path: '/checkout',
+    element: <CheckoutPage />,
+  },
+  {
+    path: '/order-confirmation/:orderId',
+    element: <OrderConfirmationPage />,
+  },
+  {
+    path: '/account',
+    element: <CustomerAccountPage />,
+  },
+  {
+    path: '/account/orders',
+    element: <CustomerOrdersPage />,
+  },
+  {
+    path: '/account/orders/:orderId',
+    element: <CustomerOrderDetailPage />,
   },
   {
     path: '/login',
@@ -112,6 +155,30 @@ export const router = createBrowserRouter([
         element: (
           <AuthGuard allowedRoles={['SUPER_ADMIN', 'ACCOUNTS', 'STAKEHOLDER']}>
             <InventoryPage />
+          </AuthGuard>
+        ),
+      },
+      {
+        path: 'products',
+        element: (
+          <AuthGuard allowedRoles={['SUPER_ADMIN']}>
+            <ProductManagementPage />
+          </AuthGuard>
+        ),
+      },
+      {
+        path: 'online-orders',
+        element: (
+          <AuthGuard allowedRoles={['SUPER_ADMIN', 'ACCOUNTS', 'STAKEHOLDER']}>
+            <OnlineOrdersPage />
+          </AuthGuard>
+        ),
+      },
+      {
+        path: 'online-customers',
+        element: (
+          <AuthGuard allowedRoles={['SUPER_ADMIN', 'ACCOUNTS', 'STAKEHOLDER']}>
+            <OnlineCustomersPage />
           </AuthGuard>
         ),
       },

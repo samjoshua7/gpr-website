@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import { Box, Button, Typography, Card, CardContent, Container, Alert, CircularProgress, Chip } from '@mui/material';
 import GoogleIcon from '@mui/icons-material/Google';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
+import logoSvg from '../../assets/logo.svg';
 
 export const LoginPage = () => {
   const { session, profile, loading: authLoading, authError, clearError } = useAuth();
@@ -137,7 +138,17 @@ export const LoginPage = () => {
                 p: 1,
               }}
             >
-              <Box component="img" src="/favicon.svg" alt="G.P.R. Printers Logo" sx={{ width: 42, height: 42, objectFit: 'contain' }} />
+              <Box
+                component="img"
+                src={logoSvg}
+                alt="G.P.R. Printers Logo"
+                onError={(e) => {
+                  if (e.currentTarget.src !== window.location.origin + '/favicon.svg') {
+                    e.currentTarget.src = '/favicon.svg';
+                  }
+                }}
+                sx={{ width: 42, height: 42, objectFit: 'contain' }}
+              />
             </Box>
 
             <Chip
