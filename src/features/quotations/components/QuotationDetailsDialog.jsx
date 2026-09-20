@@ -64,7 +64,6 @@ export const QuotationDetailsDialog = ({ open, onClose, quotationId, onEdit, onC
   const [toastSubfolder, setToastSubfolder] = useState('');
   const [toastIsFile, setToastIsFile] = useState(false);
   const [error, setError] = useState(null);
-  const [lastExportedBlob, setLastExportedBlob] = useState(null);
 
   const handlePrint = () => {
     window.print();

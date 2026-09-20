@@ -3,8 +3,6 @@ import {
   Box,
   Typography,
   Button,
-  TextField,
-  InputAdornment,
   Table,
   TableBody,
   TableCell,
@@ -29,8 +27,7 @@ import AddIcon from '@mui/icons-material/Add';
 import StorageIcon from '@mui/icons-material/Storage';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
-import { TablePagination, TableSortLabel, Stack } from '@mui/material';
-import { SearchInput } from '../../components/ui/SearchInput';
+import { TablePagination, TableSortLabel } from '@mui/material';
 import PageToolbar from '../../components/layout/PageToolbar';
 import { HighlightText } from '../../components/ui/HighlightText';
 
@@ -276,7 +273,7 @@ export const InventoryPage = () => {
               </TableHead>
               <TableBody>
                 {loading && items.length === 0 ? (
-                  Array.from(new Array(5)).map((_, index) => (
+                  Array.from({ length: 5 }).map((_, index) => (
                     <TableRow key={`skeleton-${index}`}>
                       <TableCell><Skeleton width="60%" /></TableCell>
                       <TableCell><Skeleton width="40%" /></TableCell>

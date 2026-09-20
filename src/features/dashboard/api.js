@@ -20,14 +20,12 @@ export const getDashboardData = async (forceRefresh = false) => {
 
   const [
     { data: invoices },
-    { data: receipts },
     { data: tasks },
     { data: items },
     { count: customerCount },
     { data: settings },
   ] = await Promise.all([
     supabase.from('sales_invoices').select('invoice_date, total_amount, amount_paid, status'),
-    supabase.from('receipts').select('receipt_date, amount, mode'),
     supabase.from('job_cards').select('status'),
     supabase.from('items').select('name, current_stock, reorder_level, unit'),
     supabase.from('customers').select('customer_id', { count: 'exact', head: true }),

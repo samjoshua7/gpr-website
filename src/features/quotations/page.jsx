@@ -69,7 +69,7 @@ export const QuotationsPage = () => {
 
   const [quotations, setQuotations] = useState(() => getCachedQuotations() || []);
   const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
+  const [statusFilter] = useState('all');
   const [loading, setLoading] = useState(() => !getCachedQuotations());
   const [error, setError] = useState(null);
 
@@ -285,7 +285,7 @@ export const QuotationsPage = () => {
               </TableHead>
               <TableBody>
                 {loading && quotations.length === 0 ? (
-                  Array.from(new Array(5)).map((_, index) => (
+                  Array.from({ length: 5 }).map((_, index) => (
                     <TableRow key={`skeleton-${index}`}>
                       <TableCell><Skeleton width="60%" /></TableCell>
                       <TableCell><Skeleton width="40%" /></TableCell>

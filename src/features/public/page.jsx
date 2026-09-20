@@ -20,7 +20,6 @@ import {
   Divider,
   Menu,
   MenuItem,
-  useTheme,
   Avatar,
   Stack,
   Skeleton,
@@ -101,7 +100,6 @@ const FEATURED_PRODUCTS = [
 export const PublicHomePage = () => {
   const navigate = useNavigate();
   const { session, profile, loading, signOut } = useAuth();
-  const theme = useTheme();
 
   // Category menu anchoring
   const [catAnchor, setCatAnchor] = useState(null);

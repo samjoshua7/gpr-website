@@ -1,3 +1,4 @@
+/* eslint-disable unicorn/no-new-array */
 /**
  * ISO/IEC 18004 Standard-Compliant Pure JavaScript QR Code Generator
  * Features:

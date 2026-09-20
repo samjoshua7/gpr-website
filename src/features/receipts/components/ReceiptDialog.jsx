@@ -25,12 +25,10 @@ import {
   Paper,
   Checkbox,
   Chip,
-  Tooltip,
   Divider,
 } from '@mui/material';
 
 import {
-  createReceipt,
   updateReceipt,
   createReceiptWithAllocations,
   getCustomerOutstandingInvoices,
@@ -457,7 +455,6 @@ export const ReceiptDialog = ({
                       </TableHead>
                       <TableBody>
                         {invoices.map((inv) => {
-                          const isChecked = selectedInvoiceIds.length === 0 || selectedInvoiceIds.includes(inv.invoice_id);
                           const balanceDue = Math.max(0, parseFloat(inv.total_amount) - parseFloat(inv.amount_paid || 0));
                           const alloc = computedAllocations.allocationsMap[inv.invoice_id] || 0;
                           const newPaidTotal = parseFloat(inv.amount_paid || 0) + alloc;

@@ -27,7 +27,6 @@ import LockIcon from '@mui/icons-material/Lock';
 import LinkIcon from '@mui/icons-material/Link';
 import LinkOffIcon from '@mui/icons-material/LinkOff';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
-import FastForwardIcon from '@mui/icons-material/FastForward';
 
 import { formatDate } from '../../../lib/formatDate';
 import { formatCurrency } from '../../../lib/formatCurrency';
@@ -102,7 +101,6 @@ export const JobCardDetailsModal = ({
 
   const currentStage = jobCard.status || workflow[0] || 'New Orders';
   const currentIdx = workflow.indexOf(currentStage);
-  const isLastStep = currentIdx >= 0 && currentIdx === workflow.length - 1;
   const isPenultimateStep = currentIdx >= 0 && currentIdx === workflow.length - 2;
   const nextStage = currentIdx >= 0 && currentIdx < workflow.length - 1 ? workflow[currentIdx + 1] : null;
 
@@ -125,7 +123,7 @@ export const JobCardDetailsModal = ({
     try {
       await updateJobStatus(jobCard.job_id, nextStage);
       setAdvanceDialogOpen(false);
-      onRefresh && onRefresh();
+      onRefresh?.();
       onClose();
     } catch (err) {
       console.error(err);
@@ -143,7 +141,7 @@ export const JobCardDetailsModal = ({
       await linkInvoiceToJobCard(selectedInvoice.invoice_id, jobCard.job_id);
       setLinkDialogOpen(false);
       setSelectedInvoice(null);
-      onRefresh && onRefresh();
+      onRefresh?.();
       onClose();
     } catch (err) {
       console.error(err);
@@ -160,7 +158,7 @@ export const JobCardDetailsModal = ({
     try {
       await unlinkInvoiceFromJobCard(linkedInvoice.invoice_id);
       setUnlinkDialogOpen(false);
-      onRefresh && onRefresh();
+      onRefresh?.();
       onClose();
     } catch (err) {
       console.error(err);
@@ -322,7 +320,7 @@ export const JobCardDetailsModal = ({
                       startIcon={<VisibilityIcon />}
                       onClick={() => {
                         onClose();
-                        onViewInvoice && onViewInvoice(linkedInvoice.invoice_id);
+                        onViewInvoice?.(linkedInvoice.invoice_id);
                       }}
                       sx={{ textTransform: 'none', fontWeight: 700 }}
                     >
@@ -380,7 +378,7 @@ export const JobCardDetailsModal = ({
                         startIcon={<AddShoppingCartIcon />}
                         onClick={() => {
                           onClose();
-                          onCreateInvoice && onCreateInvoice(jobCard);
+                          onCreateInvoice?.(jobCard);
                         }}
                         sx={{ textTransform: 'none', fontWeight: 700, ...(isStakeholder ? { color: 'text.disabled', bgcolor: 'action.disabledBackground' } : {}) }}
                       >
@@ -423,7 +421,7 @@ export const JobCardDetailsModal = ({
                       disabled={isStakeholder}
                       onClick={() => {
                         onClose();
-                        onDelete && onDelete(jobCard);
+                        onDelete?.(jobCard);
                       }}
                       sx={{ textTransform: 'none', ...(isStakeholder ? { color: 'text.disabled', borderColor: 'divider' } : {}) }}
                     >
@@ -465,7 +463,7 @@ export const JobCardDetailsModal = ({
                     disabled={isStakeholder}
                     onClick={() => {
                       onClose();
-                      onEdit && onEdit(jobCard);
+                      onEdit?.(jobCard);
                     }}
                     sx={{ textTransform: 'none', fontWeight: 600, ...(isStakeholder ? { color: 'text.disabled', borderColor: 'divider' } : {}) }}
                   >

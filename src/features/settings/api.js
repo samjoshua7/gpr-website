@@ -64,7 +64,7 @@ export const uploadCompanyAsset = async (file, type) => {
   const fileName = `${type}_${Date.now()}.${fileExt}`;
   const filePath = fileName;
 
-  const { data, error } = await supabase.storage
+  const { error } = await supabase.storage
     .from('company-assets')
     .upload(filePath, file, { upsert: true });
 

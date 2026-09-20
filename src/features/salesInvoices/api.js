@@ -66,7 +66,7 @@ export const getInvoiceTaskProgress = async (invoiceIds = [], forceRefresh = fal
   });
 
   if (cacheGenerationTaskProgress === fetchGen) {
-    cachedTaskProgressMap = { ...(cachedTaskProgressMap || {}), ...grouped };
+    cachedTaskProgressMap = { ...cachedTaskProgressMap, ...grouped };
     lastFetchTimeTaskProgress = Date.now();
   }
 

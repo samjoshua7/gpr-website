@@ -3,8 +3,6 @@ import {
   Box,
   Button,
   Typography,
-  TextField,
-  InputAdornment,
   Table,
   TableBody,
   TableCell,
@@ -20,7 +18,6 @@ import {
   DialogContent,
   DialogContentText,
   DialogActions,
-  Grid,
   Tabs,
   Tab,
   Chip,
@@ -28,24 +25,19 @@ import {
 } from '@mui/material';
 
 import AddIcon from '@mui/icons-material/Add';
-import SearchIcon from '@mui/icons-material/Search';
 import VisibilityIcon from '@mui/icons-material/Visibility';
-import BlockIcon from '@mui/icons-material/Block';
-import DeleteIcon from '@mui/icons-material/Delete';
 
 import { useLocation, useNavigate } from 'react-router-dom';
-import { getSalesInvoices, getCachedSalesInvoices, deleteSalesInvoice, voidSalesInvoice, getInvoiceTaskProgress } from './api';
+import { getSalesInvoices, getCachedSalesInvoices, deleteSalesInvoice, voidSalesInvoice } from './api';
 import { getCompanySettings } from '../settings/api';
-import { updateJobStatus } from '../jobCards/api';
 import InvoiceDialog from './components/InvoiceDialog';
 import InvoiceDetailsDialog from './components/InvoiceDetailsDialog';
 import PageToolbar from '../../components/layout/PageToolbar';
 import { checkReferences } from '../../lib/referenceChecker';
 import CannotDeleteDialog from '../../components/feedback/CannotDeleteDialog';
 import AppSnackbar from '../../components/feedback/AppSnackbar';
-import { SearchInput } from '../../components/ui/SearchInput';
 import { HighlightText } from '../../components/ui/HighlightText';
-import { TablePagination, TableSortLabel, Stack } from '@mui/material';
+import { TablePagination, TableSortLabel } from '@mui/material';
 import { formatDate } from '../../lib/formatDate';
 import { formatCurrency } from '../../lib/formatCurrency';
 import { useGprError } from '../../app/providers/ErrorProvider';
@@ -128,7 +120,6 @@ export const SalesInvoicesPage = () => {
   const [orderBy, setOrderBy] = useState('invoice_date');
   const [order, setOrder] = useState('desc');
 
-  const [taskProgressMap, setTaskProgressMap] = useState({});
   const [workflow, setWorkflow] = useState([]);
 
   // Kickoff job card state
@@ -529,7 +520,7 @@ export const SalesInvoicesPage = () => {
             </TableHead>
             <TableBody>
               {loading && invoices.length === 0 ? (
-                Array.from(new Array(5)).map((_, index) => (
+                Array.from({ length: 5 }).map((_, index) => (
                   <TableRow key={index}>
                     <TableCell><Skeleton width="50%" /></TableCell>
                     <TableCell><Skeleton width="60%" /></TableCell>

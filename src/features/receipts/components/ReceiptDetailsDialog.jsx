@@ -19,8 +19,7 @@ import {
 import EditIcon from '@mui/icons-material/Edit';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import PrintIcon from '@mui/icons-material/Print';
-import DeleteIcon from '@mui/icons-material/Delete';
-import { getReceiptById, deleteReceipt } from '../api';
+import { getReceiptById } from '../api';
 import { getCompanySettings } from '../../settings/api';
 import { formatDate } from '../../../lib/formatDate';
 
@@ -31,7 +30,7 @@ const MODE_MAP = {
   cheque: { label: 'Cheque', color: 'secondary' },
 };
 
-export const ReceiptDetailsDialog = ({ open, onClose, receiptId, onEdit, onClone, onDeleteSuccess }) => {
+export const ReceiptDetailsDialog = ({ open, onClose, receiptId, onEdit, onClone }) => {
   const [receipt, setReceipt] = useState(null);
   const [companySettings, setCompanySettings] = useState(null);
   const [loading, setLoading] = useState(false);

@@ -80,7 +80,6 @@ export const InvoiceDialog = ({
 
   // Form fields
   const [selectedCustomer, setSelectedCustomer] = useState(null);
-  const [customerSearchQuery, setCustomerSearchQuery] = useState('');
   const [customers, setCustomers] = useState([]);
   const [customersLoading, setCustomersLoading] = useState(false);
 

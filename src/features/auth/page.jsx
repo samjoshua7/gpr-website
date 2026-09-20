@@ -2,9 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import { supabase } from '../../lib/supabaseClient';
 import { useNavigate } from 'react-router-dom';
-import { Box, Button, Typography, Card, CardContent, Container, Alert, CircularProgress, Stack, Chip } from '@mui/material';
+import { Box, Button, Typography, Card, CardContent, Container, Alert, CircularProgress, Chip } from '@mui/material';
 import GoogleIcon from '@mui/icons-material/Google';
-import PrintIcon from '@mui/icons-material/Print';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 
 export const LoginPage = () => {

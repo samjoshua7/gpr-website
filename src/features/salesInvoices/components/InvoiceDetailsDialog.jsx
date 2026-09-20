@@ -90,7 +90,6 @@ export const InvoiceDetailsDialog = ({
   const [unlinkJobDialogOpen, setUnlinkJobDialogOpen] = useState(false);
   const [unlinkJobLoading, setUnlinkJobLoading] = useState(false);
   const [unlinkJobError, setUnlinkJobError] = useState(null);
-  const [lastExportedBlob, setLastExportedBlob] = useState(null);
 
   const handlePrint = () => {
     window.print();
@@ -563,7 +562,7 @@ export const InvoiceDetailsDialog = ({
                   </Tooltip>
                 </Box>
                 <InvoiceProgressBar
-                  taskStatuses={[{ status: invoice.job_cards.status || 'New Orders', product_name: invoice.job_cards.description }]}
+                  taskStatuses={taskStatuses.length > 0 ? taskStatuses : [{ status: invoice.job_cards.status || 'New Orders', product_name: invoice.job_cards.description }]}
                   workflow={workflow}
                   height={12}
                   showLabel

@@ -4,8 +4,6 @@ import {
   Box,
   Button,
   Typography,
-  TextField,
-  InputAdornment,
   Table,
   TableBody,
   TableCell,
@@ -30,7 +28,6 @@ import {
 } from '@mui/material';
 
 import AddIcon from '@mui/icons-material/Add';
-import SearchIcon from '@mui/icons-material/Search';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import PeopleIcon from '@mui/icons-material/People';
@@ -42,9 +39,7 @@ import PageToolbar from '../../components/layout/PageToolbar';
 import { CustomerImportWizard } from './components/CustomerImportWizard';
 import { checkReferences } from '../../lib/referenceChecker';
 import CannotDeleteDialog from '../../components/feedback/CannotDeleteDialog';
-import { SearchInput } from '../../components/ui/SearchInput';
 import { HighlightText } from '../../components/ui/HighlightText';
-import { formatDate } from '../../lib/formatDate';
 import { formatCurrency } from '../../lib/formatCurrency';
 import { useAuth } from '../../hooks/useAuth';
 
@@ -297,7 +292,7 @@ export const CustomersPage = () => {
             <TableBody>
               {loading && allCustomers.length === 0 ? (
                 // 5. LOADING EXPERIENCE: Skeletons only on initial fetch
-                Array.from(new Array(10)).map((_, index) => (
+                Array.from({ length: 10 }).map((_, index) => (
                   <TableRow key={`skeleton-${index}`}>
                     <TableCell><Skeleton width="60%" /></TableCell>
                     <TableCell><Skeleton width="40%" /></TableCell>

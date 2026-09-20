@@ -120,4 +120,33 @@ function revealInExplorerPlugin() {
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react(), revealInExplorerPlugin()],
+  build: {
+    chunkSizeWarningLimit: 1000,
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes('node_modules')) {
+            if (id.includes('xlsx')) {
+              return 'vendor-excel';
+            }
+            if (id.includes('jspdf') || id.includes('html2canvas') || id.includes('canvg')) {
+              return 'vendor-pdf';
+            }
+            if (id.includes('recharts') || id.includes('d3-')) {
+              return 'vendor-charts';
+            }
+            if (id.includes('@mui') || id.includes('@emotion')) {
+              return 'vendor-mui';
+            }
+            if (id.includes('@supabase')) {
+              return 'vendor-supabase';
+            }
+            if (id.includes('react') || id.includes('react-dom') || id.includes('react-router')) {
+              return 'vendor-react';
+            }
+          }
+        },
+      },
+    },
+  },
 });

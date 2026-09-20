@@ -10,7 +10,6 @@ import {
   Paper,
   Chip,
   IconButton,
-  Tooltip,
   Alert,
 } from '@mui/material';
 import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline';

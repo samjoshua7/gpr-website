@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Outlet, useNavigate, useLocation, Link } from 'react-router-dom';
+import React, { useState } from 'react';
+import { Outlet, useLocation, Link } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import {
   Box,
@@ -42,7 +42,6 @@ const HEADER_HEIGHT = 54;
 export const AppShell = () => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
-  const navigate = useNavigate();
   const location = useLocation();
   const { profile, signOut } = useAuth();
 

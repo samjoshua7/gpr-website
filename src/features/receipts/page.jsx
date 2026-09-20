@@ -4,8 +4,6 @@ import {
   Box,
   Typography,
   Button,
-  TextField,
-  InputAdornment,
   Table,
   TableBody,
   TableCell,
@@ -30,8 +28,7 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
-import { TablePagination, TableSortLabel, Stack, Tooltip } from '@mui/material';
-import { SearchInput } from '../../components/ui/SearchInput';
+import { TablePagination, TableSortLabel, Tooltip } from '@mui/material';
 import PageToolbar from '../../components/layout/PageToolbar';
 import { HighlightText } from '../../components/ui/HighlightText';
 
@@ -280,7 +277,7 @@ export const ReceiptsPage = () => {
               </TableHead>
               <TableBody>
                 {loading && receipts.length === 0 ? (
-                  Array.from(new Array(5)).map((_, index) => (
+                  Array.from({ length: 5 }).map((_, index) => (
                     <TableRow key={`skeleton-${index}`}>
                       <TableCell><Skeleton width="50%" /></TableCell>
                       <TableCell><Skeleton width="70%" /></TableCell>

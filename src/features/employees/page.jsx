@@ -13,7 +13,6 @@ import {
   IconButton,
   Chip,
   Tooltip,
-  CircularProgress,
   Alert,
   Dialog,
   DialogTitle,
@@ -22,13 +21,12 @@ import {
   DialogActions,
   Skeleton,
 } from '@mui/material';
-import { TablePagination, TableSortLabel, Stack } from '@mui/material';
+import { TablePagination, TableSortLabel } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import CancelIcon from '@mui/icons-material/Cancel';
-import { SearchInput } from '../../components/ui/SearchInput';
 import PageToolbar from '../../components/layout/PageToolbar';
 
 import { getEmployees, getCachedEmployees, createEmployee, updateEmployee, deleteEmployee, toggleEmployeeStatus } from './api';
@@ -276,7 +274,7 @@ export const EmployeesPage = () => {
             </TableHead>
             <TableBody>
               {loading && employees.length === 0 ? (
-                Array.from(new Array(5)).map((_, index) => (
+                Array.from({ length: 5 }).map((_, index) => (
                   <TableRow key={`skeleton-${index}`}>
                     <TableCell><Skeleton width="60%" /></TableCell>
                     <TableCell><Skeleton width="80%" /></TableCell>
