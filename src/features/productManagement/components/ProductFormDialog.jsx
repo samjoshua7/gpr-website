@@ -24,7 +24,12 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import Inventory2OutlinedIcon from '@mui/icons-material/Inventory2Outlined';
 import { ProductOptionsEditor } from './ProductOptionsEditor';
 import { PricingTiersEditor } from './PricingTiersEditor';
-import { uploadProductImage, getProductById } from '../api';
+import {
+  uploadProductImage,
+  deleteProductImageFromStorage,
+  rollbackUploadedProductImage,
+  getProductById,
+} from '../api';
 
 export const ProductFormDialog = ({ open, onClose, onSave, initialProductId, categories = [] }) => {
   const [activeTab, setActiveTab] = useState(0);
@@ -50,6 +55,21 @@ export const ProductFormDialog = ({ open, onClose, onSave, initialProductId, cat
   const [options, setOptions] = useState([]);
   const [tiers, setTiers] = useState([]);
 
+  // Staged image upload state (prevents orphaned files if admin cancels or changes selection)
+  const [initialImageUrl, setInitialImageUrl] = useState('');
+  const [selectedImageFile, setSelectedImageFile] = useState(null);
+  const [previewUrl, setPreviewUrl] = useState('');
+  const [imageRemoved, setImageRemoved] = useState(false);
+
+  // Revoke object URL on unmount or previewUrl replacement to prevent memory leaks
+  useEffect(() => {
+    return () => {
+      if (previewUrl && previewUrl.startsWith('blob:')) {
+        URL.revokeObjectURL(previewUrl);
+      }
+    };
+  }, [previewUrl]);
+
   useEffect(() => {
     if (!open) return;
 
@@ -70,6 +90,10 @@ export const ProductFormDialog = ({ open, onClose, onSave, initialProductId, cat
             is_active: Boolean(prod.is_active),
             display_order: prod.display_order ?? 0,
           });
+          setInitialImageUrl(prod.main_image_url || '');
+          setPreviewUrl(prod.main_image_url || '');
+          setSelectedImageFile(null);
+          setImageRemoved(false);
 
           // Map options and option values
           if (prod.options) {
@@ -119,6 +143,10 @@ export const ProductFormDialog = ({ open, onClose, onSave, initialProductId, cat
         is_active: true,
         display_order: 0,
       });
+      setInitialImageUrl('');
+      setPreviewUrl('');
+      setSelectedImageFile(null);
+      setImageRemoved(false);
       setOptions([]);
       setTiers([]);
       setError(null);
@@ -136,20 +164,49 @@ export const ProductFormDialog = ({ open, onClose, onSave, initialProductId, cat
     }
   };
 
-  const handleImageUpload = async (e) => {
+  const handleFileSelect = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    try {
-      setUploadingImage(true);
-      setError(null);
-      const url = await uploadProductImage(file);
-      setFormData((prev) => ({ ...prev, main_image_url: url }));
-    } catch (err) {
-      setError(err.message || 'Failed to upload image.');
-    } finally {
-      setUploadingImage(false);
+    if (previewUrl && previewUrl.startsWith('blob:')) {
+      URL.revokeObjectURL(previewUrl);
     }
+
+    const objectUrl = URL.createObjectURL(file);
+    setSelectedImageFile(file);
+    setPreviewUrl(objectUrl);
+    setImageRemoved(false);
+    setFormData((prev) => ({ ...prev, main_image_url: '' }));
+    e.target.value = '';
+  };
+
+  const handleDirectUrlChange = (e) => {
+    const url = e.target.value;
+    if (previewUrl && previewUrl.startsWith('blob:')) {
+      URL.revokeObjectURL(previewUrl);
+    }
+    setSelectedImageFile(null);
+    setPreviewUrl(url);
+    setImageRemoved(false);
+    setFormData((prev) => ({ ...prev, main_image_url: url }));
+  };
+
+  const handleRemoveImage = () => {
+    if (previewUrl && previewUrl.startsWith('blob:')) {
+      URL.revokeObjectURL(previewUrl);
+    }
+    setSelectedImageFile(null);
+    setPreviewUrl('');
+    setImageRemoved(true);
+    setFormData((prev) => ({ ...prev, main_image_url: '' }));
+  };
+
+  const handleDialogClose = () => {
+    if (previewUrl && previewUrl.startsWith('blob:')) {
+      URL.revokeObjectURL(previewUrl);
+    }
+    setSelectedImageFile(null);
+    onClose();
   };
 
   const handleSubmit = async (e) => {
@@ -168,21 +225,57 @@ export const ProductFormDialog = ({ open, onClose, onSave, initialProductId, cat
     try {
       setSaving(true);
       setError(null);
-      await onSave({
-        productData: formData,
-        options,
-        tiers,
-      });
-      onClose();
+
+      let finalImageUrl = formData.main_image_url?.trim() || null;
+      let newlyUploadedUrl = null;
+
+      // 1. If user staged a new local image file, upload it now
+      if (selectedImageFile) {
+        setUploadingImage(true);
+        newlyUploadedUrl = await uploadProductImage(selectedImageFile);
+        finalImageUrl = newlyUploadedUrl;
+      } else if (imageRemoved) {
+        finalImageUrl = null;
+      }
+
+      // 2. Perform database save
+      try {
+        await onSave({
+          productData: {
+            ...formData,
+            main_image_url: finalImageUrl,
+          },
+          options,
+          tiers,
+        });
+      } catch (dbErr) {
+        // Rollback newly uploaded file immediately if DB save failed
+        if (newlyUploadedUrl) {
+          await rollbackUploadedProductImage(newlyUploadedUrl);
+        }
+        throw dbErr;
+      }
+
+      // 3. Clean up replaced old image if it was replaced/removed and is not referenced in orders
+      if (initialImageUrl && initialImageUrl !== finalImageUrl) {
+        deleteProductImageFromStorage(initialImageUrl, {
+          productId: initialProductId || undefined,
+        }).catch((cleanupErr) =>
+          console.warn('Background cleanup of replaced product image failed:', cleanupErr)
+        );
+      }
+
+      handleDialogClose();
     } catch (err) {
       setError(err.message || 'Failed to save product.');
     } finally {
       setSaving(false);
+      setUploadingImage(false);
     }
   };
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
+    <Dialog open={open} onClose={handleDialogClose} maxWidth="md" fullWidth>
       <form onSubmit={handleSubmit}>
         <DialogTitle sx={{ fontWeight: 700, pb: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <span>{initialProductId ? 'Edit Product Catalog Item' : 'Create New Product'}</span>
@@ -366,7 +459,7 @@ export const ProductFormDialog = ({ open, onClose, onSave, initialProductId, cat
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 3, p: 2, border: '1px dashed', borderColor: 'divider', borderRadius: 1.5 }}>
                       <Avatar
                         variant="rounded"
-                        src={formData.main_image_url}
+                        src={previewUrl}
                         sx={{ width: 90, height: 90, bgcolor: 'grey.100' }}
                       >
                         <Inventory2OutlinedIcon sx={{ color: 'text.disabled', fontSize: '2rem' }} />
@@ -377,31 +470,37 @@ export const ProductFormDialog = ({ open, onClose, onSave, initialProductId, cat
                           variant="outlined"
                           size="small"
                           startIcon={uploadingImage ? <CircularProgress size={16} /> : <CloudUploadIcon />}
-                          disabled={uploadingImage}
+                          disabled={uploadingImage || saving}
                         >
-                          {uploadingImage ? 'Uploading...' : 'Upload New Image'}
+                          {selectedImageFile ? 'Change Selected File' : 'Select Image File'}
                           <input
                             type="file"
                             hidden
                             accept="image/*"
-                            onChange={handleImageUpload}
+                            onChange={handleFileSelect}
                           />
                         </Button>
+                        {selectedImageFile && (
+                          <Typography variant="caption" display="block" color="primary" sx={{ mt: 0.5, fontWeight: 600 }}>
+                            Selected: {selectedImageFile.name} (will be uploaded on save)
+                          </Typography>
+                        )}
                         <TextField
                           size="small"
                           fullWidth
                           label="Or direct Image URL"
                           value={formData.main_image_url}
-                          onChange={(e) => setFormData((p) => ({ ...p, main_image_url: e.target.value }))}
+                          onChange={handleDirectUrlChange}
                           sx={{ mt: 1.5 }}
                           placeholder="https://..."
                         />
                       </Box>
-                      {formData.main_image_url && (
+                      {previewUrl && (
                         <IconButton
                           color="error"
                           size="small"
-                          onClick={() => setFormData((p) => ({ ...p, main_image_url: '' }))}
+                          onClick={handleRemoveImage}
+                          title="Remove Image"
                         >
                           <DeleteIcon fontSize="small" />
                         </IconButton>
@@ -455,7 +554,7 @@ export const ProductFormDialog = ({ open, onClose, onSave, initialProductId, cat
         </DialogContent>
 
         <DialogActions sx={{ px: 3, py: 2 }}>
-          <Button onClick={onClose} disabled={saving} color="inherit">
+          <Button onClick={handleDialogClose} disabled={saving} color="inherit">
             Cancel
           </Button>
           <Button type="submit" variant="contained" disabled={saving || loading}>

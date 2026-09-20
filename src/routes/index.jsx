@@ -35,6 +35,8 @@ import { CustomerOrdersPage } from '../features/store/pages/CustomerOrdersPage';
 import { CustomerOrderDetailPage } from '../features/store/pages/CustomerOrderDetailPage';
 import { OnlineOrdersPage } from '../features/onlineOrders/page';
 import { OnlineCustomersPage } from '../features/onlineCustomers/page';
+import { HeroBannersPage } from '../features/heroBanners/page';
+import { AboutPage } from '../features/store/pages/AboutPage';
 
 // Basic unauthorized page
 const UnauthorizedPage = () => (
@@ -48,6 +50,10 @@ export const router = createBrowserRouter([
   {
     path: '/',
     element: <PublicHomePage />,
+  },
+  {
+    path: '/about',
+    element: <AboutPage />,
   },
   {
     path: '/products',
@@ -163,6 +169,14 @@ export const router = createBrowserRouter([
         element: (
           <AuthGuard allowedRoles={['SUPER_ADMIN']}>
             <ProductManagementPage />
+          </AuthGuard>
+        ),
+      },
+      {
+        path: 'hero-banners',
+        element: (
+          <AuthGuard allowedRoles={['SUPER_ADMIN']}>
+            <HeroBannersPage />
           </AuthGuard>
         ),
       },

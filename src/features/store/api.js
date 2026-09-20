@@ -122,7 +122,13 @@ export const getHeroBanners = async () => {
     .order('display_order', { ascending: true });
 
   if (error) throw new Error(error.message);
-  return data || [];
+
+  const now = new Date();
+  return (data || []).filter((b) => {
+    if (b.start_date && new Date(b.start_date) > now) return false;
+    if (b.end_date && new Date(b.end_date) < now) return false;
+    return true;
+  });
 };
 
 // ==========================================

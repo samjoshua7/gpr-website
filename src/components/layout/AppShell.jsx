@@ -37,6 +37,7 @@ import LogoutIcon from '@mui/icons-material/Logout';
 import StorefrontIcon from '@mui/icons-material/Storefront';
 import ShoppingBagIcon from '@mui/icons-material/ShoppingBag';
 import ContactPageIcon from '@mui/icons-material/ContactPage';
+import ViewCarouselOutlinedIcon from '@mui/icons-material/ViewCarouselOutlined';
 import logoSvg from '../../assets/logo.svg';
 
 const DRAWER_WIDTH = 240;
@@ -106,6 +107,7 @@ export const AppShell = () => {
       category: 'Online Store',
       items: [
         { text: 'Products', icon: <StorefrontIcon fontSize="small" />, path: '/dashboard/products', roles: ['SUPER_ADMIN'] },
+        { text: 'Hero Banners', icon: <ViewCarouselOutlinedIcon fontSize="small" />, path: '/dashboard/hero-banners', roles: ['SUPER_ADMIN'] },
         { text: 'Online Orders', icon: <ShoppingBagIcon fontSize="small" />, path: '/dashboard/online-orders', roles: ['SUPER_ADMIN', 'ACCOUNTS', 'STAKEHOLDER'] },
         { text: 'Online Customers', icon: <ContactPageIcon fontSize="small" />, path: '/dashboard/online-customers', roles: ['SUPER_ADMIN', 'ACCOUNTS', 'STAKEHOLDER'] },
       ],

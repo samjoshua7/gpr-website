@@ -160,6 +160,16 @@ export const StoreFooter = () => {
                 variant="body2"
                 color="inherit"
                 underline="hover"
+                onClick={() => navigate('/about')}
+                sx={{ textAlign: 'left' }}
+              >
+                About &amp; Plant Capabilities
+              </Link>
+              <Link
+                component="button"
+                variant="body2"
+                color="inherit"
+                underline="hover"
                 onClick={() => navigate('/login')}
                 sx={{ textAlign: 'left' }}
               >

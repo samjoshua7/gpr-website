@@ -1,4 +1,5 @@
 import { supabase } from '../../lib/supabaseClient';
+import { deleteStorageFileIfUnreferenced, deleteStorageFileDirectly } from '../../lib/storageUtils';
 
 // ==========================================
 // Product Categories API
@@ -177,12 +178,26 @@ export const updateProduct = async (productId, productData) => {
 };
 
 export const deleteProduct = async (productId) => {
+  // 1. Fetch current image URL before deleting record
+  const { data: prod } = await supabase
+    .from('products')
+    .select('main_image_url')
+    .eq('product_id', productId)
+    .maybeSingle();
+
+  // 2. Delete product record from database
   const { error } = await supabase
     .from('products')
     .delete()
     .eq('product_id', productId);
 
   if (error) throw new Error(error.message);
+
+  // 3. Clean up storage image only if it is not referenced elsewhere (e.g. historical orders)
+  if (prod?.main_image_url) {
+    await deleteStorageFileIfUnreferenced(prod.main_image_url, 'product-images');
+  }
+
   return true;
 };
 
@@ -318,6 +333,14 @@ export const uploadProductImage = async (file) => {
     .getPublicUrl(filePath);
 
   return publicUrlData.publicUrl;
+};
+
+export const deleteProductImageFromStorage = async (url, exclude = {}) => {
+  return await deleteStorageFileIfUnreferenced(url, 'product-images', exclude);
+};
+
+export const rollbackUploadedProductImage = async (url) => {
+  return await deleteStorageFileDirectly(url, 'product-images');
 };
 
 export const uploadHeroBannerImage = async (file) => {

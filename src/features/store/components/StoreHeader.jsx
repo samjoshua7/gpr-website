@@ -177,6 +177,18 @@ export const StoreHeader = () => {
               >
                 Catalog
               </Button>
+
+              <Button
+                color="inherit"
+                onClick={() => navigate('/about')}
+                sx={{
+                  fontWeight: location.pathname === '/about' ? 700 : 500,
+                  color: location.pathname === '/about' ? 'primary.main' : 'text.primary',
+                  textTransform: 'none',
+                }}
+              >
+                About Us
+              </Button>
             </Stack>
           )}
 
@@ -370,6 +382,11 @@ export const StoreHeader = () => {
             <ListItem disablePadding>
               <ListItemButton onClick={() => { setMobileDrawerOpen(false); navigate('/products'); }}>
                 <ListItemText primary="All Products" primaryTypographyProps={{ fontWeight: 600 }} />
+              </ListItemButton>
+            </ListItem>
+            <ListItem disablePadding>
+              <ListItemButton onClick={() => { setMobileDrawerOpen(false); navigate('/about'); }}>
+                <ListItemText primary="About Us &amp; Production" primaryTypographyProps={{ fontWeight: 600 }} />
               </ListItemButton>
             </ListItem>
             <Divider sx={{ my: 1.5 }} />
