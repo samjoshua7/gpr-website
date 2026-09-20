@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useParams, useNavigate, Link as RouterLink } from 'react-router-dom';
 import {
   Box,
@@ -16,6 +16,7 @@ import {
   FormControl,
   TextField,
   Button,
+  ButtonBase,
   Chip,
   Skeleton,
   Alert,
@@ -30,6 +31,9 @@ import NavigateNextIcon from '@mui/icons-material/NavigateNext';
 import VerifiedIcon from '@mui/icons-material/Verified';
 import PaletteIcon from '@mui/icons-material/Palette';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
+import ArrowBackIcon from '@mui/icons-material/ArrowBack';
+import { Swiper, SwiperSlide } from 'swiper/react';
+import 'swiper/css';
 
 import { StoreHeader } from '../components/StoreHeader';
 import { StoreFooter } from '../components/StoreFooter';
@@ -49,21 +53,30 @@ export const ProductDetailPage = () => {
   // Customization State
   const [selectedOptions, setSelectedOptions] = useState({}); // { [option_id]: value_id }
   const [quantity, setQuantity] = useState(100);
+  const [quantityInput, setQuantityInput] = useState('100');
   const [designProvision, setDesignProvision] = useState('self_supplied'); // 'self_supplied' | 'design_by_gpr'
   const [selectedImage, setSelectedImage] = useState('');
+  const [activeSlideIndex, setActiveSlideIndex] = useState(0);
+  const gallerySwiperRef = useRef(null);
 
   // Cart feedback state
   const [addingToCart, setAddingToCart] = useState(false);
   const [addedSuccess, setAddedSuccess] = useState(false);
 
   useEffect(() => {
+    // Instantly scroll to top on slug change
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
     setLoading(true);
     setError(null);
+    setActiveSlideIndex(0);
+
     getProductBySlug(slug)
       .then((data) => {
         setProduct(data);
         setSelectedImage(data.main_image_url || '');
-        setQuantity(data.min_quantity || 100);
+        const initialQuantity = data.min_quantity || 100;
+        setQuantity(initialQuantity);
+        setQuantityInput(String(initialQuantity));
 
         // Pre-select defaults for options
         const initialOpts = {};
@@ -80,8 +93,46 @@ export const ProductDetailPage = () => {
       .catch((err) => {
         setError(err.message || 'Product not found.');
       })
-      .finally(() => setLoading(false));
+      .finally(() => {
+        setLoading(false);
+        // Double-check scroll position once DOM renders
+        requestAnimationFrame(() => {
+          window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+        });
+      });
   }, [slug]);
+
+  // Aggregate up to 5 images (Main image + additional gallery images)
+  const allImages = useMemo(() => {
+    if (!product) return [];
+    const list = [];
+    if (product.main_image_url) {
+      list.push({
+        id: 'main',
+        url: product.main_image_url,
+        alt: product.name,
+      });
+    }
+    if (product.images && product.images.length > 0) {
+      product.images.forEach((img, idx) => {
+        if (img.image_url && img.image_url !== product.main_image_url) {
+          list.push({
+            id: img.image_id || `img-${idx}`,
+            url: img.image_url,
+            alt: img.alt_text || `${product.name} image ${idx + 2}`,
+          });
+        }
+      });
+    }
+    if (list.length === 0) {
+      list.push({
+        id: 'fallback',
+        url: 'https://images.unsplash.com/photo-1589254065878-42c9da997008?w=800&auto=format&fit=crop&q=80',
+        alt: product.name,
+      });
+    }
+    return list;
+  }, [product]);
 
   // Compute live price using options and tiers
   const pricing = useMemo(() => {
@@ -116,15 +167,46 @@ export const ProductDetailPage = () => {
     setAddedSuccess(false);
   };
 
-  const handleQuantityChange = (val) => {
-    const min = product?.min_quantity || 1;
-    const num = Math.max(parseInt(val, 10) || min, min);
-    setQuantity(num);
+  const minQuantity = product?.min_quantity || 1;
+  const parsedQuantity = /^\d+$/.test(quantityInput) ? Number(quantityInput) : Number.NaN;
+  const isQuantityValid = Number.isSafeInteger(parsedQuantity) && parsedQuantity >= minQuantity;
+
+  const presetQuantities = useMemo(() => {
+    if (!product) return [];
+
+    return [...new Set([
+      minQuantity,
+      ...(product.tiers || []).map((tier) => Number(tier.min_quantity)),
+    ])]
+      .filter((value) => Number.isSafeInteger(value) && value >= minQuantity)
+      .sort((a, b) => a - b);
+  }, [product, minQuantity]);
+
+  const handleQuantityInputChange = (value) => {
+    if (!/^\d*$/.test(value)) return;
+
+    setQuantityInput(value);
+    const parsed = Number(value);
+    if (value !== '' && Number.isSafeInteger(parsed) && parsed >= minQuantity) {
+      setQuantity(parsed);
+    }
     setAddedSuccess(false);
   };
 
+  const commitQuantity = (value) => {
+    setQuantity(value);
+    setQuantityInput(String(value));
+    setAddedSuccess(false);
+  };
+
+  const handleQuantityBlur = () => {
+    if (!isQuantityValid) {
+      commitQuantity(minQuantity);
+    }
+  };
+
   const handleAddToCart = async () => {
-    if (!product) return;
+    if (!product || !isQuantityValid) return;
 
     try {
       setAddingToCart(true);
@@ -162,11 +244,13 @@ export const ProductDetailPage = () => {
     }
   };
 
-  if (loading) {
-    return (
-      <Box sx={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
-        <StoreHeader />
-        <Container maxWidth="xl" sx={{ py: 6, flexGrow: 1 }}>
+  return (
+    <Box sx={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', bgcolor: '#f8fafc' }}>
+      {/* StoreHeader rendered unconditionally at root to prevent remount churn */}
+      <StoreHeader />
+
+      {loading ? (
+        <Container maxWidth="xl" sx={{ py: 4, flexGrow: 1 }}>
           <Skeleton variant="text" width={260} height={32} sx={{ mb: 3 }} />
           <Grid container spacing={5}>
             <Grid item xs={12} md={6}>
@@ -180,15 +264,7 @@ export const ProductDetailPage = () => {
             </Grid>
           </Grid>
         </Container>
-        <StoreFooter />
-      </Box>
-    );
-  }
-
-  if (error || !product) {
-    return (
-      <Box sx={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
-        <StoreHeader />
+      ) : error || !product ? (
         <Container maxWidth="md" sx={{ py: 10, textAlign: 'center', flexGrow: 1 }}>
           <Alert severity="error" sx={{ mb: 3 }}>
             {error || 'The requested product is unavailable.'}
@@ -197,44 +273,110 @@ export const ProductDetailPage = () => {
             Back to Catalog
           </Button>
         </Container>
-        <StoreFooter />
-      </Box>
-    );
-  }
+      ) : (
+        <Container maxWidth="xl" sx={{ py: { xs: 2.5, md: 4 }, flexGrow: 1 }}>
+          {/* Responsive Breadcrumbs: Clean & safe against horizontal overflow */}
+          <Box sx={{ mb: { xs: 2, md: 3 }, position: 'relative', zIndex: 2 }}>
+            {/* Mobile-first compact back button on narrow phones */}
+            <Box sx={{ display: { xs: 'flex', sm: 'none' }, alignItems: 'center' }}>
+              <Button
+                component={RouterLink}
+                to={product.category ? `/products?category=${product.category.slug}` : '/products'}
+                startIcon={<ArrowBackIcon fontSize="small" />}
+                size="small"
+                sx={{ textTransform: 'none', color: 'text.secondary', fontWeight: 600, px: 0 }}
+              >
+                Back to {product.category?.name || 'Catalog'}
+              </Button>
+            </Box>
 
-  return (
-    <Box sx={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', bgcolor: '#f8fafc' }}>
-      <StoreHeader />
-
-      <Container maxWidth="xl" sx={{ py: 4, flexGrow: 1 }}>
-        {/* Breadcrumb Navigation */}
-        <Breadcrumbs separator={<NavigateNextIcon fontSize="small" />} sx={{ mb: 3 }}>
-          <Link component={RouterLink} to="/" color="inherit" underline="hover">
-            Home
-          </Link>
-          <Link component={RouterLink} to="/products" color="inherit" underline="hover">
-            Catalog
-          </Link>
-          {product.category && (
-            <Link
-              component={RouterLink}
-              to={`/products?category=${product.category.slug}`}
-              color="inherit"
-              underline="hover"
+            {/* Full Breadcrumbs on sm+ viewports */}
+            <Breadcrumbs
+              separator={<NavigateNextIcon fontSize="small" sx={{ color: 'text.disabled' }} />}
+              sx={{
+                display: { xs: 'none', sm: 'flex' },
+                '& .MuiBreadcrumbs-ol': { flexWrap: 'nowrap', alignItems: 'center' },
+                '& .MuiBreadcrumbs-li': { pointerEvents: 'auto' },
+              }}
             >
-              {product.category.name}
-            </Link>
-          )}
-          <Typography color="text.primary" fontWeight={600}>
-            {product.name}
-          </Typography>
-        </Breadcrumbs>
+              <Link
+                component={RouterLink}
+                to="/"
+                color="inherit"
+                underline="hover"
+                sx={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  minHeight: 36,
+                  px: 0.75,
+                  cursor: 'pointer',
+                  fontSize: '0.875rem',
+                  position: 'relative',
+                  zIndex: 1,
+                }}
+              >
+                Home
+              </Link>
+              <Link
+                component={RouterLink}
+                to="/products"
+                color="inherit"
+                underline="hover"
+                sx={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  minHeight: 36,
+                  px: 0.75,
+                  cursor: 'pointer',
+                  fontSize: '0.875rem',
+                  position: 'relative',
+                  zIndex: 1,
+                }}
+              >
+                Catalog
+              </Link>
+              {product.category && (
+                <Link
+                  component={RouterLink}
+                  to={`/products?category=${product.category.slug}`}
+                  color="inherit"
+                  underline="hover"
+                  sx={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    minHeight: 36,
+                    px: 0.75,
+                    cursor: 'pointer',
+                    fontSize: '0.875rem',
+                    whiteSpace: 'nowrap',
+                    position: 'relative',
+                    zIndex: 1,
+                  }}
+                >
+                  {product.category.name}
+                </Link>
+              )}
+              <Typography
+                color="text.primary"
+                fontWeight={600}
+                sx={{
+                  fontSize: '0.875rem',
+                  maxWidth: { sm: 260, md: 450 },
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {product.name}
+              </Typography>
+            </Breadcrumbs>
+          </Box>
 
-        <Grid container spacing={5}>
-          {/* LEFT COLUMN: PRODUCT IMAGES */}
-          <Grid item xs={12} md={6} lg={5}>
+          <Grid container spacing={5}>
+            {/* LEFT COLUMN: PRODUCT IMAGES (1 to 5 Touch Gallery) */}
+            <Grid item xs={12} md={6} lg={5}>
             <Box sx={{ position: { md: 'sticky' }, top: 90 }}>
-              {/* Main Display Image */}
+              {/* Main Display Image / Touch Swiper Gallery */}
               <Paper
                 elevation={0}
                 sx={{
@@ -245,55 +387,126 @@ export const ProductDetailPage = () => {
                   boxShadow: '0 8px 30px rgba(0,0,0,0.06)',
                   bgcolor: '#ffffff',
                   mb: 2,
+                  position: 'relative',
                 }}
               >
-                <CardMedia
-                  component="img"
-                  image={selectedImage || 'https://images.unsplash.com/photo-1589254065878-42c9da997008?w=800&auto=format&fit=crop&q=80'}
-                  alt={product.name}
-                  sx={{
-                    width: '100%',
-                    height: { xs: 320, sm: 420, md: 460 },
-                    objectFit: 'cover',
-                  }}
-                />
-              </Paper>
-
-              {/* Gallery Thumbnails */}
-              {product.images && product.images.length > 0 && (
-                <Stack direction="row" spacing={1.5} sx={{ overflowX: 'auto', pb: 1 }}>
-                  <Paper
-                    onClick={() => setSelectedImage(product.main_image_url)}
-                    sx={{
-                      width: 72,
-                      height: 72,
-                      borderRadius: 2,
-                      overflow: 'hidden',
-                      cursor: 'pointer',
-                      border: '2px solid',
-                      borderColor: selectedImage === product.main_image_url ? 'primary.main' : 'transparent',
-                    }}
-                  >
-                    <img src={product.main_image_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                  </Paper>
-                  {product.images.map((img) => (
-                    <Paper
-                      key={img.image_id}
-                      onClick={() => setSelectedImage(img.image_url)}
+                {allImages.length > 1 ? (
+                  <>
+                    <Swiper
+                      onSwiper={(swiper) => {
+                        gallerySwiperRef.current = swiper;
+                      }}
+                      onSlideChange={(swiper) => {
+                        setActiveSlideIndex(swiper.activeIndex);
+                        setSelectedImage(allImages[swiper.activeIndex]?.url || '');
+                      }}
+                      style={{ width: '100%', height: '100%' }}
+                    >
+                      {allImages.map((img, idx) => (
+                        <SwiperSlide key={img.id || idx}>
+                          <CardMedia
+                            component="img"
+                            image={img.url}
+                            alt={img.alt || product.name}
+                            sx={{
+                              width: '100%',
+                              height: { xs: 300, sm: 400, md: 460 },
+                              objectFit: 'cover',
+                            }}
+                          />
+                        </SwiperSlide>
+                      ))}
+                    </Swiper>
+                    {/* Slide counter badge (e.g. 1 / 3) */}
+                    <Box
                       sx={{
-                        width: 72,
-                        height: 72,
-                        borderRadius: 2,
-                        overflow: 'hidden',
-                        cursor: 'pointer',
-                        border: '2px solid',
-                        borderColor: selectedImage === img.image_url ? 'primary.main' : 'transparent',
+                        position: 'absolute',
+                        top: 14,
+                        right: 14,
+                        bgcolor: 'rgba(15, 23, 42, 0.7)',
+                        backdropFilter: 'blur(4px)',
+                        color: '#ffffff',
+                        px: 1.25,
+                        py: 0.35,
+                        borderRadius: 1.5,
+                        fontSize: '0.75rem',
+                        fontWeight: 700,
+                        zIndex: 2,
                       }}
                     >
-                      <img src={img.image_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                    </Paper>
-                  ))}
-                </Stack>
+                      {activeSlideIndex + 1} / {allImages.length}
+                    </Box>
+                  </>
+                ) : (
+                  <CardMedia
+                    component="img"
+                    image={allImages[0]?.url || 'https://images.unsplash.com/photo-1589254065878-42c9da997008?w=800&auto=format&fit=crop&q=80'}
+                    alt={product.name}
+                    sx={{
+                      width: '100%',
+                      height: { xs: 300, sm: 400, md: 460 },
+                      objectFit: 'cover',
+                    }}
+                  />
+                )}
+              </Paper>
+
+              {/* Persistent thumbnails make every available product view discoverable. */}
+              {allImages.length > 1 && (
+                <Box>
+                  <Typography variant="caption" color="text.secondary" fontWeight={700} sx={{ display: 'block', mb: 1 }}>
+                    SELECT IMAGE ({allImages.length})
+                  </Typography>
+                  <Stack
+                    direction="row"
+                    spacing={1.5}
+                    role="list"
+                    aria-label="Product images"
+                    sx={{ overflowX: 'auto', pb: 1, '::-webkit-scrollbar': { height: 4 } }}
+                  >
+                  {allImages.map((img, idx) => {
+                    const isSelected = activeSlideIndex === idx;
+                    return (
+                      <ButtonBase
+                        key={img.id || idx}
+                        role="listitem"
+                        aria-label={`Show product image ${idx + 1} of ${allImages.length}`}
+                        aria-pressed={isSelected}
+                        onClick={() => {
+                          setActiveSlideIndex(idx);
+                          setSelectedImage(img.url);
+                          gallerySwiperRef.current?.slideTo(idx);
+                        }}
+                        sx={{
+                          width: 68,
+                          height: 68,
+                          borderRadius: 2,
+                          overflow: 'hidden',
+                          cursor: 'pointer',
+                          flexShrink: 0,
+                          border: '2px solid',
+                          borderColor: isSelected ? 'primary.main' : 'rgba(0,0,0,0.08)',
+                          boxShadow: isSelected ? '0 0 0 1px #1976d2' : 'none',
+                          transition: 'all 0.2s ease',
+                          opacity: isSelected ? 1 : 0.7,
+                          '&:hover': { opacity: 1 },
+                          '&:focus-visible': {
+                            outline: '3px solid',
+                            outlineColor: 'primary.light',
+                            outlineOffset: 2,
+                          },
+                        }}
+                      >
+                        <img
+                          src={img.url}
+                          alt={img.alt || ''}
+                          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                        />
+                      </ButtonBase>
+                    );
+                  })}
+                  </Stack>
+                </Box>
               )}
 
               {/* Quality & Assurance Badges */}
@@ -501,24 +714,31 @@ export const ProductDetailPage = () => {
                 <Grid container spacing={2} alignItems="center">
                   <Grid item xs={12} sm={6}>
                     <TextField
-                      type="number"
+                      type="text"
                       size="small"
                       label="Quantity (Units)"
-                      value={quantity}
-                      onChange={(e) => handleQuantityChange(e.target.value)}
+                      value={quantityInput}
+                      onChange={(e) => handleQuantityInputChange(e.target.value)}
+                      onBlur={handleQuantityBlur}
+                      error={!isQuantityValid}
+                      helperText={!isQuantityValid ? `Enter at least ${minQuantity} units` : 'Enter any quantity or choose a tier'}
                       fullWidth
-                      inputProps={{ min: product.min_quantity, step: 50 }}
+                      inputProps={{
+                        inputMode: 'numeric',
+                        pattern: '[0-9]*',
+                        'aria-label': 'Order quantity in units',
+                      }}
                     />
                   </Grid>
 
                   <Grid item xs={12} sm={6}>
-                    <Stack direction="row" spacing={1}>
-                      {[product.min_quantity, product.min_quantity * 5, product.min_quantity * 10].map((preset) => (
+                    <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
+                      {presetQuantities.map((preset) => (
                         <Button
                           key={preset}
                           size="small"
                           variant={quantity === preset ? 'contained' : 'outlined'}
-                          onClick={() => handleQuantityChange(preset)}
+                          onClick={() => commitQuantity(preset)}
                           sx={{ textTransform: 'none', borderRadius: 2 }}
                         >
                           {preset} units
@@ -585,6 +805,7 @@ export const ProductDetailPage = () => {
                   onAddToCart={handleAddToCart}
                   addingToCart={addingToCart}
                   addedSuccess={addedSuccess}
+                  quantityValid={isQuantityValid}
                   onGoToCart={() => navigate('/cart')}
                 />
               </Box>
@@ -604,6 +825,7 @@ export const ProductDetailPage = () => {
           </Grid>
         </Grid>
       </Container>
+      )}
 
       <StoreFooter />
     </Box>

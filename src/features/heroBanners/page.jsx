@@ -31,6 +31,10 @@ import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 import PanoramaOutlinedIcon from '@mui/icons-material/PanoramaOutlined';
 
+import SpeedIcon from '@mui/icons-material/Speed';
+import TextField from '@mui/material/TextField';
+import InputAdornment from '@mui/material/InputAdornment';
+
 import { PageToolbar } from '../../components/layout/PageToolbar';
 import { HeroBannerFormDialog } from './components/HeroBannerFormDialog';
 import {
@@ -39,12 +43,19 @@ import {
   updateHeroBanner,
   deleteHeroBanner,
   toggleHeroBannerActive,
+  getHeroCarouselDuration,
+  updateHeroCarouselDuration,
 } from './api';
 
 export const HeroBannersPage = () => {
   const [banners, setBanners] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+
+  // Carousel Duration State
+  const [carouselDuration, setCarouselDuration] = useState(6);
+  const [savingDuration, setSavingDuration] = useState(false);
+  const [durationSuccess, setDurationSuccess] = useState(false);
 
   // Modal State
   const [formOpen, setFormOpen] = useState(false);
@@ -58,8 +69,12 @@ export const HeroBannersPage = () => {
     try {
       setLoading(true);
       setError(null);
-      const data = await getHeroBannersAdmin();
+      const [data, duration] = await Promise.all([
+        getHeroBannersAdmin(),
+        getHeroCarouselDuration(),
+      ]);
       setBanners(data || []);
+      setCarouselDuration(duration || 6);
     } catch (err) {
       setError(err.message || 'Failed to fetch hero banners.');
     } finally {
@@ -70,6 +85,21 @@ export const HeroBannersPage = () => {
   useEffect(() => {
     fetchBanners();
   }, [fetchBanners]);
+
+  const handleSaveDuration = async () => {
+    try {
+      setSavingDuration(true);
+      setError(null);
+      const saved = await updateHeroCarouselDuration(carouselDuration);
+      setCarouselDuration(saved);
+      setDurationSuccess(true);
+      setTimeout(() => setDurationSuccess(false), 4000);
+    } catch (err) {
+      setError(err.message || 'Failed to update carousel timing.');
+    } finally {
+      setSavingDuration(false);
+    }
+  };
 
   const handleOpenCreate = () => {
     setEditingBanner(null);
@@ -168,6 +198,68 @@ export const HeroBannersPage = () => {
           {error}
         </Alert>
       )}
+
+      {durationSuccess && (
+        <Alert severity="success" sx={{ mb: 2.5 }} onClose={() => setDurationSuccess(false)}>
+          Hero carousel auto-slide duration updated to {carouselDuration} seconds successfully!
+        </Alert>
+      )}
+
+      {/* Carousel Auto-Slide Duration Configuration */}
+      <Paper
+        elevation={0}
+        sx={{
+          p: 2,
+          mb: 2.5,
+          border: '1px solid',
+          borderColor: 'divider',
+          borderRadius: 2,
+          bgcolor: 'background.paper',
+          display: 'flex',
+          flexWrap: 'wrap',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 2,
+        }}
+      >
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+          <SpeedIcon color="primary" fontSize="small" />
+          <Box>
+            <Typography variant="subtitle2" fontWeight={700}>
+              Auto-Slide Transition Duration
+            </Typography>
+            <Typography variant="caption" color="text.secondary">
+              Duration each banner remains on screen before automatically animating to the next (2 to 20 seconds).
+            </Typography>
+          </Box>
+        </Box>
+
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+          <TextField
+            size="small"
+            type="number"
+            value={carouselDuration}
+            onChange={(e) => {
+              setDurationSuccess(false);
+              setCarouselDuration(e.target.value);
+            }}
+            inputProps={{ min: 2, max: 20, step: 1 }}
+            InputProps={{
+              endAdornment: <InputAdornment position="end">sec</InputAdornment>,
+            }}
+            sx={{ width: 120 }}
+          />
+          <Button
+            variant="contained"
+            size="small"
+            onClick={handleSaveDuration}
+            disabled={savingDuration}
+            sx={{ textTransform: 'none', fontWeight: 600, px: 2 }}
+          >
+            {savingDuration ? 'Saving...' : 'Save Timing'}
+          </Button>
+        </Box>
+      </Paper>
 
       <TableContainer component={Paper} elevation={0} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2 }}>
         <Table size="small">

@@ -32,6 +32,7 @@ import DashboardIcon from '@mui/icons-material/Dashboard';
 import ShoppingBagIcon from '@mui/icons-material/ShoppingBag';
 import LogoutIcon from '@mui/icons-material/Logout';
 import MenuIcon from '@mui/icons-material/Menu';
+import CloseIcon from '@mui/icons-material/Close';
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import GoogleIcon from '@mui/icons-material/Google';
 
@@ -62,6 +63,12 @@ export const StoreHeader = () => {
       .catch((err) => console.warn('Failed to load categories for header', err));
   }, []);
 
+  useEffect(() => {
+    setMobileDrawerOpen(false);
+    setCatMenuAnchor(null);
+    setUserMenuAnchor(null);
+  }, [location.pathname, location.search]);
+
   const handleSearchSubmit = (e) => {
     e.preventDefault();
     if (searchTerm.trim()) {
@@ -79,17 +86,18 @@ export const StoreHeader = () => {
   const isInternal = profile && ['SUPER_ADMIN', 'ACCOUNTS', 'STAFF', 'STAKEHOLDER'].includes(profile.role);
 
   return (
-    <AppBar
-      position="sticky"
-      elevation={0}
-      sx={{
-        bgcolor: 'rgba(255, 255, 255, 0.96)',
-        backdropFilter: 'blur(12px)',
-        color: '#0f172a',
-        borderBottom: '1px solid rgba(15, 23, 42, 0.08)',
-        zIndex: (th) => th.zIndex.drawer + 1,
-      }}
-    >
+    <>
+      <AppBar
+        position="sticky"
+        elevation={0}
+        sx={{
+          bgcolor: 'rgba(255, 255, 255, 0.96)',
+          backdropFilter: 'blur(12px)',
+          color: '#0f172a',
+          borderBottom: '1px solid rgba(15, 23, 42, 0.08)',
+          zIndex: (th) => th.zIndex.appBar,
+        }}
+      >
       <Container maxWidth="xl">
         <Toolbar disableGutters sx={{ height: 72, gap: 2, justifyContent: 'space-between' }}>
           {/* Mobile Menu Toggle */}
@@ -99,6 +107,8 @@ export const StoreHeader = () => {
               onClick={() => setMobileDrawerOpen(true)}
               edge="start"
               sx={{ color: '#0f172a' }}
+              aria-label="Open navigation menu"
+              aria-expanded={mobileDrawerOpen}
             >
               <MenuIcon />
             </IconButton>
@@ -306,8 +316,9 @@ export const StoreHeader = () => {
                       ERP Dashboard
                     </MenuItem>
                   ) : (
-                    <>
+                    [
                       <MenuItem
+                        key="profile"
                         onClick={() => {
                           setUserMenuAnchor(null);
                           navigate('/account');
@@ -317,8 +328,9 @@ export const StoreHeader = () => {
                           <PersonIcon fontSize="small" />
                         </ListItemIcon>
                         My Profile
-                      </MenuItem>
+                      </MenuItem>,
                       <MenuItem
+                        key="orders"
                         onClick={() => {
                           setUserMenuAnchor(null);
                           navigate('/account/orders');
@@ -329,7 +341,7 @@ export const StoreHeader = () => {
                         </ListItemIcon>
                         My Orders
                       </MenuItem>
-                    </>
+                    ]
                   )}
 
                   <Divider />
@@ -361,54 +373,77 @@ export const StoreHeader = () => {
           </Stack>
         </Toolbar>
       </Container>
+    </AppBar>
 
-      {/* Mobile Drawer */}
-      <Drawer
-        anchor="left"
-        open={mobileDrawerOpen}
-        onClose={() => setMobileDrawerOpen(false)}
-      >
-        <Box sx={{ width: 280, p: 2 }}>
-          <Box sx={{ mb: 3, cursor: 'pointer' }} onClick={() => { setMobileDrawerOpen(false); navigate('/'); }}>
+    {/* Mobile Drawer (Rendered outside AppBar to prevent stacking context trapping) */}
+    <Drawer
+      anchor="left"
+      open={mobileDrawerOpen}
+      onClose={() => setMobileDrawerOpen(false)}
+      ModalProps={{
+        keepMounted: true,
+      }}
+      sx={{
+        zIndex: (th) => th.zIndex.drawer,
+        '& .MuiBackdrop-root': {
+          backdropFilter: 'blur(4px)',
+          bgcolor: 'rgba(15, 23, 42, 0.4)',
+        },
+      }}
+    >
+      <Box sx={{ width: 290, p: 2.5, display: 'flex', flexDirection: 'column', height: '100%' }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+          <Box sx={{ cursor: 'pointer' }} onClick={() => { setMobileDrawerOpen(false); navigate('/'); }}>
             <BrandLogo size={36} subtitle="" />
           </Box>
-
-          <List sx={{ pt: 0 }}>
-            <ListItem disablePadding>
-              <ListItemButton onClick={() => { setMobileDrawerOpen(false); navigate('/'); }}>
-                <ListItemText primary="Home" primaryTypographyProps={{ fontWeight: 600 }} />
-              </ListItemButton>
-            </ListItem>
-            <ListItem disablePadding>
-              <ListItemButton onClick={() => { setMobileDrawerOpen(false); navigate('/products'); }}>
-                <ListItemText primary="All Products" primaryTypographyProps={{ fontWeight: 600 }} />
-              </ListItemButton>
-            </ListItem>
-            <ListItem disablePadding>
-              <ListItemButton onClick={() => { setMobileDrawerOpen(false); navigate('/about'); }}>
-                <ListItemText primary="About Us &amp; Production" primaryTypographyProps={{ fontWeight: 600 }} />
-              </ListItemButton>
-            </ListItem>
-            <Divider sx={{ my: 1.5 }} />
-            <Typography variant="caption" color="text.secondary" fontWeight={700} sx={{ px: 2 }}>
-              CATEGORIES
-            </Typography>
-            {categories.map((cat) => (
-              <ListItem key={cat.category_id} disablePadding>
-                <ListItemButton
-                  onClick={() => {
-                    setMobileDrawerOpen(false);
-                    navigate(`/products?category=${cat.slug}`);
-                  }}
-                >
-                  <CategoryIcon slug={cat.slug} name={cat.name} sx={{ mr: 1.5, fontSize: '1.2rem', color: 'primary.main' }} />
-                  <ListItemText primary={cat.name} />
-                </ListItemButton>
-              </ListItem>
-            ))}
-          </List>
+          <IconButton
+            size="small"
+            onClick={() => setMobileDrawerOpen(false)}
+            aria-label="Close menu"
+            sx={{ color: 'text.secondary' }}
+          >
+            <CloseIcon fontSize="small" />
+          </IconButton>
         </Box>
-      </Drawer>
-    </AppBar>
-  );
+
+        <Divider sx={{ mb: 1.5 }} />
+
+        <List sx={{ pt: 0, flexGrow: 1, overflowY: 'auto' }}>
+          <ListItem disablePadding>
+            <ListItemButton onClick={() => { setMobileDrawerOpen(false); navigate('/'); }}>
+              <ListItemText primary="Home" primaryTypographyProps={{ fontWeight: 600 }} />
+            </ListItemButton>
+          </ListItem>
+          <ListItem disablePadding>
+            <ListItemButton onClick={() => { setMobileDrawerOpen(false); navigate('/products'); }}>
+              <ListItemText primary="All Products" primaryTypographyProps={{ fontWeight: 600 }} />
+            </ListItemButton>
+          </ListItem>
+          <ListItem disablePadding>
+            <ListItemButton onClick={() => { setMobileDrawerOpen(false); navigate('/about'); }}>
+              <ListItemText primary="About Us &amp; Production" primaryTypographyProps={{ fontWeight: 600 }} />
+            </ListItemButton>
+          </ListItem>
+          <Divider sx={{ my: 1.5 }} />
+          <Typography variant="caption" color="text.secondary" fontWeight={700} sx={{ px: 2, display: 'block', mb: 1 }}>
+            CATEGORIES
+          </Typography>
+          {categories.map((cat) => (
+            <ListItem key={cat.category_id} disablePadding>
+              <ListItemButton
+                onClick={() => {
+                  setMobileDrawerOpen(false);
+                  navigate(`/products?category=${cat.slug}`);
+                }}
+              >
+                <CategoryIcon slug={cat.slug} name={cat.name} sx={{ mr: 1.5, fontSize: '1.2rem', color: 'primary.main' }} />
+                <ListItemText primary={cat.name} primaryTypographyProps={{ fontSize: '0.9rem', fontWeight: 500 }} />
+              </ListItemButton>
+            </ListItem>
+          ))}
+        </List>
+      </Box>
+    </Drawer>
+  </>
+);
 };

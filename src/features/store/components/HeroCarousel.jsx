@@ -1,16 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Box, Container, Typography, Button, Skeleton } from '@mui/material';
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
 import { Swiper, SwiperSlide } from 'swiper/react';
-import { Autoplay, Pagination, Navigation, EffectFade } from 'swiper/modules';
+import { Autoplay, EffectFade } from 'swiper/modules';
 
 import 'swiper/css';
-import 'swiper/css/pagination';
-import 'swiper/css/navigation';
 import 'swiper/css/effect-fade';
 
-import { getHeroBanners } from '../api';
+import { getHeroBanners, getStoreHeroCarouselDuration } from '../api';
 
 const DEFAULT_BANNERS = [
   {
@@ -47,14 +45,21 @@ export const HeroCarousel = () => {
   const navigate = useNavigate();
   const [banners, setBanners] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [activeSlideIndex, setActiveSlideIndex] = useState(0);
+  const [durationSeconds, setDurationSeconds] = useState(6);
+  const [progressKey, setProgressKey] = useState(0);
+  const swiperRef = useRef(null);
 
   useEffect(() => {
-    getHeroBanners()
-      .then((data) => {
-        if (data && data.length > 0) {
-          setBanners(data);
+    Promise.all([getHeroBanners(), getStoreHeroCarouselDuration()])
+      .then(([bannersData, duration]) => {
+        if (bannersData && bannersData.length > 0) {
+          setBanners(bannersData);
         } else {
           setBanners(DEFAULT_BANNERS);
+        }
+        if (duration) {
+          setDurationSeconds(duration);
         }
       })
       .catch((err) => {
@@ -97,13 +102,21 @@ export const HeroCarousel = () => {
         }}
       >
         <Swiper
-          modules={[Autoplay, Pagination, Navigation, EffectFade]}
+          modules={[Autoplay, EffectFade]}
           effect="fade"
           fadeEffect={{ crossFade: true }}
           loop={banners.length > 1}
-          autoplay={{ delay: 6000, disableOnInteraction: false }}
-          pagination={{ clickable: true }}
-          navigation
+          autoplay={{
+            delay: durationSeconds * 1000,
+            disableOnInteraction: false,
+          }}
+          onSwiper={(swiper) => {
+            swiperRef.current = swiper;
+          }}
+          onSlideChange={(swiper) => {
+            setActiveSlideIndex(swiper.realIndex);
+            setProgressKey((k) => k + 1);
+          }}
           style={{ width: '100%', height: '100%' }}
         >
           {banners.map((banner) => {
@@ -322,6 +335,74 @@ export const HeroCarousel = () => {
             );
           })}
         </Swiper>
+
+        {/* Horizontal Segmented Progress Bar (Hidden for single banner) */}
+        {banners.length > 1 && (
+          <Box
+            sx={{
+              position: 'absolute',
+              bottom: { xs: 14, sm: 20 },
+              left: 0,
+              right: 0,
+              display: 'flex',
+              justifyContent: 'center',
+              alignItems: 'center',
+              gap: { xs: 1, sm: 1.5 },
+              px: 3,
+              zIndex: 10,
+            }}
+          >
+            {banners.map((_, index) => {
+              const isActive = index === activeSlideIndex;
+              const isPast = index < activeSlideIndex;
+              return (
+                <Box
+                  key={index}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (swiperRef.current) {
+                      swiperRef.current.slideToLoop(index);
+                      setActiveSlideIndex(index);
+                      setProgressKey((k) => k + 1);
+                    }
+                  }}
+                  sx={{
+                    flex: { xs: '1 1 0', sm: '0 1 54px' },
+                    maxWidth: 64,
+                    height: 4,
+                    borderRadius: 4,
+                    bgcolor: 'rgba(255, 255, 255, 0.3)',
+                    overflow: 'hidden',
+                    cursor: 'pointer',
+                    transition: 'background-color 0.2s ease',
+                    '&:hover': {
+                      bgcolor: 'rgba(255, 255, 255, 0.55)',
+                    },
+                  }}
+                  role="button"
+                  aria-label={`Go to slide ${index + 1}`}
+                >
+                  <Box
+                    key={isActive ? `bar-${progressKey}` : `bar-inactive-${index}`}
+                    sx={{
+                      height: '100%',
+                      bgcolor: '#ffffff',
+                      borderRadius: 4,
+                      width: isPast ? '100%' : '0%',
+                      ...(isActive && {
+                        animation: `heroProgress ${durationSeconds}s linear forwards`,
+                        '@keyframes heroProgress': {
+                          '0%': { width: '0%' },
+                          '100%': { width: '100%' },
+                        },
+                      }),
+                    }}
+                  />
+                </Box>
+              );
+            })}
+          </Box>
+        )}
       </Box>
     </Container>
   );

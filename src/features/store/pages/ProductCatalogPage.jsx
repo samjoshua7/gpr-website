@@ -229,12 +229,15 @@ export const ProductCatalogPage = () => {
             <Box>
               <Breadcrumbs
                 separator={<NavigateNextIcon fontSize="small" sx={{ color: 'text.disabled' }} />}
-                sx={{ mb: 0.5 }}
+                sx={{
+                  mb: 0.5,
+                  '& .MuiBreadcrumbs-ol': { flexWrap: 'nowrap' },
+                }}
               >
                 <Link
                   underline="hover"
                   color="inherit"
-                  sx={{ cursor: 'pointer', fontSize: '0.8rem', fontWeight: 500 }}
+                  sx={{ cursor: 'pointer', fontSize: '0.8rem', fontWeight: 500, whiteSpace: 'nowrap' }}
                   onClick={() => navigate('/')}
                 >
                   Home
@@ -242,13 +245,23 @@ export const ProductCatalogPage = () => {
                 <Link
                   underline="hover"
                   color={categoryParam === 'all' ? 'text.primary' : 'inherit'}
-                  sx={{ cursor: 'pointer', fontSize: '0.8rem', fontWeight: categoryParam === 'all' ? 700 : 500 }}
+                  sx={{ cursor: 'pointer', fontSize: '0.8rem', fontWeight: categoryParam === 'all' ? 700 : 500, whiteSpace: 'nowrap' }}
                   onClick={() => handleCategorySelect('all')}
                 >
                   Catalog
                 </Link>
                 {categoryParam !== 'all' && (
-                  <Typography color="text.primary" sx={{ fontSize: '0.8rem', fontWeight: 700 }}>
+                  <Typography
+                    color="text.primary"
+                    sx={{
+                      fontSize: '0.8rem',
+                      fontWeight: 700,
+                      maxWidth: { xs: 150, sm: 300 },
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
                     {currentCategory?.name || categoryParam}
                   </Typography>
                 )}
@@ -299,11 +312,11 @@ export const ProductCatalogPage = () => {
 
           {/* Right Product Grid Column */}
           <Grid item xs={12} md={9} lg={9.25}>
-            {/* Top Toolbar: Search + Sort + Mobile Filter Trigger */}
+            {/* Top Toolbar: Sticky beneath header on both desktop and mobile */}
             <Paper
               elevation={0}
               sx={{
-                p: 2,
+                p: { xs: 1.5, sm: 2 },
                 mb: 2.5,
                 borderRadius: 2.5,
                 border: '1px solid',
@@ -313,7 +326,12 @@ export const ProductCatalogPage = () => {
                 justifyContent: 'space-between',
                 alignItems: 'center',
                 gap: 1.5,
-                bgcolor: 'background.paper',
+                bgcolor: 'rgba(255, 255, 255, 0.96)',
+                backdropFilter: 'blur(10px)',
+                position: 'sticky',
+                top: 72,
+                zIndex: 10,
+                boxShadow: '0 4px 20px rgba(0,0,0,0.04)',
               }}
             >
               {/* Search Field */}
@@ -466,6 +484,16 @@ export const ProductCatalogPage = () => {
         anchor="left"
         open={mobileFilterOpen}
         onClose={() => setMobileFilterOpen(false)}
+        ModalProps={{
+          keepMounted: true,
+        }}
+        sx={{
+          zIndex: (th) => th.zIndex.drawer + 2,
+          '& .MuiBackdrop-root': {
+            backdropFilter: 'blur(4px)',
+            bgcolor: 'rgba(15, 23, 42, 0.4)',
+          },
+        }}
         PaperProps={{
           sx: { width: 300, p: 2.5 },
         }}

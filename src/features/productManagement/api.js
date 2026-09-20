@@ -178,12 +178,17 @@ export const updateProduct = async (productId, productData) => {
 };
 
 export const deleteProduct = async (productId) => {
-  // 1. Fetch current image URL before deleting record
+  // 1. Fetch current image URL and gallery images before deleting record
   const { data: prod } = await supabase
     .from('products')
     .select('main_image_url')
     .eq('product_id', productId)
     .maybeSingle();
+
+  const { data: galleryImgs } = await supabase
+    .from('product_images')
+    .select('image_url')
+    .eq('product_id', productId);
 
   // 2. Delete product record from database
   const { error } = await supabase
@@ -193,9 +198,79 @@ export const deleteProduct = async (productId) => {
 
   if (error) throw new Error(error.message);
 
-  // 3. Clean up storage image only if it is not referenced elsewhere (e.g. historical orders)
+  // 3. Clean up storage images only if not referenced elsewhere (e.g. historical orders)
   if (prod?.main_image_url) {
     await deleteStorageFileIfUnreferenced(prod.main_image_url, 'product-images');
+  }
+
+  if (galleryImgs && galleryImgs.length > 0) {
+    for (const img of galleryImgs) {
+      if (img.image_url) {
+        await deleteStorageFileIfUnreferenced(img.image_url, 'product-images');
+      }
+    }
+  }
+
+  return true;
+};
+
+// ==========================================
+// Product Gallery Images (1 to 5 Images)
+// ==========================================
+
+export const getProductGalleryImages = async (productId) => {
+  const { data, error } = await supabase
+    .from('product_images')
+    .select('*')
+    .eq('product_id', productId)
+    .order('display_order', { ascending: true });
+
+  if (error) throw new Error(error.message);
+  return data || [];
+};
+
+export const saveProductGalleryImages = async (productId, galleryImages) => {
+  // Fetch existing product_images to check for removed images
+  const { data: existing, error: fetchErr } = await supabase
+    .from('product_images')
+    .select('*')
+    .eq('product_id', productId);
+
+  if (fetchErr) throw new Error(fetchErr.message);
+
+  const existingUrls = (existing || []).map((img) => img.image_url);
+  const newUrls = (galleryImages || []).map((img) => img.image_url);
+
+  // Identify images being removed
+  const removedUrls = existingUrls.filter((url) => !newUrls.includes(url));
+
+  // Delete current product_images rows
+  const { error: deleteErr } = await supabase
+    .from('product_images')
+    .delete()
+    .eq('product_id', productId);
+
+  if (deleteErr) throw new Error(deleteErr.message);
+
+  // Insert updated gallery images (up to 4 additional gallery images)
+  if (galleryImages && galleryImages.length > 0) {
+    const payload = galleryImages.slice(0, 4).map((img, idx) => ({
+      product_id: productId,
+      image_url: img.image_url,
+      alt_text: img.alt_text || null,
+      display_order: idx + 1,
+    }));
+
+    const { error: insertErr } = await supabase
+      .from('product_images')
+      .insert(payload);
+
+    if (insertErr) throw new Error(insertErr.message);
+  }
+
+  // Safely delete removed files from storage if not used in historical orders
+  for (const url of removedUrls) {
+    await deleteStorageFileIfUnreferenced(url, 'product-images');
   }
 
   return true;

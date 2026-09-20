@@ -42,6 +42,7 @@ import {
   deleteProduct,
   saveProductOptions,
   saveProductTiers,
+  saveProductGalleryImages,
 } from './api';
 import { ProductFormDialog } from './components/ProductFormDialog';
 import { CategoryManagerDialog } from './components/CategoryManagerDialog';
@@ -99,7 +100,7 @@ export const ProductManagementPage = () => {
     setProductFormOpen(true);
   };
 
-  const handleSaveProduct = async ({ productData, options, tiers }) => {
+  const handleSaveProduct = async ({ productData, options, tiers, galleryImages }) => {
     let savedProd;
     if (editingProductId) {
       savedProd = await updateProduct(editingProductId, productData);
@@ -109,10 +110,11 @@ export const ProductManagementPage = () => {
 
     const prodId = savedProd.product_id;
 
-    // Save options and tiers
+    // Save options, tiers, and gallery images
     await Promise.all([
       saveProductOptions(prodId, options),
       saveProductTiers(prodId, tiers),
+      saveProductGalleryImages(prodId, galleryImages || []),
     ]);
 
     await loadData();

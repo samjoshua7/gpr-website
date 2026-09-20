@@ -31,7 +31,8 @@ export const getStoreProducts = async ({
     .from('products')
     .select(`
       *,
-      category:product_categories!inner(category_id, name, slug, icon)
+      category:product_categories!inner(category_id, name, slug, icon),
+      images:product_images(image_id, image_url, display_order, alt_text)
     `)
     .eq('is_active', true);
 
@@ -92,6 +93,11 @@ export const getProductBySlug = async (slug) => {
 
   if (error) throw new Error(error.message);
 
+  // Keep the storefront gallery in the order configured by the product manager.
+  if (data.images) {
+    data.images.sort((a, b) => a.display_order - b.display_order);
+  }
+
   // Sort options and values
   if (data.options) {
     data.options.sort((a, b) => a.display_order - b.display_order);
@@ -129,6 +135,23 @@ export const getHeroBanners = async () => {
     if (b.end_date && new Date(b.end_date) < now) return false;
     return true;
   });
+};
+
+export const getStoreHeroCarouselDuration = async () => {
+  try {
+    const { data, error } = await supabase
+      .from('company_settings')
+      .select('hero_autoplay_duration')
+      .limit(1)
+      .maybeSingle();
+
+    if (error || !data || data.hero_autoplay_duration == null) {
+      return 6;
+    }
+    return Number(data.hero_autoplay_duration) || 6;
+  } catch {
+    return 6;
+  }
 };
 
 // ==========================================

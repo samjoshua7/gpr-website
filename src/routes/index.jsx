@@ -1,6 +1,7 @@
 import React from 'react';
-import { createBrowserRouter } from 'react-router-dom';
+import { createBrowserRouter, Outlet } from 'react-router-dom';
 import { AuthGuard } from './guards/AuthGuard';
+import { ScrollToTop } from '../features/store/components/ScrollToTop';
 
 // Layout and Feedback Pages
 import AppShell from '../components/layout/AppShell';
@@ -46,11 +47,21 @@ const UnauthorizedPage = () => (
   </div>
 );
 
+const RootLayout = () => (
+  <>
+    <ScrollToTop />
+    <Outlet />
+  </>
+);
+
 export const router = createBrowserRouter([
   {
-    path: '/',
-    element: <PublicHomePage />,
-  },
+    element: <RootLayout />,
+    children: [
+      {
+        path: '/',
+        element: <PublicHomePage />,
+      },
   {
     path: '/about',
     element: <AboutPage />,
@@ -236,8 +247,10 @@ export const router = createBrowserRouter([
       },
     ],
   },
-  {
-    path: '*',
-    element: <NotFoundPage />,
+      {
+        path: '*',
+        element: <NotFoundPage />,
+      },
+    ],
   },
 ]);

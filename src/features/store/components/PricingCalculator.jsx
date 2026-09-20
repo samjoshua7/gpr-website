@@ -20,6 +20,7 @@ export const PricingCalculator = ({
   onAddToCart,
   addingToCart,
   addedSuccess,
+  quantityValid = true,
   onGoToCart,
 }) => {
   return (
@@ -116,7 +117,7 @@ export const PricingCalculator = ({
           size="large"
           startIcon={addingToCart ? <CircularProgress size={20} color="inherit" /> : <ShoppingCartIcon />}
           onClick={onAddToCart}
-          disabled={addingToCart}
+          disabled={addingToCart || !quantityValid}
           sx={{
             py: 1.6,
             borderRadius: 2.5,
@@ -126,7 +127,7 @@ export const PricingCalculator = ({
             boxShadow: '0 8px 16px rgba(30, 27, 75, 0.2)',
           }}
         >
-          {addingToCart ? 'Adding...' : 'Add to Cart'}
+          {addingToCart ? 'Adding...' : quantityValid ? 'Add to Cart' : 'Enter a valid quantity'}
         </Button>
       )}
 

@@ -14,8 +14,47 @@ import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
 export const ProductCard = ({ product }) => {
   const navigate = useNavigate();
 
+  // Aggregate images (main + gallery)
+  const cardImages = React.useMemo(() => {
+    const list = [];
+    if (product.main_image_url) {
+      list.push(product.main_image_url);
+    }
+    if (product.images && product.images.length > 0) {
+      product.images.forEach((img) => {
+        if (img.image_url && img.image_url !== product.main_image_url) {
+          list.push(img.image_url);
+        }
+      });
+    }
+    if (list.length === 0) {
+      list.push('https://images.unsplash.com/photo-1589254065878-42c9da997008?w=500&auto=format&fit=crop&q=60');
+    }
+    return list;
+  }, [product]);
+
+  const [activeImageIndex, setActiveImageIndex] = React.useState(0);
+  const touchStartXRef = React.useRef(0);
+
   const handleCardClick = () => {
     navigate(`/products/${product.slug}`);
+  };
+
+  const handleTouchStart = (e) => {
+    touchStartXRef.current = e.touches[0].clientX;
+  };
+
+  const handleTouchEnd = (e) => {
+    if (cardImages.length <= 1) return;
+    const deltaX = e.changedTouches[0].clientX - touchStartXRef.current;
+    if (Math.abs(deltaX) > 40) {
+      e.stopPropagation();
+      if (deltaX < 0) {
+        setActiveImageIndex((prev) => (prev + 1) % cardImages.length);
+      } else {
+        setActiveImageIndex((prev) => (prev - 1 + cardImages.length) % cardImages.length);
+      }
+    }
   };
 
   return (
@@ -44,11 +83,15 @@ export const ProductCard = ({ product }) => {
       }}
     >
       {/* Product Image */}
-      <Box sx={{ position: 'relative', overflow: 'hidden', pt: '65%', bgcolor: 'grey.100' }}>
+      <Box
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
+        sx={{ position: 'relative', overflow: 'hidden', pt: '65%', bgcolor: 'grey.100' }}
+      >
         <CardMedia
           component="img"
           className="product-card-img"
-          image={product.main_image_url || 'https://images.unsplash.com/photo-1589254065878-42c9da997008?w=500&auto=format&fit=crop&q=60'}
+          image={cardImages[activeImageIndex] || cardImages[0]}
           alt={product.name}
           sx={{
             position: 'absolute',
@@ -60,6 +103,44 @@ export const ProductCard = ({ product }) => {
             transition: 'transform 0.4s ease',
           }}
         />
+
+        {/* Multi-Image Indicator Dots (Only if 2 or more images) */}
+        {cardImages.length > 1 && (
+          <Box
+            sx={{
+              position: 'absolute',
+              bottom: 10,
+              right: 12,
+              display: 'flex',
+              gap: 0.6,
+              zIndex: 3,
+              bgcolor: 'rgba(15, 23, 42, 0.45)',
+              backdropFilter: 'blur(4px)',
+              px: 0.8,
+              py: 0.4,
+              borderRadius: 2,
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {cardImages.map((_, idx) => (
+              <Box
+                key={idx}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setActiveImageIndex(idx);
+                }}
+                sx={{
+                  width: idx === activeImageIndex ? 12 : 5,
+                  height: 5,
+                  borderRadius: 2.5,
+                  bgcolor: idx === activeImageIndex ? '#ffffff' : 'rgba(255, 255, 255, 0.45)',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                }}
+              />
+            ))}
+          </Box>
+        )}
 
         {product.is_featured && (
           <Chip

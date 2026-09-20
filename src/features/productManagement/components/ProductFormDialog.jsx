@@ -18,10 +18,14 @@ import {
   CircularProgress,
   IconButton,
   Avatar,
+  Stack,
+  Chip,
 } from '@mui/material';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import DeleteIcon from '@mui/icons-material/Delete';
 import Inventory2OutlinedIcon from '@mui/icons-material/Inventory2Outlined';
+import AddPhotoAlternateIcon from '@mui/icons-material/AddPhotoAlternate';
+import CollectionsIcon from '@mui/icons-material/Collections';
 import { ProductOptionsEditor } from './ProductOptionsEditor';
 import { PricingTiersEditor } from './PricingTiersEditor';
 import {
@@ -61,14 +65,24 @@ export const ProductFormDialog = ({ open, onClose, onSave, initialProductId, cat
   const [previewUrl, setPreviewUrl] = useState('');
   const [imageRemoved, setImageRemoved] = useState(false);
 
+  // Additional gallery images (up to 4 more, total 5)
+  // Array of { id, image_url, alt_text, file, previewUrl }
+  const [galleryImages, setGalleryImages] = useState([]);
+  const [galleryUrlInput, setGalleryUrlInput] = useState('');
+
   // Revoke object URL on unmount or previewUrl replacement to prevent memory leaks
   useEffect(() => {
     return () => {
       if (previewUrl && previewUrl.startsWith('blob:')) {
         URL.revokeObjectURL(previewUrl);
       }
+      galleryImages.forEach((item) => {
+        if (item.previewUrl && item.previewUrl.startsWith('blob:')) {
+          URL.revokeObjectURL(item.previewUrl);
+        }
+      });
     };
-  }, [previewUrl]);
+  }, [previewUrl, galleryImages]);
 
   useEffect(() => {
     if (!open) return;
@@ -122,6 +136,22 @@ export const ProductFormDialog = ({ open, onClose, onSave, initialProductId, cat
           } else {
             setTiers([]);
           }
+
+          // Map existing gallery images (excluding main_image_url)
+          if (prod.images && prod.images.length > 0) {
+            const sortedGallery = [...prod.images]
+              .sort((a, b) => (a.display_order || 0) - (b.display_order || 0))
+              .filter((img) => img.image_url !== prod.main_image_url)
+              .map((img) => ({
+                id: img.image_id,
+                image_url: img.image_url,
+                previewUrl: img.image_url,
+                alt_text: img.alt_text || '',
+              }));
+            setGalleryImages(sortedGallery);
+          } else {
+            setGalleryImages([]);
+          }
         })
         .catch((err) => {
           setError(err.message || 'Failed to load product details.');
@@ -147,6 +177,8 @@ export const ProductFormDialog = ({ open, onClose, onSave, initialProductId, cat
       setPreviewUrl('');
       setSelectedImageFile(null);
       setImageRemoved(false);
+      setGalleryImages([]);
+      setGalleryUrlInput('');
       setOptions([]);
       setTiers([]);
       setError(null);
@@ -201,10 +233,70 @@ export const ProductFormDialog = ({ open, onClose, onSave, initialProductId, cat
     setFormData((prev) => ({ ...prev, main_image_url: '' }));
   };
 
+  const handleAddGalleryFile = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (galleryImages.length >= 4) {
+      setError('You can add up to 4 additional gallery images (5 images total).');
+      return;
+    }
+    const blobUrl = URL.createObjectURL(file);
+    setGalleryImages((prev) => [
+      ...prev,
+      {
+        id: `file_${Date.now()}`,
+        image_url: '',
+        previewUrl: blobUrl,
+        file,
+        alt_text: '',
+      },
+    ]);
+    e.target.value = '';
+  };
+
+  const handleAddGalleryUrl = () => {
+    if (!galleryUrlInput.trim()) return;
+    if (galleryImages.length >= 4) {
+      setError('You can add up to 4 additional gallery images (5 images total).');
+      return;
+    }
+    setGalleryImages((prev) => [
+      ...prev,
+      {
+        id: `url_${Date.now()}`,
+        image_url: galleryUrlInput.trim(),
+        previewUrl: galleryUrlInput.trim(),
+        alt_text: '',
+      },
+    ]);
+    setGalleryUrlInput('');
+  };
+
+  const handleRemoveGalleryImage = (index) => {
+    setGalleryImages((prev) => {
+      const target = prev[index];
+      if (target?.previewUrl && target.previewUrl.startsWith('blob:')) {
+        URL.revokeObjectURL(target.previewUrl);
+      }
+      return prev.filter((_, i) => i !== index);
+    });
+  };
+
+  const handleGalleryAltChange = (index, alt) => {
+    setGalleryImages((prev) =>
+      prev.map((item, i) => (i === index ? { ...item, alt_text: alt } : item))
+    );
+  };
+
   const handleDialogClose = () => {
     if (previewUrl && previewUrl.startsWith('blob:')) {
       URL.revokeObjectURL(previewUrl);
     }
+    galleryImages.forEach((item) => {
+      if (item.previewUrl && item.previewUrl.startsWith('blob:')) {
+        URL.revokeObjectURL(item.previewUrl);
+      }
+    });
     setSelectedImageFile(null);
     onClose();
   };
@@ -229,13 +321,31 @@ export const ProductFormDialog = ({ open, onClose, onSave, initialProductId, cat
       let finalImageUrl = formData.main_image_url?.trim() || null;
       let newlyUploadedUrl = null;
 
-      // 1. If user staged a new local image file, upload it now
+      // 1. If user staged a new local main image file, upload it now
       if (selectedImageFile) {
         setUploadingImage(true);
         newlyUploadedUrl = await uploadProductImage(selectedImageFile);
         finalImageUrl = newlyUploadedUrl;
       } else if (imageRemoved) {
         finalImageUrl = null;
+      }
+
+      // 1b. Upload any staged gallery image files
+      const uploadedGalleryItems = [];
+      for (const item of galleryImages) {
+        if (item.file) {
+          setUploadingImage(true);
+          const uploadedUrl = await uploadProductImage(item.file);
+          uploadedGalleryItems.push({
+            image_url: uploadedUrl,
+            alt_text: item.alt_text || null,
+          });
+        } else if (item.image_url) {
+          uploadedGalleryItems.push({
+            image_url: item.image_url,
+            alt_text: item.alt_text || null,
+          });
+        }
       }
 
       // 2. Perform database save
@@ -247,6 +357,7 @@ export const ProductFormDialog = ({ open, onClose, onSave, initialProductId, cat
           },
           options,
           tiers,
+          galleryImages: uploadedGalleryItems,
         });
       } catch (dbErr) {
         // Rollback newly uploaded file immediately if DB save failed
@@ -452,10 +563,15 @@ export const ProductFormDialog = ({ open, onClose, onSave, initialProductId, cat
               {/* TAB 1: MEDIA & DESCRIPTION */}
               {activeTab === 1 && (
                 <Grid container spacing={2.5}>
+                  {/* 1. Main Display / Primary Card Image */}
                   <Grid item xs={12}>
-                    <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 1 }}>
-                      Main Product Image
-                    </Typography>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                      <Typography variant="subtitle2" fontWeight={700}>
+                        Primary Product Image (Slot 1 of 5)
+                      </Typography>
+                      <Chip label="Required for Cards &amp; Catalog" size="small" color="primary" variant="outlined" sx={{ fontSize: '0.7rem' }} />
+                    </Box>
+
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 3, p: 2, border: '1px dashed', borderColor: 'divider', borderRadius: 1.5 }}>
                       <Avatar
                         variant="rounded"
@@ -500,12 +616,136 @@ export const ProductFormDialog = ({ open, onClose, onSave, initialProductId, cat
                           color="error"
                           size="small"
                           onClick={handleRemoveImage}
-                          title="Remove Image"
+                          title="Remove Primary Image"
                         >
                           <DeleteIcon fontSize="small" />
                         </IconButton>
                       )}
                     </Box>
+                  </Grid>
+
+                  {/* 2. Additional Gallery Images (Slots 2 to 5) */}
+                  <Grid item xs={12}>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1.5, mt: 1 }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <CollectionsIcon fontSize="small" color="action" />
+                        <Typography variant="subtitle2" fontWeight={700}>
+                          Additional Gallery Images ({galleryImages.length} of 4 additional, total {1 + (previewUrl ? 1 : 0) + galleryImages.length - (previewUrl ? 1 : 0)}/5)
+                        </Typography>
+                      </Box>
+                      <Typography variant="caption" color="text.secondary">
+                        Shown in swipeable customer product detail gallery
+                      </Typography>
+                    </Box>
+
+                    {/* Existing Gallery Images List */}
+                    {galleryImages.length > 0 && (
+                      <Stack spacing={1.5} sx={{ mb: 2 }}>
+                        {galleryImages.map((img, idx) => (
+                          <Box
+                            key={img.id}
+                            sx={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 2,
+                              p: 1.5,
+                              border: '1px solid',
+                              borderColor: 'divider',
+                              borderRadius: 1.5,
+                              bgcolor: 'background.paper',
+                            }}
+                          >
+                            <Avatar
+                              variant="rounded"
+                              src={img.previewUrl || img.image_url}
+                              sx={{ width: 56, height: 56, bgcolor: 'grey.100', flexShrink: 0 }}
+                            >
+                              <Inventory2OutlinedIcon sx={{ color: 'text.disabled' }} />
+                            </Avatar>
+
+                            <Box sx={{ flexGrow: 1 }}>
+                              <Typography variant="caption" color="text.secondary" fontWeight={700}>
+                                Gallery Slot {idx + 2} of 5
+                              </Typography>
+                              <TextField
+                                size="small"
+                                fullWidth
+                                placeholder="Alt text / description (e.g. Back view, packaging)"
+                                value={img.alt_text}
+                                onChange={(e) => handleGalleryAltChange(idx, e.target.value)}
+                                sx={{ mt: 0.5 }}
+                              />
+                            </Box>
+
+                            <IconButton
+                              color="error"
+                              size="small"
+                              onClick={() => handleRemoveGalleryImage(idx)}
+                              title="Remove Gallery Image"
+                            >
+                              <DeleteIcon fontSize="small" />
+                            </IconButton>
+                          </Box>
+                        ))}
+                      </Stack>
+                    )}
+
+                    {/* Add Gallery Image Controls (if under 4 additional images) */}
+                    {galleryImages.length < 4 ? (
+                      <Box
+                        sx={{
+                          p: 2,
+                          border: '1px dashed',
+                          borderColor: 'primary.light',
+                          borderRadius: 1.5,
+                          bgcolor: 'rgba(25, 118, 210, 0.02)',
+                        }}
+                      >
+                        <Typography variant="caption" fontWeight={700} color="primary" sx={{ display: 'block', mb: 1 }}>
+                          + Add Gallery Image (Slot {galleryImages.length + 2} of 5)
+                        </Typography>
+                        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.5, alignItems: 'center' }}>
+                          <Button
+                            component="label"
+                            variant="outlined"
+                            size="small"
+                            startIcon={<AddPhotoAlternateIcon />}
+                            disabled={uploadingImage || saving}
+                          >
+                            Upload File
+                            <input
+                              type="file"
+                              hidden
+                              accept="image/*"
+                              onChange={handleAddGalleryFile}
+                            />
+                          </Button>
+
+                          <Box sx={{ display: 'flex', gap: 1, flexGrow: 1, minWidth: 220 }}>
+                            <TextField
+                              size="small"
+                              fullWidth
+                              placeholder="Or paste direct image URL (https://...)"
+                              value={galleryUrlInput}
+                              onChange={(e) => setGalleryUrlInput(e.target.value)}
+                            />
+                            <Button
+                              variant="contained"
+                              size="small"
+                              onClick={handleAddGalleryUrl}
+                              disabled={!galleryUrlInput.trim()}
+                              sx={{ textTransform: 'none' }}
+                            >
+                              Add
+                            </Button>
+                          </Box>
+                        </Box>
+                      </Box>
+                    ) : (
+                      <Alert severity="info" sx={{ py: 0.5 }}>
+                        Maximum limit of 5 product images reached (1 primary + 4 gallery).
+                      </Alert>
+                    )}
                   </Grid>
 
                   <Grid item xs={12}>

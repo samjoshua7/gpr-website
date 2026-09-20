@@ -152,3 +152,60 @@ export const deleteHeroBannerImageFromStorage = async (url, exclude = {}) => {
 export const rollbackUploadedHeroBannerImage = async (url) => {
   return await deleteStorageFileDirectly(url, 'hero-banners');
 };
+
+// ==========================================
+// Hero Carousel Autoplay Duration Setting
+// ==========================================
+
+export const getHeroCarouselDuration = async () => {
+  try {
+    const { data, error } = await supabase
+      .from('company_settings')
+      .select('hero_autoplay_duration')
+      .limit(1)
+      .maybeSingle();
+
+    if (error || !data || data.hero_autoplay_duration == null) {
+      return 6;
+    }
+    return Number(data.hero_autoplay_duration) || 6;
+  } catch {
+    return 6;
+  }
+};
+
+export const updateHeroCarouselDuration = async (durationSeconds) => {
+  const duration = Math.min(Math.max(Number(durationSeconds) || 6, 2), 20);
+
+  const { data: existing, error: checkError } = await supabase
+    .from('company_settings')
+    .select('setting_id')
+    .limit(1)
+    .maybeSingle();
+
+  if (checkError) {
+    throw new Error(checkError.message);
+  }
+
+  if (existing?.setting_id) {
+    const { data, error } = await supabase
+      .from('company_settings')
+      .update({ hero_autoplay_duration: duration })
+      .eq('setting_id', existing.setting_id)
+      .select('hero_autoplay_duration')
+      .single();
+
+    if (error) throw new Error(error.message);
+    return Number(data?.hero_autoplay_duration) || duration;
+  } else {
+    const { data, error } = await supabase
+      .from('company_settings')
+      .insert([{ hero_autoplay_duration: duration }])
+      .select('hero_autoplay_duration')
+      .single();
+
+    if (error) throw new Error(error.message);
+    return Number(data?.hero_autoplay_duration) || duration;
+  }
+};
+
