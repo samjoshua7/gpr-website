@@ -123,7 +123,7 @@ export const DashboardPage = () => {
     }
   };
 
-  const financialValue = (value) => hideFinancialValues ? '••••••' : formatCurrency(value);
+  const financialValue = (value) => hideFinancialValues ? 'â€¢â€¢â€¢â€¢â€¢â€¢' : formatCurrency(value);
 
   const statCards = [
     {
@@ -305,7 +305,7 @@ export const DashboardPage = () => {
                 <LineChart data={metrics.revenueTrend}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} />
                   <XAxis dataKey="month" tick={{ fontSize: 12 }} />
-                  <YAxis tick={{ fontSize: 12 }} tickFormatter={(value) => `Rs ${Number(value).toLocaleString('en-IN')}`} />
+                  <YAxis tick={{ fontSize: 12 }} tickFormatter={(value) => `\u20B9${Number(value).toLocaleString('en-IN')}`} />
                   <RechartsTooltip formatter={(value) => [formatCurrency(value), 'Revenue']} />
                   <Line type="monotone" dataKey="revenue" stroke="#0284c7" strokeWidth={3} dot={{ r: 4 }} activeDot={{ r: 7 }} />
                 </LineChart>
