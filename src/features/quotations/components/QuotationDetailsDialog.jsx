@@ -80,7 +80,7 @@ export const QuotationDetailsDialog = ({ open, onClose, quotationId, onEdit, onC
         throw new Error('Failed to generate PDF document.');
       }
 
-      setLastExportedBlob(pdfBlob);
+      setToastBlob(pdfBlob);
       const fileName = formatExportFileName(
         {
           invoice_no: quotation.quotation_no,
@@ -124,7 +124,7 @@ export const QuotationDetailsDialog = ({ open, onClose, quotationId, onEdit, onC
       }
 
       const jpgBlob = await generateInvoiceJpg(containerEl, 2.5, 0.95);
-      setLastExportedBlob(jpgBlob);
+      setToastBlob(jpgBlob);
       const fileName = formatExportFileName(
         {
           invoice_no: quotation.quotation_no,

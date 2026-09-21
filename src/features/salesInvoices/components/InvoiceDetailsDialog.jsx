@@ -106,7 +106,7 @@ export const InvoiceDetailsDialog = ({
         throw new Error('Failed to generate PDF document.');
       }
 
-      setLastExportedBlob(pdfBlob);
+      setToastBlob(pdfBlob);
       const fileName = formatExportFileName(invoice, 'pdf');
       const result = await saveExportFile({
         fileBlob: pdfBlob,
@@ -142,7 +142,7 @@ export const InvoiceDetailsDialog = ({
       }
 
       const jpgBlob = await generateInvoiceJpg(containerEl, 2.5, 0.95);
-      setLastExportedBlob(jpgBlob);
+      setToastBlob(jpgBlob);
       const fileName = formatExportFileName(invoice, 'jpg');
       const result = await saveExportFile({
         fileBlob: jpgBlob,

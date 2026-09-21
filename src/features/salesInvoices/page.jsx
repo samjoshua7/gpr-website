@@ -240,31 +240,22 @@ export const SalesInvoicesPage = () => {
     return processedInvoices.slice(start, start + rowsPerPage);
   }, [processedInvoices, page, rowsPerPage]);
 
-  const paginatedInvoiceIds = React.useMemo(() => {
-    return paginatedInvoices.map((inv) => inv.invoice_id).join(',');
-  }, [paginatedInvoices]);
-
   useEffect(() => {
-    const loadTaskProgress = async () => {
-      if (!paginatedInvoices || paginatedInvoices.length === 0) return;
-      const ids = paginatedInvoices.map((inv) => inv.invoice_id);
+    if (workflow.length) return;
+
+    const loadWorkflow = async () => {
       try {
-        const promises = [getInvoiceTaskProgress(ids)];
-        if (!workflow.length) {
-          promises.push(getCompanySettings());
-        }
-        const [progressData, settings] = await Promise.all(promises);
-        setTaskProgressMap((prev) => ({ ...prev, ...progressData }));
+        const settings = await getCompanySettings();
         if (settings?.production_workflow) {
           setWorkflow(settings.production_workflow);
         }
       } catch (err) {
-        console.error('Failed to load invoice task progress:', err);
+        console.error('Failed to load production workflow:', err);
       }
     };
 
-    loadTaskProgress();
-  }, [paginatedInvoiceIds]);
+    loadWorkflow();
+  }, [workflow.length]);
 
   useEffect(() => {
     setPage(0);

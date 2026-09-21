@@ -34,20 +34,21 @@ function loadImageAsBase64(url) {
 
 export async function generateInvoicePdf(target, companySettingsOrPaperSize = 'A4', maybePaperSize = 'A4') {
   let element = null;
-  let paperSize = 'A4';
+  const companySettings = companySettingsOrPaperSize && typeof companySettingsOrPaperSize === 'object'
+    ? companySettingsOrPaperSize
+    : {};
+  const paperSize = typeof companySettingsOrPaperSize === 'string'
+    ? companySettingsOrPaperSize
+    : (typeof maybePaperSize === 'string' ? maybePaperSize : 'A4');
 
   if (target instanceof HTMLElement) {
     element = target;
-    paperSize = typeof companySettingsOrPaperSize === 'string' ? companySettingsOrPaperSize : 'A4';
   } else if (typeof target === 'string') {
     element = document.getElementById(target);
-    paperSize = typeof companySettingsOrPaperSize === 'string' ? companySettingsOrPaperSize : 'A4';
   } else {
     // If target is an invoice/quotation object, try finding the active container in DOM
     element = document.getElementById('printable-invoice-container') || document.getElementById('printable-quotation-container');
-    paperSize = typeof maybePaperSize === 'string' ? maybePaperSize : (typeof companySettingsOrPaperSize === 'string' ? companySettingsOrPaperSize : 'A4');
   }
-
   const isA5 = paperSize === 'A5';
 
   // 1. High-precision DOM snapshot (100% WYSIWYG matching screen, Customer View, and Print)

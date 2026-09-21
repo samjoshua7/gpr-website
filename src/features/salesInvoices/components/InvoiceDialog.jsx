@@ -851,7 +851,6 @@ export const InvoiceDialog = ({
                     loading={customersLoading}
                     value={selectedCustomer}
                     onChange={handleCustomerChange}
-                    onInputChange={(e, val) => setCustomerSearchQuery(val)}
                     renderInput={(params) => (
                       <TextField
                         {...params}
